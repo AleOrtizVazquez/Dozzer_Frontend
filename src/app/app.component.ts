@@ -6,6 +6,8 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
 import * as XLSX from 'xlsx';
 import * as QRCode from 'qrcode';
 import { API_URL, QR_FICHA_URL } from './config';
+import { jsPDF } from 'jspdf';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 
 // Ventana de confirmación con diseño propio
 interface DialogoConfirmacion {
@@ -23,6 +25,21 @@ interface DialogoConfirmacion {
   accion: (terminar: (error?: string) => void) => void;
 }
 
+// Datos para llenar los formatos oficiales FA-04-02-03 (Alta) y FA-04-02-04 (Baja)
+interface FormatoDoc {
+  tipo: 'ALTA' | 'BAJA';
+  folio: string;
+  sede: string;
+  fecha: string;
+  filas: { inventario: string; descripcion: string; modeloSerie: string }[];
+  observaciones: string;
+  solicito: string;
+  autorizo: string;
+  detalle?: { etiqueta: string; valor: string }[];
+  correoSugerido?: string;
+  contactos?: { nombre: string; correo: string; rol: string }[];
+}
+
 @Component({
   selector: 'app-root',
   standalone: true,
@@ -31,6 +48,7 @@ interface DialogoConfirmacion {
   <div class="app-shell">
 
     <!-- MENÚ LATERAL -->
+    <div class="sidebar-backdrop" *ngIf="logged && !mustChangePassword && !menuCollapsed" (click)="menuCollapsed=true"></div>
     <aside class="sidebar" [class.collapsed]="menuCollapsed" *ngIf="logged && !mustChangePassword">
       <div class="brand">
         <div class="brand-icon">D</div>
@@ -38,27 +56,33 @@ interface DialogoConfirmacion {
           <strong>DOZZER</strong>
           <small>Construcción y Asesoría S.A. de C.V.</small>
         </div>
+        <button class="sidebar-close" title="Cerrar menú" (click)="menuCollapsed=true">×</button>
       </div>
 
       <div class="menu-label">MENÚ PRINCIPAL</div>
 
-      <button class="nav-item" [class.active]="section==='bienes'" (click)="section='bienes'; editing=false">
+      <button class="nav-item" [class.active]="section==='inicio'" (click)="menuCollapsed=true; section='inicio'; editing=false">
+        <span class="nav-icon">⌂</span>
+        <span>Inicio</span>
+      </button>
+
+      <button class="nav-item" [class.active]="section==='bienes'" (click)="menuCollapsed=true; section='bienes'; vistaInv='menu'; editing=false">
         <span class="nav-icon">▦</span>
         <span>Inventario</span>
       </button>
 
-      <button class="nav-item" [class.active]="section==='solicitudes'" (click)="section='solicitudes'; loadSolicitudes()">
+      <button class="nav-item" [class.active]="section==='solicitudes'" (click)="menuCollapsed=true; section='solicitudes'; loadSolicitudes()">
         <span class="nav-icon">▣</span>
         <span>{{ isAdmin ? 'Autorizaciones' : 'Solicitudes' }}</span>
         <span class="nav-badge" *ngIf="pendientesBadge > 0">{{ pendientesBadge }}</span>
       </button>
 
-      <button class="nav-item" [class.active]="section==='documentos'" (click)="section='documentos'">
+      <button class="nav-item" [class.active]="section==='documentos'" (click)="menuCollapsed=true; section='documentos'">
         <span class="nav-icon">▤</span>
         <span>Documentos</span>
       </button>
 
-      <button class="nav-item" *ngIf="isAdmin" [class.active]="section==='catalogos'" (click)="section='catalogos'; loadCatalog()">
+      <button class="nav-item" *ngIf="isAdmin" [class.active]="section==='catalogos'" (click)="menuCollapsed=true; section='catalogos'; loadCatalog()">
         <span class="nav-icon">⚙</span>
         <span>Catálogos</span>
       </button>
@@ -79,86 +103,91 @@ interface DialogoConfirmacion {
 
       <!-- LOGIN -->
       <section class="lg-screen" *ngIf="!logged">
+        <form class="lg-card" (ngSubmit)="doLogin()" autocomplete="on">
 
-        <!-- Panel de marca -->
-        <div class="lg-hero">
-          <div class="lg-grid"></div>
-          <div class="lg-glow"></div>
+          <img class="lg-logo-img" src="logo-dozzer.png" alt="DOZZER Construcción y Asesoría S.A. de C.V.">
 
-          <div class="lg-hero-top">
-            <!-- LOGO: reemplazar este bloque por <img src="logo-dozzer.png" alt="DOZZER"> cuando llegue el logo -->
-            <div class="lg-logo">D</div>
-            <div>
-              <strong class="lg-name">DOZZER</strong>
-              <small class="lg-razon">Construcción y Asesoría S.A. de C.V.</small>
-            </div>
+          <div class="lg-titles">
+            <h1>INVENTARIOS</h1>
+            <p>CONTROL &amp; ACTIVOS</p>
           </div>
 
-          <div class="lg-hero-body">
-            <span class="lg-kicker">Control de activos</span>
-            <h2>Todo tu inventario,<br>en un solo lugar.</h2>
-            <p>Registra, ubica y da seguimiento a cada bien de la empresa, con autorizaciones y etiquetas QR.</p>
-
-            <ul class="lg-points">
-              <li>
-                <span class="lg-point-ico"><svg viewBox="0 0 24 24"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h3v3h-3zM20 13v.01M13 20h.01M17 20h3v-3"/></svg></span>
-                <div><strong>Etiquetas QR</strong><small>Identifica cualquier bien con solo escanearlo.</small></div>
-              </li>
-              <li>
-                <span class="lg-point-ico"><svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4"/><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/></svg></span>
-                <div><strong>Cambios autorizados</strong><small>Cada alta, cambio o baja pasa por revisión.</small></div>
-              </li>
-              <li>
-                <span class="lg-point-ico"><svg viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l7-4 7 4v14M10 21v-4h4v4"/></svg></span>
-                <div><strong>Todas las sedes</strong><small>Cada quien ve el inventario que le corresponde.</small></div>
-              </li>
-            </ul>
+          <ng-container *ngIf="!modoRecuperar">
+          <div class="lg-field" [class.invalid]="error">
+            <input id="lg-correo" name="correo" [(ngModel)]="login.correo" type="email" placeholder="CORREO ELECTRÓNICO"
+                   aria-label="Correo electrónico" autocomplete="username" (input)="error=''">
           </div>
 
-          <small class="lg-hero-foot">© {{ anioActual }} DOZZER · Sistema de inventarios</small>
-        </div>
+          <div class="lg-field" [class.invalid]="error">
+            <input id="lg-pass" name="password" [(ngModel)]="login.password" [type]="verPasswordLogin ? 'text' : 'password'"
+                   placeholder="CONTRASEÑA" aria-label="Contraseña" autocomplete="current-password" (input)="error=''">
+            <button type="button" class="lg-eye" (click)="verPasswordLogin = !verPasswordLogin" [title]="verPasswordLogin ? 'Ocultar contraseña' : 'Mostrar contraseña'">
+              <svg *ngIf="!verPasswordLogin" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+              <svg *ngIf="verPasswordLogin" viewBox="0 0 24 24"><path d="M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.6 6.6A17 17 0 0 0 2 12s3.5 7 10 7a9.6 9.6 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>
+            </button>
+          </div>
 
-        <!-- Formulario -->
-        <div class="lg-side">
-          <form class="lg-form" (ngSubmit)="doLogin()" autocomplete="on">
-            <div class="lg-mobile-brand">
-              <div class="lg-logo small">D</div>
-              <strong>DOZZER</strong>
+          <div class="lg-error" *ngIf="error">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+            <span>{{ error }}</span>
+          </div>
+
+          <button type="submit" class="lg-submit" [disabled]="loading">
+            <span class="mini-ring light" *ngIf="loading"></span>
+            {{ loading ? 'ENTRANDO…' : 'ENTRAR' }}
+          </button>
+
+          <button type="button" class="lg-forgot" (click)="abrirRecuperacion()">¿Olvidaste tu contraseña?</button>
+
+          </ng-container>
+
+          <!-- RECUPERAR CONTRASEÑA -->
+          <ng-container *ngIf="modoRecuperar">
+            <div class="lg-recover">
+              <h2>Restablecer contraseña</h2>
+              <p>Escribe tu correo y crea una contraseña nueva. Al guardarla entrarás directamente.</p>
             </div>
 
-            <h1>Bienvenido</h1>
-            <p class="lg-sub">Inicia sesión con tu cuenta de DOZZER.</p>
-
-            <label class="lg-label" for="lg-correo">Correo electrónico</label>
-            <div class="lg-field" [class.invalid]="error">
-              <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>
-              <input id="lg-correo" name="correo" [(ngModel)]="login.correo" type="email" placeholder="tu.correo@dozzer.mx" autocomplete="username" (input)="error=''">
+            <div class="lg-field" [class.invalid]="recuperacionError">
+              <input name="correoRecuperar" [(ngModel)]="correoRecuperar" type="email" placeholder="CORREO ELECTRÓNICO"
+                     aria-label="Correo electrónico" autocomplete="username" (input)="recuperacionError=''">
             </div>
-
-            <label class="lg-label" for="lg-pass">Contraseña</label>
-            <div class="lg-field" [class.invalid]="error">
-              <svg viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
-              <input id="lg-pass" name="password" [(ngModel)]="login.password" [type]="verPasswordLogin ? 'text' : 'password'" placeholder="Tu contraseña" autocomplete="current-password" (input)="error=''">
+            <div class="lg-field" [class.invalid]="recuperacionError">
+              <input name="nuevaRecuperar" [(ngModel)]="nuevaRecuperar" [type]="verPasswordLogin ? 'text' : 'password'"
+                     placeholder="NUEVA CONTRASEÑA" aria-label="Nueva contraseña" autocomplete="new-password" (input)="recuperacionError=''">
               <button type="button" class="lg-eye" (click)="verPasswordLogin = !verPasswordLogin" [title]="verPasswordLogin ? 'Ocultar contraseña' : 'Mostrar contraseña'">
                 <svg *ngIf="!verPasswordLogin" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
                 <svg *ngIf="verPasswordLogin" viewBox="0 0 24 24"><path d="M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.6 6.6A17 17 0 0 0 2 12s3.5 7 10 7a9.6 9.6 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>
               </button>
             </div>
-
-            <div class="lg-error" *ngIf="error">
-              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
-              <span>{{ error }}</span>
+            <div class="lg-field" [class.invalid]="recuperacionError">
+              <input name="confirmarRecuperar" [(ngModel)]="confirmarRecuperar" [type]="verPasswordLogin ? 'text' : 'password'"
+                     placeholder="CONFIRMAR CONTRASEÑA" aria-label="Confirmar contraseña" autocomplete="new-password" (input)="recuperacionError=''"
+                     (keydown.enter)="$event.preventDefault(); solicitarRecuperacion()">
             </div>
 
-            <button type="submit" class="lg-submit" [disabled]="loading || !login.correo || !login.password">
-              <span class="mini-ring light" *ngIf="loading"></span>
-              {{ loading ? 'Ingresando…' : 'Iniciar sesión' }}
-              <svg *ngIf="!loading" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            <ul class="lg-rules">
+              <li [class.ok]="(nuevaRecuperar || '').length >= 8">Mínimo 8 caracteres</li>
+              <li [class.ok]="tieneLetrasYNumeros(nuevaRecuperar)">Letras y números</li>
+              <li [class.ok]="nuevaRecuperar && nuevaRecuperar === confirmarRecuperar">Las dos coinciden</li>
+            </ul>
+
+            <div class="lg-error" *ngIf="recuperacionError">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+              <span>{{ recuperacionError }}</span>
+            </div>
+
+            <button type="button" class="lg-submit" [disabled]="recuperacionEnviando" (click)="solicitarRecuperacion()">
+              <span class="mini-ring light" *ngIf="recuperacionEnviando"></span>
+              {{ recuperacionEnviando ? 'GUARDANDO…' : 'GUARDAR Y ENTRAR' }}
             </button>
 
-            <p class="lg-help">¿Primera vez? Entra con la contraseña temporal que te dio el área de inventarios; el sistema te pedirá crear la tuya.</p>
-          </form>
-        </div>
+            <button type="button" class="lg-forgot" (click)="cerrarRecuperacion()">← Volver a iniciar sesión</button>
+          </ng-container>
+
+          <footer class="lg-footer">
+            <p>DOZZER INVENTORY CONTROL SYSTEM V1.0 • © {{ anioActual }}</p>          </footer>
+        </form>
       </section>
 
       <!-- CAMBIO OBLIGATORIO DE CONTRASEÑA (PRIMER INICIO DE SESIÓN) -->
@@ -200,6 +229,174 @@ interface DialogoConfirmacion {
               {{ pwdGuardando ? 'Guardando...' : 'Guardar contraseña' }}
             </button>
           </div>
+        </div>
+      </div>
+
+      <!-- FORMATO PDF DE ALTA / BAJA -->
+      <div class="modal-backdrop doc-backdrop" *ngIf="documento || docGenerando">
+        <div class="modal-card doc-card">
+          <div class="doc-loading" *ngIf="docGenerando && !documento">
+            <div class="loader-ring"></div>
+            <strong>Preparando el formato…</strong>
+          </div>
+
+          <ng-container *ngIf="documento as d">
+            <div class="modal-header">
+              <div class="doc-title">
+                <span class="doc-badge" [class.baja]="d.datos.tipo==='BAJA'">{{ d.datos.tipo }}</span>
+                <div>
+                  <h2>Formato de {{ d.datos.tipo==='ALTA' ? 'Alta' : 'Baja' }}</h2>
+                  <p>Folio {{ d.datos.folio }} · {{ d.datos.tipo==='ALTA' ? 'FA-04-02-03' : 'FA-04-02-04' }} · {{ d.datos.sede || 'Sin sede' }}</p>
+                </div>
+              </div>
+              <button class="close-button" [disabled]="docEnviando" (click)="cerrarFormato()">×</button>
+            </div>
+
+            <!-- Vista principal: vista previa + acciones -->
+            <div class="doc-body" *ngIf="vistaDoc==='inicio'">
+              <div class="doc-preview">
+                <iframe [src]="d.vista" title="Vista previa del formato"></iframe>
+              </div>
+
+              <div class="doc-side">
+                <h3>¿Qué quieres hacer?</h3>
+                <button class="doc-action" (click)="descargarFormato()">
+                  <span>⬇</span><div><strong>Descargar PDF</strong><small>Guardarlo en este equipo</small></div>
+                </button>
+                <button class="doc-action" (click)="imprimirFormato()">
+                  <span>⎙</span><div><strong>Abrir / imprimir</strong><small>Para firmarlo en papel</small></div>
+                </button>
+                <button class="doc-action" (click)="abrirVistaDoc('correo')">
+                  <span class="ico-mail"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></span><div><strong>Enviar por correo</strong><small>A la persona o a quien tú elijas</small></div><em>›</em>
+                </button>
+                <button class="doc-action" (click)="abrirVistaDoc('whatsapp')">
+                  <span class="ico-wa"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.6.8-.8 1-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.3-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.5 4c1.7.7 2.3.8 3.2.6a2.7 2.7 0 0 0 1.8-1.3 2.2 2.2 0 0 0 .2-1.3c-.1-.1-.3-.2-.5-.3z"/></svg></span><div><strong>Compartir por WhatsApp</strong><small>Abre la app con el mensaje listo</small></div><em>›</em>
+                </button>
+                <button class="doc-action" *ngIf="puedeCompartir" (click)="compartirFormato()">
+                  <span>⇪</span><div><strong>Otras apps</strong><small>Drive, Teams, etc.</small></div>
+                </button>
+                <div class="doc-file-mini">📄 {{ d.nombre }}</div>
+              </div>
+            </div>
+
+            <!-- Vista: correo -->
+            <div class="doc-flow" *ngIf="vistaDoc==='correo'">
+              <button class="doc-back" [disabled]="docEnviando" (click)="vistaDoc='inicio'">← Volver al formato</button>
+              <div class="flow-head">
+                <span class="flow-ico ico-mail"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></span>
+                <div>
+                  <h2>Enviar por correo</h2>
+                  <p>Adjunto: <b>{{ d.nombre }}</b></p>
+                </div>
+              </div>
+
+              <div class="flow-step">
+                <div class="step-title"><span>1</span> ¿A quién se lo envías?</div>
+                <div class="contact-grid" *ngIf="docContactos.length">
+                  <button *ngFor="let c of docContactos" class="contact-card" [class.on]="correoIncluido(c.correo)" (click)="alternarCorreo(c.correo)">
+                    <span class="contact-avatar">{{ inicialesDe(c.nombre) }}</span>
+                    <span class="contact-info">
+                      <strong>{{ c.nombre | titlecase }}</strong>
+                      <small>{{ c.rol }} · {{ c.correo }}</small>
+                    </span>
+                    <span class="contact-check">{{ correoIncluido(c.correo) ? '✓' : '+' }}</span>
+                  </button>
+                </div>
+                <label class="flow-label">Otro correo</label>
+                <div class="mail-add">
+                  <input [(ngModel)]="docNuevoCorreo" type="email" list="dozzer-correos" placeholder="Escribe un correo o busca por nombre"
+                         (keydown.enter)="agregarCorreo()" (change)="alCambiarCorreo()" (input)="docError=''">
+                  <button class="btn-outline" [disabled]="!docNuevoCorreo.trim()" (click)="agregarCorreo()">Agregar</button>
+                </div>
+                <datalist id="dozzer-correos">
+                  <option *ngFor="let p of correosPersonas" [value]="p.correo">{{ p.nombre }}</option>
+                </datalist>
+                <div class="mail-dest" *ngIf="docDestinatarios.length">
+                  <small>Se enviará a:</small>
+                  <span *ngFor="let c of docDestinatarios">{{ c }}<button (click)="quitarCorreo(c)" title="Quitar">×</button></span>
+                </div>
+              </div>
+
+              <div class="flow-step">
+                <div class="step-title"><span>2</span> Mensaje <em>(opcional)</em></div>
+                <textarea rows="3" maxlength="3000" [(ngModel)]="docMensaje"></textarea>
+              </div>
+
+              <div class="inline-error" *ngIf="docError">{{ docError }}</div>
+              <div class="doc-ok" *ngIf="docEnviado">✓ {{ docEnviado }}</div>
+              <div class="wa-hint mail-hint" *ngIf="docAvisoCorreo">{{ docAvisoCorreo }}</div>
+
+              <div class="flow-actions">
+                <button class="btn-outline" [disabled]="!docDestinatarios.length && !docNuevoCorreo.trim()" (click)="abrirEnMiCorreo()">
+                  Abrir en mi correo (Outlook / Gmail)
+                </button>
+                <button class="btn-primary" *ngIf="correoConfigurado !== false" [disabled]="docEnviando || !docDestinatarios.length" (click)="enviarFormato()">
+                  <span class="mini-ring light" *ngIf="docEnviando"></span>
+                  {{ docEnviando ? 'Enviando…' : 'Enviar con el PDF adjunto' }}
+                </button>
+              </div>
+              <small class="mail-note" *ngIf="correoConfigurado === false">El envío automático aún no está configurado en el servidor; con “Abrir en mi correo” lo mandas desde tu propia cuenta.</small>
+            </div>
+
+            <!-- Vista: WhatsApp -->
+            <div class="doc-flow" *ngIf="vistaDoc==='whatsapp'">
+              <button class="doc-back" (click)="vistaDoc='inicio'">← Volver al formato</button>
+              <div class="flow-head">
+                <span class="flow-ico ico-wa"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.6.8-.8 1-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.3-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.5 4c1.7.7 2.3.8 3.2.6a2.7 2.7 0 0 0 1.8-1.3 2.2 2.2 0 0 0 .2-1.3c-.1-.1-.3-.2-.5-.3z"/></svg></span>
+                <div>
+                  <h2>Compartir por WhatsApp</h2>
+                  <p>Archivo: <b>{{ d.nombre }}</b></p>
+                </div>
+              </div>
+
+              <div class="flow-step">
+                <div class="step-title"><span>1</span> Número de WhatsApp <em>(opcional)</em></div>
+                <input class="wa-input" [(ngModel)]="waNumero" type="tel" inputmode="numeric" maxlength="16" placeholder="10 dígitos, ej. 4611234567" (input)="waAviso=''">
+                <small class="flow-help">Si lo dejas vacío, WhatsApp te pedirá elegir el contacto.</small>
+              </div>
+
+              <div class="flow-step">
+                <div class="step-title"><span>2</span> Así funciona</div>
+                <ol class="wa-steps">
+                  <li>Se abre WhatsApp con el mensaje ya escrito.</li>
+                  <li>El PDF se descarga en tu equipo.</li>
+                  <li>En el chat toca <b>📎 → Documento</b> y adjúntalo.</li>
+                </ol>
+              </div>
+
+              <div class="wa-hint" *ngIf="waAviso">
+                {{ waAviso }}
+                <a *ngIf="waUrl" class="wa-manual" [href]="waUrl" target="_blank" rel="noopener">¿No se abrió WhatsApp? Toca aquí</a>
+              </div>
+              <div class="flow-actions">
+                <button class="btn-outline" *ngIf="puedeCompartir" (click)="compartirFormato()">Enviar el archivo directo (celular)</button>
+                <button class="wa-btn" (click)="abrirWhatsApp()"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.6.8-.8 1-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.3-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.5 4c1.7.7 2.3.8 3.2.6a2.7 2.7 0 0 0 1.8-1.3 2.2 2.2 0 0 0 .2-1.3c-.1-.1-.3-.2-.5-.3z"/></svg> Abrir WhatsApp</button>
+              </div>
+            </div>
+          </ng-container>
+        </div>
+      </div>
+
+      <!-- AVISO DE RESULTADO (creado, modificado, eliminado...) -->
+      <div class="aviso-backdrop" *ngIf="aviso" (click)="cerrarAviso()">
+        <div class="aviso-card" [ngClass]="'av-' + aviso.tipo" (click)="$event.stopPropagation()" role="status" aria-live="polite">
+          <div class="aviso-ico">
+            <svg *ngIf="aviso.tipo==='exito'" viewBox="0 0 52 52"><circle class="av-circ" cx="26" cy="26" r="23"/><path class="av-trazo" d="M15 27l7 7 15-16"/></svg>
+            <svg *ngIf="aviso.tipo==='pendiente'" viewBox="0 0 52 52"><circle class="av-circ" cx="26" cy="26" r="23"/><path class="av-trazo" d="M26 14v13l8 5"/></svg>
+            <svg *ngIf="aviso.tipo==='baja'" viewBox="0 0 52 52"><circle class="av-circ" cx="26" cy="26" r="23"/><path class="av-trazo" d="M17 18h18M23 18v-3h6v3M19 18l1.5 19h11L33 18M24 23v9M28 23v9"/></svg>
+            <svg *ngIf="aviso.tipo==='rechazo' || aviso.tipo==='error'" viewBox="0 0 52 52"><circle class="av-circ" cx="26" cy="26" r="23"/><path class="av-trazo" d="M18 18l16 16M34 18L18 34"/></svg>
+            <svg *ngIf="aviso.tipo==='info'" viewBox="0 0 52 52"><circle class="av-circ" cx="26" cy="26" r="23"/><path class="av-trazo" d="M26 24v12M26 16v.5"/></svg>
+          </div>
+          <h2>{{ aviso.titulo }}</h2>
+          <p>{{ aviso.mensaje }}</p>
+          <ng-container *ngIf="aviso.accion; else soloEntendido">
+            <button class="aviso-btn" (click)="ejecutarAccionAviso()">{{ aviso.accion.texto }}</button>
+            <button class="aviso-btn-sec" (click)="cerrarAviso()">Ahora no</button>
+          </ng-container>
+          <ng-template #soloEntendido>
+            <button class="aviso-btn" (click)="cerrarAviso()">Entendido</button>
+          </ng-template>
+          <span class="aviso-timer" *ngIf="aviso.ms"><span [style.animation-duration.ms]="aviso.ms"></span></span>
         </div>
       </div>
 
@@ -266,7 +463,7 @@ interface DialogoConfirmacion {
 
         <!-- TOPBAR -->
         <header class="topbar">
-          <button class="menu-toggle" (click)="menuCollapsed=!menuCollapsed">☰</button>
+          <button class="menu-toggle" title="Menú" (click)="menuCollapsed=!menuCollapsed">☰<span class="toggle-badge" *ngIf="pendientesBadge > 0">{{ pendientesBadge }}</span></button>
           <div class="topbar-title">
             <small>DOZZER / {{ sectionLabel }}</small>
             <strong>{{ sectionTitle }}</strong>
@@ -280,18 +477,28 @@ interface DialogoConfirmacion {
 
         <div class="content-area">
 
-          <!-- MENSAJES -->
-          <div class="alert-success" *ngIf="message">
-            ✓ {{ message }}
-            <button (click)="message=''">×</button>
-          </div>
+
+
+          <!-- INICIO: SALUDO -->
+          <section class="welcome" *ngIf="section==='inicio'">
+            <div class="welcome-inner">
+              <img class="welcome-logo" src="logo-dozzer.png" alt="DOZZER Construcción y Asesoría S.A. de C.V.">
+              <span class="welcome-chip">{{ saludoHora }} · {{ fechaHoy }}</span>
+              <h1>Hola, {{ primerNombre }}</h1>
+              <p>Bienvenido al sistema oficial de inventarios.<br>Selecciona una opción del menú lateral para comenzar.</p>
+            </div>
+            <footer class="welcome-foot">DOZZER INVENTORY CONTROL SYSTEM V1.0 • © {{ anioActual }}</footer>
+          </section>
 
           <!-- INVENTARIO -->
           <section *ngIf="section==='bienes'">
 
             <div class="inv-head">
               <div>
-                <h1>Inventario</h1>
+                <button class="inv-back" *ngIf="vistaInv!=='menu'" (click)="volverInventario()">← {{ textoVolverInv }}</button>
+                <h1>{{ tituloVistaInv }}</h1>
+                <p class="inv-resumen" *ngIf="vistaInv!=='menu'">{{ subtituloVistaInv }}</p>
+                <ng-container *ngIf="vistaInv==='menu'">
                 <p class="inv-resumen" *ngIf="bienes.length; else resumenVacio">
                   <span><b>{{ bienes.length | number }}</b> bienes</span>
                   <span><b>{{ totalPiezas | number }}</b> piezas</span>
@@ -300,6 +507,7 @@ interface DialogoConfirmacion {
                   <span class="inv-scope">{{ isAdmin ? 'Todas las sedes' : 'Tu sede' }}</span>
                 </p>
                 <ng-template #resumenVacio><p class="inv-resumen">{{ bienesCargando ? 'Cargando…' : 'Bienes y equipo de la empresa' }}</p></ng-template>
+                </ng-container>
               </div>
               <div class="heading-actions">
                 <div class="more-wrap">
@@ -353,8 +561,106 @@ interface DialogoConfirmacion {
             <ng-container *ngIf="bienes.length || (!bienesCargando && !bienesError)">
               <div class="fade-in">
 
-                <!-- TABLA -->
-                <div class="inventory-panel">
+                <!-- MENÚ DE INVENTARIO: TARJETAS GRANDES -->
+                <div class="inv-tiles" *ngIf="vistaInv==='menu'">
+                  <button class="inv-tile t-sedes" (click)="abrirVistaInv('sedes')">
+                    <svg class="tile-bg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h1M14 9h1M9 13h1M14 13h1M10 21v-4h4v4"/></svg>
+                    <span class="tile-ico"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h1M14 9h1M9 13h1M14 13h1M10 21v-4h4v4"/></svg></span>
+                    <span class="tile-text">
+                      <strong>Sedes</strong>
+                      <small>Bienes agrupados por sede</small>
+                    </span>
+                    <span class="tile-num">{{ resumenSedes.length | number }}<em>{{ resumenSedes.length === 1 ? 'sede' : 'sedes' }}</em></span>
+                    <span class="tile-go">Ver sedes →</span>
+                  </button>
+                  <button class="inv-tile t-bienes" (click)="abrirVistaInv('bienes')">
+                    <svg class="tile-bg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>
+                    <span class="tile-ico"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg></span>
+                    <span class="tile-text">
+                      <strong>Bienes</strong>
+                      <small>Cada bien en una tarjeta</small>
+                    </span>
+                    <span class="tile-num">{{ bienes.length | number }}<em>bienes</em></span>
+                    <span class="tile-go">Ver bienes →</span>
+                  </button>
+                  <button class="inv-tile t-personas" (click)="abrirVistaInv('personas')">
+                    <svg class="tile-bg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><circle cx="17" cy="9" r="2.6"/><path d="M16.5 14.6c2.6.2 4.4 1.9 5 5.4"/></svg>
+                    <span class="tile-ico"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><circle cx="17" cy="9" r="2.6"/><path d="M16.5 14.6c2.6.2 4.4 1.9 5 5.4"/></svg></span>
+                    <span class="tile-text">
+                      <strong>Personas</strong>
+                      <small>Quién tiene cada bien a su cargo</small>
+                    </span>
+                    <span class="tile-num">{{ resumenPersonas.length | number }}<em>personas</em></span>
+                    <span class="tile-go">Ver personas →</span>
+                  </button>
+                  <button class="inv-tile t-completo" (click)="abrirVistaInv('completo')">
+                    <svg class="tile-bg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M3 14h18M9 9v11M15 9v11"/></svg>
+                    <span class="tile-ico"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M3 14h18M9 9v11M15 9v11"/></svg></span>
+                    <span class="tile-text">
+                      <strong>Completo</strong>
+                      <small>Tabla con búsqueda, filtros y columnas</small>
+                    </span>
+                    <span class="tile-num">{{ totalPiezas | number }}<em>piezas</em></span>
+                    <span class="tile-go">Abrir tabla →</span>
+                  </button>
+                </div>
+
+                <!-- VISTA: SEDES -->
+                <div class="sede-grid" *ngIf="vistaInv==='sedes'">
+                  <button class="sede-card" *ngFor="let s of resumenSedes" (click)="verBienesDeSede(s)">
+                    <div class="sede-top">
+                      <span class="sede-ico"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h1M14 9h1M9 13h1M14 13h1M10 21v-4h4v4"/></svg></span>
+                      <div>
+                        <strong>{{ s.nombre }}</strong>
+                        <small>{{ s.ubicaciones | number }} {{ s.ubicaciones === 1 ? 'ubicación' : 'ubicaciones' }} · {{ s.personas | number }} personas</small>
+                      </div>
+                    </div>
+                    <div class="sede-num">{{ s.total | number }}<span>bienes</span></div>
+                    <div class="sede-bar"><span [style.width.%]="s.pctBueno"></span></div>
+                    <div class="sede-meta">
+                      <span>{{ s.piezas | number }} piezas</span>
+                      <span>{{ s.pctBueno }}% en buen estado</span>
+                    </div>
+                    <div class="sede-tags">
+                      <span *ngFor="let c of s.top"><i [style.background]="colorDeClasificacion(c.id)"></i>{{ c.nombre | titlecase }} {{ c.total | number }}</span>
+                    </div>
+                    <span class="sede-go">Ver bienes →</span>
+                  </button>
+                  <div class="inv-empty" *ngIf="!resumenSedes.length">No hay bienes registrados en ninguna sede.</div>
+                </div>
+
+                <!-- VISTA: PERSONAS -->
+                <ng-container *ngIf="vistaInv==='personas'">
+                  <div class="people-bar">
+                    <div class="search-box">
+                      <span>⌕</span>
+                      <input [(ngModel)]="busquedaPersonas" (ngModelChange)="personasVisibles=48" placeholder="Buscar persona por nombre...">
+                      <button class="clear-search" *ngIf="busquedaPersonas" (click)="busquedaPersonas=''">×</button>
+                    </div>
+                    <span class="people-count">{{ personasFiltradas.length | number }} {{ personasFiltradas.length === 1 ? 'persona' : 'personas' }}</span>
+                  </div>
+                  <div class="people-grid">
+                    <button class="person-card" *ngFor="let p of personasFiltradas.slice(0, personasVisibles)" (click)="verBienesDePersona(p)">
+                      <span class="person-avatar">{{ inicialesDe(p.nombre) }}</span>
+                      <span class="person-info">
+                        <strong>{{ p.nombre }}</strong>
+                        <small>{{ p.sedes || 'Sin sede' }}</small>
+                        <span class="person-tags">
+                          <span *ngIf="p.responsable">{{ p.responsable }} como responsable</span>
+                          <span *ngIf="p.usuario">{{ p.usuario }} como usuario</span>
+                        </span>
+                      </span>
+                      <span class="person-num">{{ p.total | number }}<em>{{ p.total === 1 ? 'bien' : 'bienes' }}</em></span>
+                    </button>
+                  </div>
+                  <div class="inv-empty" *ngIf="!personasFiltradas.length">{{ busquedaPersonas ? 'Ninguna persona coincide con la búsqueda.' : 'Ningún bien tiene responsable o usuario asignado.' }}</div>
+                  <div class="more-cards" *ngIf="personasFiltradas.length > personasVisibles">
+                    <button class="btn-outline" (click)="personasVisibles = personasVisibles + 48">Mostrar más personas ({{ personasFiltradas.length - personasVisibles | number }} restantes)</button>
+                  </div>
+                </ng-container>
+
+                <!-- BIENES EN TARJETAS / TABLA COMPLETA -->
+                <div class="inventory-panel" [class.cards-mode]="vistaInv==='bienes'" *ngIf="vistaInv==='bienes' || vistaInv==='completo'">
 
                   <!-- Clasificaciones como pestañas -->
                   <div class="class-tabs" *ngIf="resumenClasificaciones.length">
@@ -424,6 +730,7 @@ interface DialogoConfirmacion {
                             </label>
                           </div>
 
+                          <ng-container *ngIf="vistaInv==='completo'">
                           <div class="picker-head picker-subhead">
                             <strong>Columnas visibles</strong>
                             <small>Elige qué información muestra la tabla.</small>
@@ -439,6 +746,8 @@ interface DialogoConfirmacion {
                               {{ c.label }} <small *ngIf="c.fija">fija</small>
                             </label>
                           </div>
+
+                          </ng-container>
 
                           <div class="picker-footer">
                             <button class="link-button inline" [disabled]="!filtrosActivos.length" (click)="limpiarFiltrosBienes()">Limpiar filtros</button>
@@ -459,6 +768,37 @@ interface DialogoConfirmacion {
                     <button class="link-button inline" *ngIf="hayFiltrosBienes" (click)="limpiarFiltrosBienes()">Limpiar filtros</button>
                   </div>
 
+                  <!-- Bienes como tarjetas -->
+                  <ng-container *ngIf="vistaInv==='bienes'">
+                    <div class="asset-cards">
+                      <button class="asset-card" *ngFor="let b of bienesVista.slice(0, tarjetasVisibles); trackBy: trackBien"
+                              [style.border-left-color]="colorDeClasificacion(b.id_clasificacion)" (click)="abrirBien(b)">
+                        <span class="asset-chips">
+                          <span class="chip-key">{{ b.clave || 'SIN CLAVE' }}</span>
+                          <span class="chip-class" *ngIf="b.clasificacion">{{ b.clasificacion }}</span>
+                          <span class="status" [ngClass]="statusClass(b)">{{ displayStatus(b) }}</span>
+                        </span>
+                        <strong class="asset-title">{{ b.articulo || 'Bien sin nombre' }}</strong>
+                        <small class="asset-sub" *ngIf="marcaModelo(b)">{{ marcaModelo(b) }}</small>
+                        <span class="asset-line"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>{{ b.ubicacion || 'Sin ubicación' }}<ng-container *ngIf="isAdmin && b.sede"> · {{ b.sede }}</ng-container></span>
+                        <span class="asset-line" [class.muted]="!b.responsable"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>{{ b.responsable || 'Sin responsable' }}</span>
+                        <span class="asset-foot">
+                          <span>{{ b.cantidad_piezas || 1 }} {{ (b.cantidad_piezas || 1) == 1 ? 'pieza' : 'piezas' }}</span>
+                          <span class="asset-more">Ver detalle →</span>
+                        </span>
+                      </button>
+                    </div>
+                    <div class="inv-empty" *ngIf="!bienesVista.length">
+                      {{ hayFiltrosBienes ? 'Ningún bien coincide con los filtros.' : 'Aún no hay bienes registrados.' }}
+                      <button class="link-button inline" *ngIf="hayFiltrosBienes" (click)="limpiarFiltrosBienes()">Limpiar filtros</button>
+                    </div>
+                    <div class="more-cards" *ngIf="bienesVista.length">
+                      <span>Mostrando {{ (bienesVista.length < tarjetasVisibles ? bienesVista.length : tarjetasVisibles) | number }} de {{ bienesVista.length | number }} bienes</span>
+                      <button class="btn-outline" *ngIf="bienesVista.length > tarjetasVisibles" (click)="tarjetasVisibles = tarjetasVisibles + 36">Mostrar más</button>
+                    </div>
+                  </ng-container>
+
+                  <ng-container *ngIf="vistaInv==='completo'">
                   <div class="table-container">
                     <table class="inventory-table">
                       <thead>
@@ -517,6 +857,7 @@ interface DialogoConfirmacion {
                       <button class="btn-outline btn-small" [disabled]="paginaActualBienes>=totalPaginasBienes" (click)="paginaActualBienes=paginaActualBienes+1">›</button>
                     </div>
                   </div>
+                  </ng-container>
                 </div>
               </div>
             </ng-container>
@@ -672,6 +1013,7 @@ interface DialogoConfirmacion {
               </div>
 
               <div class="drawer-footer">
+                <button class="btn-outline" *ngIf="isAdmin" (click)="abrirFormato(formatoDesdeBien('ALTA', b, { folio: folio('ALTA', null, b.id_bien), solicito: b.usuario_registro || miNombre, autorizo: miNombre }))">📄 Formato de alta</button>
                 <button class="btn-danger" (click)="deleteBien(b.id_bien)">⌫ {{ isAdmin ? 'Dar de baja' : 'Solicitar baja' }}</button>
                 <button class="btn-primary" (click)="editarDesdePanel(b)">✎ {{ isAdmin ? 'Editar bien' : 'Solicitar cambio' }}</button>
               </div>
@@ -835,7 +1177,7 @@ interface DialogoConfirmacion {
                   {{ excelError }}
                 </div>
 
-                <div *ngIf="excelImportResult" style="margin: 0 24px 15px; color: #21835a; font-size: 12px;">
+                <div *ngIf="excelImportResult" style="margin: 0 24px 15px; color: #21835a; font-size: 14px;">
                   {{ excelImportResult }}
                 </div>
 
@@ -894,15 +1236,60 @@ interface DialogoConfirmacion {
                   <button [class.selected]="vistaSolicitudes==='autorizacion'" (click)="cambiarVistaSolicitudes('autorizacion')">Por autorizar</button>
                   <button [class.selected]="vistaSolicitudes==='mias'" (click)="cambiarVistaSolicitudes('mias')">Mis solicitudes</button>
                 </div>
+                <button class="btn-outline" *ngIf="isAdmin" (click)="abrirRestablecerManual()">
+                  <span>⚿</span> Restablecer contraseña
+                </button>
                 <button class="btn-outline" [disabled]="solicitudesLoading" (click)="loadSolicitudes()">
                   <span>⟳</span> {{ solicitudesLoading ? 'Actualizando...' : 'Actualizar' }}
                 </button>
               </div>
             </div>
 
+            <!-- RESTABLECER MANUAL (ADMIN) -->
+            <div class="modal-backdrop" *ngIf="restablecerManualAbierto">
+              <div class="modal-card" style="max-width:460px">
+                <div class="modal-header">
+                  <div>
+                    <h2>Restablecer contraseña</h2>
+                    <p>Asigna una contraseña temporal a cualquier usuario, aunque no la haya solicitado.</p>
+                  </div>
+                  <button class="close-button" (click)="restablecerManualAbierto=false">×</button>
+                </div>
+                <div class="form-section">
+                  <label>Correo del usuario</label>
+                  <input [(ngModel)]="correoRestablecer" type="email" placeholder="nombre.apellido@dozzer.mx"
+                         (keyup.enter)="correoRestablecer && restablecerPassword(correoRestablecer)">
+                </div>
+                <div class="modal-footer">
+                  <button class="btn-outline" (click)="restablecerManualAbierto=false">Cancelar</button>
+                  <button class="btn-primary" [disabled]="!correoRestablecer.trim()" (click)="restablecerPassword(correoRestablecer)">Continuar</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- CONTRASEÑA TEMPORAL GENERADA -->
+            <div class="modal-backdrop" *ngIf="passwordTemporal" style="z-index:210">
+              <div class="modal-card temp-card" style="max-width:440px">
+                <div class="temp-ico">✓</div>
+                <h2>Contraseña temporal lista</h2>
+                <p>Para <b>{{ passwordTemporal.nombre || passwordTemporal.correo }}</b><br>{{ passwordTemporal.correo }}</p>
+                <div class="temp-pass">
+                  <code>{{ passwordTemporal.passwordTemporal }}</code>
+                  <button class="btn-outline btn-small" (click)="copiarTemporal()">{{ temporalCopiada ? '✓ Copiada' : 'Copiar' }}</button>
+                </div>
+                <ol class="temp-steps">
+                  <li>Entrégasela a la persona en privado.</li>
+                  <li>Al iniciar sesión, el sistema le pedirá crear su propia contraseña.</li>
+                  <li>Por seguridad, <b>no se volverá a mostrar</b> al cerrar esta ventana.</li>
+                </ol>
+                <button class="btn-primary full" (click)="passwordTemporal=null">Listo</button>
+              </div>
+            </div>
+
             <!-- INDICADORES -->
             <div class="stats-grid">
-              <button class="stat-card stat-button" [class.stat-selected]="tabSolicitudes==='PENDIENTE'" (click)="tabSolicitudes='PENDIENTE'">
+              <button class="stat-card stat-button" [class.stat-selected]="tabSolicitudes==='PENDIENTE'" (click)="tabSolicitudes='PENDIENTE'"
+                      [class.stat-alerta]="vistaSolicitudes==='autorizacion' && conteoSolicitudes('PENDIENTE') > 0">
                 <div class="stat-top"><span>Pendientes</span><span class="stat-icon orange">◷</span></div>
                 <strong>{{ conteoSolicitudes('PENDIENTE') }}</strong>
                 <small>{{ vistaSolicitudes==='autorizacion' ? 'Esperan tu revisión' : 'En espera de revisión' }}</small>
@@ -928,7 +1315,7 @@ interface DialogoConfirmacion {
               <div class="request-tabs">
                 <button *ngFor="let t of tabsSolicitudes" [class.selected]="tabSolicitudes===t.key" (click)="tabSolicitudes=t.key">
                   {{ t.label }}
-                  <span class="tab-count">{{ t.key==='TODAS' ? solicitudes.length : conteoSolicitudes(t.key) }}</span>
+                  <span class="tab-count" [class.tab-alerta]="t.key==='PENDIENTE' && vistaSolicitudes==='autorizacion' && conteoSolicitudes('PENDIENTE') > 0">{{ t.key==='TODAS' ? solicitudes.length : conteoSolicitudes(t.key) }}</span>
                 </button>
               </div>
 
@@ -964,7 +1351,8 @@ interface DialogoConfirmacion {
                     </tr>
                   </thead>
                   <tbody>
-                    <tr *ngFor="let s of solicitudesFiltradas" class="clickable-row" (click)="abrirSolicitud(s)">
+                    <tr *ngFor="let s of solicitudesFiltradas" class="clickable-row" (click)="abrirSolicitud(s)"
+                        [class.row-pendiente]="vistaSolicitudes==='autorizacion' && s.estado==='PENDIENTE' && puedeResolver(s)">
                       <td><strong class="asset-key">#{{ s.idSolicitud }}</strong></td>
                       <td><span class="op-badge" [ngClass]="'op-' + (s.tipoOperacion || '').toLowerCase()">{{ etiquetaOperacion(s.tipoOperacion) }}</span></td>
                       <td>
@@ -984,7 +1372,10 @@ interface DialogoConfirmacion {
                       </td>
                       <td>{{ s.nombreSede || '—' }}</td>
                       <td>{{ s.fechaSolicitud | date:'dd/MM/yyyy HH:mm' }}</td>
-                      <td><span class="status" [ngClass]="claseEstadoSolicitud(s.estado)">{{ etiquetaEstado(s.estado) }}</span></td>
+                      <td>
+                        <span class="status" [ngClass]="claseEstadoSolicitud(s.estado)">{{ etiquetaEstado(s.estado) }}</span>
+                        <span class="revoked-tag" *ngIf="s.estado==='PENDIENTE' && s.motivoRevocacion" [title]="'Revocada: ' + s.motivoRevocacion">↺ Revocada</span>
+                      </td>
                       <td *ngIf="vistaSolicitudes==='mias'" class="resolution-cell">
                         <span *ngIf="s.estado==='PENDIENTE'" class="muted">En revisión</span>
                         <span *ngIf="s.estado!=='PENDIENTE'" [title]="s.motivoResolucion || ''">
@@ -992,8 +1383,9 @@ interface DialogoConfirmacion {
                         </span>
                       </td>
                       <td class="action-cell">
-                        <button class="btn-outline btn-small" (click)="$event.stopPropagation(); abrirSolicitud(s)">
-                          {{ vistaSolicitudes==='autorizacion' && s.estado==='PENDIENTE' && puedeResolver(s) ? 'Revisar' : 'Ver detalle' }}
+                        <button class="btn-outline btn-small" [class.btn-revisar]="vistaSolicitudes==='autorizacion' && s.estado==='PENDIENTE' && puedeResolver(s)"
+                                (click)="$event.stopPropagation(); abrirSolicitud(s)">
+                          {{ vistaSolicitudes==='autorizacion' && s.estado==='PENDIENTE' && puedeResolver(s) ? 'Revisar ahora' : 'Ver detalle' }}
                         </button>
                       </td>
                     </tr>
@@ -1098,6 +1490,45 @@ interface DialogoConfirmacion {
                   </div>
                 </div>
 
+                <!-- REVOCACIÓN: ACCIÓN DEL ADMINISTRADOR -->
+                <div class="form-section" *ngIf="isAdmin && s.estado!=='PENDIENTE'">
+                  <ng-container *ngIf="s.revocable; else noRevocable">
+                    <button class="revoke-link" *ngIf="!modoRevocar" (click)="iniciarRevocacion()">
+                      ↺ ¿Te equivocaste? Revocar esta autorización
+                    </button>
+                    <div class="revoke-box" *ngIf="modoRevocar">
+                      <strong>↺ Revocar autorización</strong>
+                      <ul>
+                        <li *ngIf="s.estado==='APROBADA' && s.tipoOperacion==='ALTA'">Se <b>eliminará el bien</b> que se creó con esta solicitud.</li>
+                        <li *ngIf="s.estado==='APROBADA' && s.tipoOperacion==='MODIFICACION'">El bien <b>regresará a los datos que tenía</b> antes de este cambio.</li>
+                        <li *ngIf="s.estado==='APROBADA' && s.tipoOperacion==='BAJA'">El bien <b>volverá al inventario activo</b>.</li>
+                        <li *ngIf="s.estado==='RECHAZADA'">Se <b>anulará el rechazo</b> y su motivo.</li>
+                        <li>La solicitud regresará a la <b>bandeja de autorización como pendiente</b> para resolverla de nuevo.</li>
+                      </ul>
+                      <label>Motivo de la revocación <span class="muted">(obligatorio)</span></label>
+                      <textarea rows="2" maxlength="500" [(ngModel)]="motivoRevocacion" [class.input-error]="revocacionRequerida"
+                                placeholder="Ej. Se aprobó por error, faltaba validar el número de serie." (input)="revocacionRequerida=false"></textarea>
+                      <div class="field-footer">
+                        <span class="field-error" *ngIf="revocacionRequerida">Escribe por qué revocas la autorización.</span>
+                        <span class="char-count">{{ (motivoRevocacion || '').length }}/500</span>
+                      </div>
+                      <div class="inline-error" *ngIf="errorRevocacion">{{ errorRevocacion }}</div>
+                    </div>
+                  </ng-container>
+                  <ng-template #noRevocable>
+                    <p class="revoke-off" *ngIf="s.estado==='APROBADA'">Esta autorización no se puede revocar porque se aprobó antes de habilitar esta función (no hay copia de los datos anteriores).</p>
+                  </ng-template>
+                </div>
+
+                <!-- PENDIENTE QUE YA HABÍA SIDO RESUELTA Y SE REVOCÓ -->
+                <div class="form-section" *ngIf="s.estado==='PENDIENTE' && s.motivoRevocacion">
+                  <div class="revoked-note">
+                    <strong>↺ Autorización revocada</strong>
+                    <p>{{ s.nombreRevoco ? s.nombreRevoco + ' · ' : '' }}{{ s.fechaRevocacion | date:'dd/MM/yyyy HH:mm' }}</p>
+                    <div>{{ s.motivoRevocacion }}</div>
+                  </div>
+                </div>
+
                 <!-- PENDIENTE: VISTA DEL EMPLEADO -->
                 <div class="form-section" *ngIf="s.estado==='PENDIENTE' && !puedeResolver(s)">
                   <div class="info-box">
@@ -1130,7 +1561,20 @@ interface DialogoConfirmacion {
                     </button>
                   </ng-container>
                   <ng-template #soloCerrar>
-                    <button class="btn-primary" (click)="cerrarSolicitud()">Cerrar</button>
+                    <ng-container *ngIf="modoRevocar; else botonCerrar">
+                      <button class="btn-outline" [disabled]="revocando" (click)="modoRevocar=false">Cancelar</button>
+                      <button class="btn-revoke" [disabled]="revocando" (click)="revocarSolicitud()">
+                        <span class="mini-ring light" *ngIf="revocando"></span>
+                        {{ revocando ? 'Revocando…' : 'Revocar y regresar a pendientes' }}
+                      </button>
+                    </ng-container>
+                    <ng-template #botonCerrar>
+                      <button class="btn-outline" *ngIf="s.estado==='APROBADA' && (s.tipoOperacion==='ALTA' || s.tipoOperacion==='BAJA')"
+                              (click)="abrirFormato(formatoDesdeSolicitud(s, s.idBien ? bienPorId(s.idBien) : null))">
+                        📄 Formato de {{ s.tipoOperacion==='ALTA' ? 'alta' : 'baja' }}
+                      </button>
+                      <button class="btn-primary" (click)="cerrarSolicitud()">Cerrar</button>
+                    </ng-template>
                   </ng-template>
                 </div>
               </div>
@@ -1305,42 +1749,47 @@ interface DialogoConfirmacion {
     :host{display:block;min-height:100vh;font-family:Inter,Arial,sans-serif;color:#243247}
     *{box-sizing:border-box}
     .app-shell{min-height:100vh;background:#f4f6fa;display:flex}
-    .sidebar{width:260px;background:#17263d;color:#fff;display:flex;flex-direction:column;padding:25px 17px;flex-shrink:0;transition:.25s}
-    .sidebar.collapsed{width:82px}
-    .sidebar.collapsed .brand-text,.sidebar.collapsed .menu-label,.sidebar.collapsed .nav-item span:not(.nav-icon),.sidebar.collapsed .user-info{display:none}
+    .sidebar{position:fixed;top:0;left:0;bottom:0;z-index:95;width:270px;max-width:86vw;overflow-y:auto;background:#17263d;color:#fff;display:flex;flex-direction:column;padding:25px 17px;transform:translateX(0);box-shadow:12px 0 40px #0b172840;transition:transform .28s cubic-bezier(.4,0,.2,1),box-shadow .28s}
+    .sidebar.collapsed{transform:translateX(-100%);box-shadow:none}
+    .sidebar-backdrop{position:fixed;inset:0;z-index:94;background:#0f1c2e66;backdrop-filter:blur(2px);animation:fadeIn .2s ease both}
+    .sidebar-close{margin-left:auto;align-self:flex-start;width:32px;height:32px;border:0;border-radius:8px;background:transparent;color:#a9b8cc;font-size:24px;line-height:1;cursor:pointer;flex-shrink:0}
+    .sidebar-close:hover{background:#2b405e;color:#fff}
+    .menu-toggle{position:relative;width:40px;height:40px;border-radius:10px;display:grid;place-items:center}
+    .toggle-badge{position:absolute;top:2px;right:0;min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:#d9484f;color:#fff;font-size:12px;font-weight:800;line-height:17px;text-align:center;box-shadow:0 0 0 2px #fff}
+    .menu-toggle:hover{background:#f1f4f8;color:#17263d}
     .brand{display:flex;align-items:center;gap:12px;margin-bottom:37px}
-    .brand-icon{width:39px;height:39px;background:#fff;color:#193452;border-radius:11px;display:grid;place-items:center;font-size:23px;font-weight:900}
+    .brand-icon{width:39px;height:39px;background:#fff;color:#193452;border-radius:11px;display:grid;place-items:center;font-size:25px;font-weight:900}
     .brand-text{display:flex;flex-direction:column;gap:4px;min-width:0}
-    .brand-text strong{font-size:18px;letter-spacing:1.2px}
-    .brand-text small{font-size:10px;color:#b9c6d7;white-space:nowrap}
-    .menu-label{font-size:10px;letter-spacing:1.4px;color:#8192aa;font-weight:700;margin:5px 10px 12px}
-    .nav-item{width:100%;border:0;background:transparent;color:#c1ccdb;display:flex;align-items:center;gap:14px;padding:13px 14px;border-radius:9px;text-align:left;margin-bottom:6px;font-size:13px;cursor:pointer}
+    .brand-text strong{font-size:20px;letter-spacing:1.2px}
+    .brand-text small{font-size:12px;color:#b9c6d7;white-space:nowrap}
+    .menu-label{font-size:12px;letter-spacing:1.4px;color:#8192aa;font-weight:700;margin:5px 10px 12px}
+    .nav-item{width:100%;border:0;background:transparent;color:#c1ccdb;display:flex;align-items:center;gap:14px;padding:13px 14px;border-radius:9px;text-align:left;margin-bottom:6px;font-size:15px;cursor:pointer}
     .nav-item:hover,.nav-item.active{background:#2b405e;color:#fff}
     .nav-item.active{box-shadow:inset 3px 0 #5e9be9}
-    .nav-icon{font-size:19px;width:22px;text-align:center}
+    .nav-icon{font-size:21px;width:22px;text-align:center}
     .sidebar-bottom{margin-top:auto;border-top:1px solid #35455d;padding-top:18px;display:flex;align-items:center;gap:10px}
-    .user-avatar,.top-avatar{width:36px;height:36px;border-radius:50%;background:#dce8f7;color:#244568;display:grid;place-items:center;font-size:12px;font-weight:800;flex-shrink:0}
+    .user-avatar,.top-avatar{width:36px;height:36px;border-radius:50%;background:#dce8f7;color:#244568;display:grid;place-items:center;font-size:14px;font-weight:800;flex-shrink:0}
     .user-info{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1}
-    .user-info strong{font-size:11px;overflow:hidden;text-overflow:ellipsis}
-    .user-info small{font-size:10px;color:#9eacc0}
-    .logout{background:transparent;color:#cbd5e1;border:0;font-size:20px;cursor:pointer}
+    .user-info strong{font-size:13px;overflow:hidden;text-overflow:ellipsis}
+    .user-info small{font-size:12px;color:#9eacc0}
+    .logout{background:transparent;color:#cbd5e1;border:0;font-size:22px;cursor:pointer}
     .main-content{flex:1;min-width:0}
     .topbar{height:76px;background:#fff;border-bottom:1px solid #e8edf3;display:flex;align-items:center;padding:0 32px;gap:18px}
-    .menu-toggle{background:transparent;border:0;font-size:20px;color:#607087;cursor:pointer}
+    .menu-toggle{background:transparent;border:0;font-size:22px;color:#607087;cursor:pointer}
     .topbar-title{display:flex;flex-direction:column;gap:5px}
-    .topbar-title small{font-size:10px;color:#8793a5;letter-spacing:1px}
-    .topbar-title strong{font-size:14px;color:#25374e}
+    .topbar-title small{font-size:12px;color:#8793a5;letter-spacing:1px}
+    .topbar-title strong{font-size:15.5px;color:#25374e}
     .topbar-right{margin-left:auto;display:flex;align-items:center;gap:9px}
     .online-dot{width:8px;height:8px;border-radius:50%;background:#25a878}
-    .online-label{font-size:11px;color:#6b7b90}
+    .online-label{font-size:13px;color:#6b7b90}
     .content-area{padding:30px 34px;max-width:1700px;margin:auto}
     .page-heading{display:flex;justify-content:space-between;align-items:center;gap:20px;margin-bottom:25px}
-    .eyebrow{font-size:10px;font-weight:800;color:#6482a6;letter-spacing:1.4px;margin-bottom:8px}
-    h1{font-size:27px;margin:0 0 7px;font-weight:750;letter-spacing:-.7px;color:#1c2d43}
-    .page-heading p{margin:0;color:#8491a3;font-size:13px}
+    .eyebrow{font-size:12px;font-weight:800;color:#6482a6;letter-spacing:1.4px;margin-bottom:8px}
+    h1{font-size:29px;margin:0 0 7px;font-weight:750;letter-spacing:-.7px;color:#1c2d43}
+    .page-heading p{margin:0;color:#8491a3;font-size:15px}
     .heading-actions{display:flex;gap:10px}
     button{font-family:inherit}
-    .btn-primary,.btn-outline{border-radius:8px;padding:11px 16px;font-size:12px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:.2s}
+    .btn-primary,.btn-outline{border-radius:8px;padding:11px 16px;font-size:14px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:.2s}
     .btn-primary{background:#244c78;color:#fff;border:1px solid #244c78}
     .btn-primary:hover{background:#193b63}
     .btn-primary:disabled{opacity:.55;cursor:not-allowed}
@@ -1349,35 +1798,35 @@ interface DialogoConfirmacion {
     .full{width:100%;margin-top:20px}
     .stats-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:15px;margin-bottom:23px}
     .stat-card{background:#fff;border:1px solid #e8edf3;border-radius:11px;padding:17px 19px;box-shadow:0 2px 7px #253b5507}
-    .stat-top{display:flex;align-items:center;justify-content:space-between;color:#718096;font-size:12px}
-    .stat-card>strong{display:block;font-size:27px;color:#1c2e45;margin:12px 0 4px;letter-spacing:-.8px}
-    .stat-card>small{color:#9aa5b4;font-size:10px}
+    .stat-top{display:flex;align-items:center;justify-content:space-between;color:#718096;font-size:14px}
+    .stat-card>strong{display:block;font-size:29px;color:#1c2e45;margin:12px 0 4px;letter-spacing:-.8px}
+    .stat-card>small{color:#9aa5b4;font-size:12px}
     .stat-icon{width:31px;height:31px;border-radius:8px;display:grid;place-items:center;font-weight:800}
     .blue{background:#e9f1fc;color:#4677b5}.purple{background:#f0edfc;color:#8068bd}.green{background:#e7f6ef;color:#26936a}.orange{background:#fff3e6;color:#c88a39}
     .inventory-panel{background:#fff;border:1px solid #e7ecf2;border-radius:12px;overflow:hidden;box-shadow:0 3px 12px #233c5708}
     .inventory-toolbar{padding:21px 23px 15px;display:flex;justify-content:space-between;align-items:center;gap:15px}
-    .inventory-toolbar h2{font-size:15px;margin:0 0 5px;color:#25364c}
-    .inventory-toolbar p{font-size:11px;color:#929eae;margin:0}
+    .inventory-toolbar h2{font-size:16.5px;margin:0 0 5px;color:#25364c}
+    .inventory-toolbar p{font-size:13px;color:#929eae;margin:0}
     .table-actions select{width:auto;min-width:155px}
     .search-row{padding:0 23px 17px;display:flex;align-items:center;gap:15px}
     .search-box{display:flex;align-items:center;gap:10px;border:1px solid #e1e7ef;border-radius:8px;padding:0 12px;height:39px;max-width:490px;flex:1}
-    .search-box span{font-size:22px;color:#8493a6}
+    .search-box span{font-size:24px;color:#8493a6}
     .search-box input{border:0!important;outline:0!important;padding:0!important;box-shadow:none!important}
-    input,select,textarea{width:100%;border:1px solid #dce3ec;border-radius:7px;padding:10px 11px;font-size:12px;color:#34465d;background:#fff;outline:none;font-family:inherit}
+    input,select,textarea{width:100%;border:1px solid #dce3ec;border-radius:7px;padding:10px 11px;font-size:14px;color:#34465d;background:#fff;outline:none;font-family:inherit}
     input:focus,select:focus,textarea:focus{border-color:#7297c3;box-shadow:0 0 0 3px #7297c31c}
-    .results-count{font-size:11px;color:#8491a2;white-space:nowrap}
+    .results-count{font-size:13px;color:#8491a2;white-space:nowrap}
     .table-container{width:100%;overflow:auto}
     table{width:100%;border-collapse:collapse;white-space:nowrap;text-align:left}
     thead{background:#f7f9fc}
-    th{font-size:9px;letter-spacing:.65px;color:#8491a2;font-weight:800;padding:13px 15px;border-top:1px solid #edf0f4;border-bottom:1px solid #edf0f4}
-    td{font-size:11px;color:#526176;padding:13px 15px;border-bottom:1px solid #eff2f6}
+    th{font-size:11.5px;letter-spacing:.65px;color:#8491a2;font-weight:800;padding:13px 15px;border-top:1px solid #edf0f4;border-bottom:1px solid #edf0f4}
+    td{font-size:13px;color:#526176;padding:13px 15px;border-bottom:1px solid #eff2f6}
     tbody tr:hover{background:#fafbfd}
-    .asset-key{color:#365d89;font-size:11px}
+    .asset-key{color:#365d89;font-size:13px}
     .asset-name{display:flex;flex-direction:column;gap:5px}
-    .asset-name strong{font-size:11px;color:#2b3d53}
-    .asset-name small{font-size:10px;color:#9ba6b5}
+    .asset-name strong{font-size:13px;color:#2b3d53}
+    .asset-name small{font-size:12px;color:#9ba6b5}
     .quantity{background:#f1f4f8;padding:5px 9px;border-radius:5px;font-weight:700;color:#42566e}
-    .status{font-size:9px;font-weight:800;padding:6px 9px;border-radius:20px;display:inline-block}
+    .status{font-size:11.5px;font-weight:800;padding:6px 9px;border-radius:20px;display:inline-block}
     .status-good{background:#e8f6ee;color:#21835a}
     .status-warning{background:#fff3df;color:#b27b22}
     .status-bad{background:#fdeced;color:#bd5056}
@@ -1386,151 +1835,381 @@ interface DialogoConfirmacion {
     .row-actions button{width:27px;height:27px;border:1px solid #e5eaf0;background:#fff;border-radius:6px;color:#60738a;cursor:pointer}
     .row-actions button:hover{background:#eef4fa}
     .row-actions .delete-action{color:#c65d62}
-    .table-footer{display:flex;justify-content:space-between;padding:15px 22px;color:#8995a5;font-size:10px}
+    .table-footer{display:flex;justify-content:space-between;padding:15px 22px;color:#8995a5;font-size:12px}
     .empty-state{text-align:center!important;padding:42px!important;color:#8491a2!important}
-    .empty-state p{font-size:11px}
-    .empty-icon{font-size:28px;color:#a8b6c7;margin-bottom:10px}
-    .alert-success{background:#e8f6ee;color:#21835a;border:1px solid #cdebd9;border-radius:8px;padding:12px 15px;margin-bottom:18px;font-size:12px}
-    .alert-success button{float:right;background:transparent;border:0;color:inherit;cursor:pointer}
+    .empty-state p{font-size:13px}
+    .empty-icon{font-size:30px;color:#a8b6c7;margin-bottom:10px}
     .modal-backdrop{position:fixed;inset:0;background:#15243b88;z-index:100;display:flex;align-items:center;justify-content:center;padding:20px}
     .modal-card{width:100%;max-width:590px;max-height:90vh;overflow:auto;background:#fff;border-radius:14px;box-shadow:0 20px 70px #15243b35}
     .large-modal{max-width:850px}
     .excel-modal{max-width:760px}
     .modal-header{padding:22px 24px;border-bottom:1px solid #edf0f4;display:flex;align-items:flex-start;justify-content:space-between}
-    .modal-header h2{margin:0 0 6px;font-size:18px;color:#25364c}
-    .modal-header p{margin:0;color:#8b97a7;font-size:11px}
-    .close-button{background:transparent;border:0;color:#8290a2;font-size:25px;cursor:pointer}
+    .modal-header h2{margin:0 0 6px;font-size:20px;color:#25364c}
+    .modal-header p{margin:0;color:#8b97a7;font-size:13px}
+    .close-button{background:transparent;border:0;color:#8290a2;font-size:27px;cursor:pointer}
     .form-section{padding:22px 24px}
-    .form-section h3,.catalog-form h2{font-size:13px;color:#30445d;margin:0 0 17px}
+    .form-section h3,.catalog-form h2{font-size:15px;color:#30445d;margin:0 0 17px}
     .form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 17px;margin-bottom:17px}
-    .form-grid label,.form-section label,.login-card label{display:block;font-size:10px;font-weight:700;color:#64748a;margin-bottom:7px}
+    .form-grid label,.form-section label,.login-card label{display:block;font-size:12px;font-weight:700;color:#64748a;margin-bottom:7px}
     .form-section textarea{resize:vertical}
     .modal-footer{display:flex;justify-content:flex-end;gap:10px;padding:16px 24px;border-top:1px solid #edf0f4}
     .excel-instructions{display:flex;gap:13px;padding:20px 24px 12px}
-    .excel-icon{width:39px;height:39px;background:#e7f5ed;color:#21865d;border-radius:9px;display:grid;place-items:center;font-size:22px}
-    .excel-instructions strong{font-size:12px;color:#33465e}
-    .excel-instructions p,.preview-heading p{font-size:10px;color:#8995a5;margin:5px 0 0}
+    .excel-icon{width:39px;height:39px;background:#e7f5ed;color:#21865d;border-radius:9px;display:grid;place-items:center;font-size:24px}
+    .excel-instructions strong{font-size:14px;color:#33465e}
+    .excel-instructions p,.preview-heading p{font-size:12px;color:#8995a5;margin:5px 0 0}
     .upload-zone{margin:10px 24px 20px;border:1.5px dashed #cbd7e4;border-radius:11px;min-height:165px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:#fafcff;cursor:pointer}
     .upload-zone:hover{border-color:#638dbb;background:#f5f9ff}
     .upload-zone.has-file{border-color:#58a77d;background:#f6fcf8}
     .upload-zone input{display:none}
-    .upload-symbol{font-size:26px;color:#6486ac}
-    .upload-zone strong{font-size:12px;color:#354b65}
-    .upload-zone small{font-size:10px;color:#91a0b1}
-    .upload-button{padding:8px 13px;margin-top:4px;font-size:10px}
-    .excel-error{margin:0 24px 15px;color:#bb454b;font-size:11px}
+    .upload-symbol{font-size:28px;color:#6486ac}
+    .upload-zone strong{font-size:14px;color:#354b65}
+    .upload-zone small{font-size:12px;color:#91a0b1}
+    .upload-button{padding:8px 13px;margin-top:4px;font-size:12px}
+    .excel-error{margin:0 24px 15px;color:#bb454b;font-size:13px}
     .preview-section{padding:0 24px 20px}
     .preview-heading{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
-    .preview-heading strong{font-size:12px;color:#33465e}
+    .preview-heading strong{font-size:14px;color:#33465e}
     .preview-table{border:1px solid #e8edf3;border-radius:7px;max-height:190px}
     .preview-table th,.preview-table td{padding:9px 11px}
-    .preview-note{display:block;color:#8b97a7;font-size:10px;margin-top:10px}
+    .preview-note{display:block;color:#8b97a7;font-size:12px;margin-top:10px}
     .detail-list{padding:22px 24px;display:grid;grid-template-columns:1fr 1fr;gap:17px}
     .detail-list div{display:flex;flex-direction:column;gap:5px}
-    .detail-list small{font-size:10px;color:#8996a7}
-    .detail-list strong{font-size:12px;color:#34485f}
+    .detail-list small{font-size:12px;color:#8996a7}
+    .detail-list strong{font-size:14px;color:#34485f}
     .placeholder-panel{text-align:center;padding:75px 20px}
-    .placeholder-icon{font-size:38px;color:#7c9cbd}
-    .placeholder-panel h2{font-size:17px}
-    .placeholder-panel p{font-size:12px;color:#8995a5}
-    .coming-soon{display:inline-block;margin-top:12px;padding:7px 12px;border-radius:20px;background:#eef3f9;color:#54779d;font-size:10px}
+    .placeholder-icon{font-size:40px;color:#7c9cbd}
+    .placeholder-panel h2{font-size:19px}
+    .placeholder-panel p{font-size:14px;color:#8995a5}
+    .coming-soon{display:inline-block;margin-top:12px;padding:7px 12px;border-radius:20px;background:#eef3f9;color:#54779d;font-size:12px}
     .catalog-tabs{display:flex;gap:5px;flex-wrap:wrap;padding:18px 22px;border-bottom:1px solid #edf0f4}
-    .catalog-tabs button{border:0;background:#f3f6fa;padding:9px 13px;border-radius:7px;font-size:11px;color:#687b91;cursor:pointer}
+    .catalog-tabs button{border:0;background:#f3f6fa;padding:9px 13px;border-radius:7px;font-size:13px;color:#687b91;cursor:pointer}
     .catalog-tabs button.selected{background:#244c78;color:white}
     .catalog-form{padding:22px}
     .catalog-form .form-grid>div{max-width:460px}
-    .catalog-form label{display:block;font-size:10px;font-weight:700;color:#64748a;margin:12px 0 6px}
+    .catalog-form label{display:block;font-size:12px;font-weight:700;color:#64748a;margin:12px 0 6px}
     .login-screen{min-height:100vh;display:grid;place-items:center;background:linear-gradient(135deg,#17263d,#294b70)}
     .login-card{background:#fff;width:min(410px,calc(100% - 35px));padding:38px;border-radius:15px;box-shadow:0 20px 70px #0c1b2d55}
     .login-brand{margin-bottom:30px;color:#243c58}
-    .login-card h1{font-size:25px}
-    .login-card>p{font-size:12px;color:#8995a5;margin-bottom:25px}
+    .login-card h1{font-size:27px}
+    .login-card>p{font-size:14px;color:#8995a5;margin-bottom:25px}
     .login-card label{margin-top:16px}
     .login-card input{height:42px}
-    .error-message{color:#c24b52;font-size:11px;margin-top:12px}
+    .error-message{color:#c24b52;font-size:13px;margin-top:12px}
     /* ===== INVENTARIO: CARGA ===== */
     /* ---------- INVENTARIO (vista limpia) ---------- */
     .inv-head{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;margin-bottom:20px}
-    .inv-head h1{font-size:26px;letter-spacing:-.6px;color:#14243a;margin:0 0 8px}
-    .inv-resumen{display:flex;flex-wrap:wrap;align-items:center;gap:6px 18px;margin:0;font-size:12.5px;color:#7d8a9b}
+    .inv-head h1{font-size:28px;letter-spacing:-.6px;color:#14243a;margin:0 0 8px}
+    .inv-resumen{display:flex;flex-wrap:wrap;align-items:center;gap:6px 18px;margin:0;font-size:14.5px;color:#7d8a9b}
     .inv-resumen b{color:#25364c;font-weight:700}
     .inv-resumen span{position:relative}
     .inv-resumen span+span::before{content:'';position:absolute;left:-10px;top:50%;width:3px;height:3px;border-radius:50%;background:#c3ccd8}
-    .inv-scope{font-size:10.5px;font-weight:700;color:#4f6f95;background:#eef3f9;padding:3px 9px;border-radius:20px}
+    .inv-scope{font-size:12.5px;font-weight:700;color:#4f6f95;background:#eef3f9;padding:3px 9px;border-radius:20px}
     .inv-resumen span.inv-scope::before{display:none}
     .more-wrap{position:relative}
-    .caret{font-size:10px;color:#8a97a8}
+    .caret{font-size:12px;color:#8a97a8}
     .more-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:40;width:280px;background:#fff;border:1px solid #e3e9f1;border-radius:12px;box-shadow:0 14px 40px #1b2c4426;padding:6px;animation:fadeUp .15s ease both}
     .more-menu button{width:100%;display:flex;gap:12px;align-items:center;text-align:left;border:0;background:transparent;padding:10px;border-radius:9px;cursor:pointer;font-family:inherit}
     .more-menu button:hover:not(:disabled){background:#f3f6fa}
     .more-menu button:disabled{opacity:.45;cursor:not-allowed}
-    .more-ico{width:34px;height:34px;border-radius:9px;background:#eef3f9;color:#244c78;display:grid;place-items:center;font-size:15px;flex-shrink:0}
-    .more-menu strong{display:block;font-size:12.5px;color:#25364c}
-    .more-menu small{display:block;font-size:11px;color:#8d99a9;margin-top:2px}
+    .more-ico{width:34px;height:34px;border-radius:9px;background:#eef3f9;color:#244c78;display:grid;place-items:center;font-size:16.5px;flex-shrink:0}
+    .more-menu strong{display:block;font-size:14.5px;color:#25364c}
+    .more-menu small{display:block;font-size:13px;color:#8d99a9;margin-top:2px}
     .class-tabs{display:flex;gap:4px;padding:10px 16px 0;border-bottom:1px solid #edf1f6;overflow-x:auto;scrollbar-width:thin}
-    .class-tabs button{flex-shrink:0;display:inline-flex;align-items:center;gap:7px;border:0;background:transparent;font-family:inherit;font-size:12px;font-weight:600;color:#6f7d8f;padding:10px 12px 12px;border-bottom:2px solid transparent;margin-bottom:-1px;cursor:pointer;white-space:nowrap;transition:color .15s,border-color .15s}
+    .class-tabs button{flex-shrink:0;display:inline-flex;align-items:center;gap:7px;border:0;background:transparent;font-family:inherit;font-size:14px;font-weight:600;color:#6f7d8f;padding:10px 12px 12px;border-bottom:2px solid transparent;margin-bottom:-1px;cursor:pointer;white-space:nowrap;transition:color .15s,border-color .15s}
     .class-tabs button:hover{color:#25364c}
     .class-tabs button.active{color:#1c3a5e;border-bottom-color:#244c78}
     .class-tabs i{width:7px;height:7px;border-radius:50%;display:inline-block}
-    .class-tabs span{font-size:10.5px;font-weight:700;color:#8a97a8;background:#f1f4f8;padding:2px 7px;border-radius:10px}
+    .class-tabs span{font-size:12.5px;font-weight:700;color:#8a97a8;background:#f1f4f8;padding:2px 7px;border-radius:10px}
     .class-tabs button.active span{background:#e5eef8;color:#244c78}
     .inv-toolbar{display:flex;align-items:center;gap:12px;padding:14px 16px}
     .inv-toolbar .search-box{flex:1;min-width:0}
     .inv-toolbar+.search-row{padding:0 16px 12px}
     @media(max-width:700px){.inv-head{flex-direction:column;align-items:stretch}.inv-head .heading-actions>*{flex:1}.inv-toolbar{flex-wrap:wrap}.more-menu{left:0;right:auto}}
 
+    /* ---------- FORMATOS PDF ---------- */
+    .aviso-btn-sec{width:100%;height:42px;margin-top:8px;border:0;border-radius:12px;background:transparent;color:#6b7686;font-family:inherit;font-size:15px;font-weight:600;cursor:pointer}
+    .aviso-btn-sec:hover{background:#f3f5f8}
+    .doc-backdrop{z-index:215}
+    .doc-card{max-width:980px!important;width:100%}
+    .doc-loading{display:flex;flex-direction:column;align-items:center;gap:14px;padding:60px 20px;color:#41546b}
+    .doc-title{display:flex;align-items:center;gap:14px}
+    .doc-badge{font-size:13px;font-weight:800;letter-spacing:1.5px;color:#fff;background:#21835a;border-radius:8px;padding:8px 10px}
+    .doc-badge.baja{background:#c2414b}
+    .doc-body{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:0;min-height:520px}
+    .doc-preview{background:#e9edf2;padding:14px}
+    .doc-preview iframe{width:100%;height:100%;min-height:500px;border:0;border-radius:8px;background:#fff;box-shadow:0 4px 18px #1b2c4422}
+    .doc-side{padding:18px 20px;border-left:1px solid #edf0f4;display:flex;flex-direction:column;gap:8px}
+    .doc-side h3{margin:6px 0 4px;font-size:12.5px;font-weight:800;letter-spacing:1.2px;color:#8a97a8;text-transform:uppercase}
+    .doc-side label{font-size:13px;font-weight:700;color:#4a5a6e;margin-top:4px}
+    .doc-action{display:flex;align-items:center;gap:12px;text-align:left;border:1px solid #e3e9f1;background:#fff;border-radius:11px;padding:10px 12px;cursor:pointer;font-family:inherit;transition:background .15s,border-color .15s}
+    .doc-action:hover{background:#f4f7fb;border-color:#c9d6e6}
+    .doc-action>span{width:34px;height:34px;border-radius:9px;background:#eef3f9;color:#244c78;display:grid;place-items:center;font-size:17.5px;flex-shrink:0}
+    .doc-action strong{display:block;font-size:14.5px;color:#25364c}
+    .doc-action small{display:block;font-size:12.5px;color:#8d99a9;margin-top:2px;word-break:break-all}
+    .doc-action em{margin-left:auto;font-style:normal;font-size:22px;color:#a3b0c0}
+    .ico-wa{background:#e3f8eb!important}
+    .ico-wa svg{width:19px;height:19px;fill:#25d366}
+    .ico-mail svg{width:18px;height:18px}
+    .doc-file-mini{margin-top:auto;font-size:12.5px;color:#8d99a9;word-break:break-all;padding-top:10px}
+    .doc-flow{max-width:620px;margin:0 auto;padding:18px 24px 26px;display:flex;flex-direction:column;gap:16px;animation:fadeUp .25s ease both}
+    .doc-back{align-self:flex-start;border:0;background:transparent;padding:4px 0;font-family:inherit;font-size:14.5px;font-weight:700;color:#4f6f95;cursor:pointer}
+    .doc-back:hover{color:#17263d;text-decoration:underline}
+    .flow-head{display:flex;align-items:center;gap:14px}
+    .flow-head h2{margin:0 0 3px;font-size:21px;color:#14243a}
+    .flow-head p{margin:0;font-size:14px;color:#7d8a9b;word-break:break-all}
+    .flow-ico{width:48px;height:48px;border-radius:14px;background:#eef3f9;color:#244c78;display:grid;place-items:center;flex-shrink:0}
+    .flow-ico svg{width:24px;height:24px}
+    .flow-step{background:#fafbfd;border:1px solid #edf1f6;border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px}
+    .step-title{display:flex;align-items:center;gap:9px;font-size:15px;font-weight:800;color:#25364c}
+    .step-title span{width:22px;height:22px;border-radius:50%;background:#17263d;color:#fff;display:grid;place-items:center;font-size:13px}
+    .step-title em{font-style:normal;font-weight:500;color:#8d99a9;font-size:14px}
+    .contact-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}
+    .contact-card{display:flex;align-items:center;gap:10px;text-align:left;font-family:inherit;background:#fff;border:1.5px solid #e3e9f1;border-radius:12px;padding:10px 12px;cursor:pointer;transition:.15s}
+    .contact-card:hover{border-color:#b9cbe0}
+    .contact-card.on{border-color:#244c78;background:#f1f6fc}
+    .contact-avatar{width:34px;height:34px;border-radius:50%;background:#e5eef8;color:#244c78;display:grid;place-items:center;font-size:13px;font-weight:800;flex-shrink:0}
+    .contact-info{flex:1;min-width:0}
+    .contact-info strong{display:block;font-size:14.5px;color:#25364c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .contact-info small{display:block;font-size:12.5px;color:#8d99a9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .contact-check{width:22px;height:22px;border-radius:50%;border:1.5px solid #c9d6e6;color:#8d99a9;display:grid;place-items:center;font-size:14px;font-weight:800;flex-shrink:0}
+    .contact-card.on .contact-check{background:#244c78;border-color:#244c78;color:#fff}
+    .flow-label{font-size:13px;font-weight:700;color:#4a5a6e;margin-top:2px}
+    .mail-dest small{width:100%;font-size:12.5px;font-weight:700;color:#8d99a9}
+    .flow-help{font-size:13px;color:#8d99a9}
+    .wa-input{height:46px;font-size:17.5px!important;letter-spacing:1px}
+    .wa-steps{margin:0;padding-left:20px;font-size:14.5px;line-height:1.9;color:#41546b}
+    .flow-actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap}
+    .flow-actions .wa-btn{padding:0 22px}
+    .wa-box{display:flex;flex-direction:column;gap:6px;background:#f2fbf5;border:1px solid #cdeedb;border-radius:12px;padding:12px}
+    .wa-box label{margin-top:0!important}
+    .wa-btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;height:42px;border:0;border-radius:10px;background:#25d366;color:#fff;font-family:inherit;font-size:15.5px;font-weight:800;cursor:pointer;transition:filter .2s,transform .15s}
+    .wa-btn:hover{filter:brightness(.95);transform:translateY(-1px)}
+    .wa-btn svg{width:19px;height:19px;fill:#fff}
+    .wa-direct{border:0;background:transparent;color:#1d7a46;font-family:inherit;font-size:13.5px;font-weight:700;text-decoration:underline;cursor:pointer;padding:2px}
+    .wa-manual{display:block;margin-top:6px;font-weight:800;color:#128c4a;text-decoration:underline}
+    .wa-hint{font-size:13.5px;line-height:1.45;color:#1d7a46;background:#fff;border-radius:8px;padding:8px 10px}
+    .mail-sug{display:flex;flex-wrap:wrap;gap:6px}
+    .mail-sug button{display:inline-flex;align-items:center;gap:6px;max-width:100%;border:1px solid #d9e2ee;background:#fff;border-radius:20px;padding:5px 10px 5px 6px;font-family:inherit;font-size:13.5px;color:#25364c;cursor:pointer;transition:.15s}
+    .mail-sug button:hover{border-color:#9fb6d3;background:#f6f9fc}
+    .mail-sug button b{width:18px;height:18px;border-radius:50%;background:#eef3f9;color:#244c78;display:grid;place-items:center;font-size:13px;flex-shrink:0}
+    .mail-sug button span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px}
+    .mail-sug button small{color:#8d99a9;font-size:12px}
+    .mail-sug button.on{border-color:#244c78;background:#eef3f9}
+    .mail-sug button.on b{background:#244c78;color:#fff}
+    .mail-dest{display:flex;flex-wrap:wrap;gap:5px}
+    .mail-dest span{display:inline-flex;align-items:center;gap:4px;font-size:13px;font-weight:600;color:#244c78;background:#e5eef8;border-radius:6px;padding:4px 4px 4px 8px;word-break:break-all}
+    .mail-dest button{border:0;background:transparent;color:#244c78;font-size:15.5px;line-height:1;cursor:pointer;padding:0 3px}
+    .mail-add{display:flex;gap:6px}
+    .mail-add input{flex:1;min-width:0}
+    .mail-open{margin-top:6px!important}
+    .mail-hint{background:#eef3f9!important;color:#2d5d93!important}
+    .mail-note{font-size:12.5px;line-height:1.45;color:#8a7a55}
+    .doc-mail-off{font-size:13.5px;line-height:1.5;color:#7a5200;background:#fffaf0;border:1px solid #f0d49a;border-radius:10px;padding:10px 12px}
+    .doc-ok{font-size:14px;font-weight:700;color:#21835a;background:#e8f6ee;border-radius:8px;padding:8px 10px}
+    @media(max-width:860px){.flow-actions>*{flex:1}.doc-flow{padding:14px 16px 20px}.doc-body{grid-template-columns:1fr}.doc-preview iframe{min-height:420px}.doc-side{border-left:0;border-top:1px solid #edf0f4}}
+
+    /* ---------- REVOCACIÓN ---------- */
+    .revoke-link{border:1px dashed #e6b866;background:#fffaf0;color:#a56a00;font-family:inherit;font-size:14.5px;font-weight:700;border-radius:10px;padding:11px 14px;width:100%;text-align:left;cursor:pointer;transition:background .2s}
+    .revoke-link:hover{background:#fff1d6}
+    .revoke-box{background:#fffaf0;border:1px solid #f0d49a;border-radius:12px;padding:16px;color:#7a5200;animation:fadeUp .2s ease both}
+    .revoke-box>strong{display:block;font-size:15.5px;margin-bottom:8px}
+    .revoke-box ul{margin:0 0 14px;padding-left:18px;font-size:14px;line-height:1.7}
+    .revoke-box label{color:#7a5200}
+    .revoke-box textarea{background:#fff}
+    .revoke-off{margin:0;font-size:13.5px;color:#8a97a8}
+    .btn-revoke{border-radius:8px;padding:11px 16px;font-size:14px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:8px;background:#d98a00;color:#fff;border:1px solid #c47c00;transition:.2s}
+    .btn-revoke:hover:not(:disabled){background:#bf7900}
+    .btn-revoke:disabled{opacity:.6;cursor:not-allowed}
+    .revoked-note{background:#fffaf0;border:1px solid #f0d49a;border-radius:10px;padding:14px 16px;color:#7a5200;font-size:14px}
+    .revoked-note p{margin:4px 0 8px;font-size:13px;opacity:.85}
+    .revoked-tag{display:inline-block;margin-left:6px;font-size:12px;font-weight:800;color:#a56a00;background:#fff1d6;border-radius:20px;padding:3px 8px;vertical-align:middle}
+
+    /* ---------- AVISO DE RESULTADO ---------- */
+    .aviso-backdrop{position:fixed;inset:0;z-index:220;background:#0f1c2e55;backdrop-filter:blur(3px);display:grid;place-items:center;padding:16px;animation:fadeIn .2s ease both}
+    .aviso-card{--av:#21835a;--av-bg:#e8f6ee;position:relative;overflow:hidden;width:min(380px,100%);background:#fff;border-radius:22px;padding:34px 28px 26px;text-align:center;box-shadow:0 30px 80px #0b172855;animation:avisoEntra .45s cubic-bezier(.2,1.3,.4,1) both}
+    .av-pendiente{--av:#c77700;--av-bg:#fff4dc}
+    .av-baja{--av:#c2414b;--av-bg:#fdeced}
+    .av-rechazo{--av:#c2414b;--av-bg:#fdeced}
+    .av-error{--av:#c2414b;--av-bg:#fdeced}
+    .av-info{--av:#2d5d93;--av-bg:#eaf1fa}
+    .aviso-ico{width:84px;height:84px;margin:0 auto 18px;border-radius:50%;background:var(--av-bg);display:grid;place-items:center;animation:avisoPop .5s .1s cubic-bezier(.2,1.5,.4,1) both}
+    .aviso-ico svg{width:58px;height:58px;fill:none;stroke:var(--av);stroke-width:3.2;stroke-linecap:round;stroke-linejoin:round}
+    .av-circ{stroke-dasharray:145;stroke-dashoffset:145;animation:avisoTrazo .6s .15s ease forwards;opacity:.35}
+    .av-trazo{stroke-dasharray:80;stroke-dashoffset:80;animation:avisoTrazo .45s .5s ease forwards}
+    .aviso-card h2{margin:0 0 8px;font-size:24px;font-weight:800;letter-spacing:-.3px;color:#14243a}
+    .aviso-card p{margin:0 0 24px;font-size:15.5px;line-height:1.55;color:#5f6f86}
+    .aviso-btn{width:100%;height:48px;border:0;border-radius:13px;background:var(--av);color:#fff;font-family:inherit;font-size:15.5px;font-weight:700;cursor:pointer;transition:filter .2s,transform .15s}
+    .aviso-btn:hover{filter:brightness(1.08);transform:translateY(-1px)}
+    .aviso-timer{position:absolute;left:0;right:0;bottom:0;height:4px;background:var(--av-bg)}
+    .aviso-timer span{display:block;height:100%;background:var(--av);transform-origin:left;animation:avisoTiempo linear forwards}
+    @keyframes avisoEntra{from{opacity:0;transform:scale(.85) translateY(14px)}to{opacity:1;transform:none}}
+    @keyframes avisoPop{from{transform:scale(.4);opacity:0}to{transform:none;opacity:1}}
+    @keyframes avisoTrazo{to{stroke-dashoffset:0}}
+    @keyframes avisoTiempo{from{transform:scaleX(1)}to{transform:scaleX(0)}}
+    @media (prefers-reduced-motion:reduce){.aviso-card,.aviso-ico{animation:none}.av-circ,.av-trazo{animation:none;stroke-dashoffset:0}}
+
+    /* ---------- AUTORIZACIONES: PENDIENTES QUE BRILLAN ---------- */
+    @keyframes brilloFila{0%,100%{background:#fffaf0}50%{background:#ffefc9}}
+    @keyframes brilloBarra{0%,100%{box-shadow:inset 4px 0 #f0a020}50%{box-shadow:inset 4px 0 #ffcf5c,inset 14px 0 18px -10px #f5b33c88}}
+    @keyframes halo{0%,100%{box-shadow:0 0 0 0 #f0a02066,0 3px 12px #f0a0201f}50%{box-shadow:0 0 0 6px #f0a02000,0 6px 22px #f0a02047}}
+    @keyframes latido{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}
+    @keyframes destello{0%{left:-60%}60%,100%{left:130%}}
+    .row-pendiente td{animation:brilloFila 2.4s ease-in-out infinite}
+    .row-pendiente td:first-child{animation:brilloFila 2.4s ease-in-out infinite,brilloBarra 2.4s ease-in-out infinite}
+    .row-pendiente:hover td{background:#ffe9b8!important}
+    .row-pendiente .status{position:relative;padding-left:20px}
+    .row-pendiente .status::before{content:'';position:absolute;left:8px;top:50%;width:7px;height:7px;margin-top:-3.5px;border-radius:50%;background:#e8920c;box-shadow:0 0 0 0 #e8920c88;animation:halo 1.6s ease-out infinite}
+    .btn-revisar{position:relative;overflow:hidden;background:#f0a020!important;border-color:#e0920f!important;color:#fff!important;box-shadow:0 4px 12px #f0a02055}
+    .btn-revisar:hover{background:#dc8d0c!important}
+    .btn-revisar::after{content:'';position:absolute;top:0;bottom:0;left:-60%;width:40%;background:linear-gradient(100deg,transparent,#ffffff8c,transparent);transform:skewX(-20deg);animation:destello 2.6s ease-in-out infinite}
+    .stat-alerta{border-color:#f5c26b!important;background:linear-gradient(180deg,#fffaf0,#fff)!important;animation:halo 2.2s ease-in-out infinite}
+    .stat-alerta>strong{color:#c77700!important}
+    .tab-alerta{background:#f0a020!important;color:#fff!important;animation:latido 1.4s ease-in-out infinite}
+    .nav-badge,.toggle-badge{animation:latido 1.4s ease-in-out infinite}
+    @media (prefers-reduced-motion:reduce){.row-pendiente td,.row-pendiente td:first-child,.btn-revisar::after,.stat-alerta,.tab-alerta,.nav-badge,.toggle-badge,.row-pendiente .status::before{animation:none}.row-pendiente td{background:#fff4dc}.row-pendiente td:first-child{box-shadow:inset 4px 0 #f0a020}}
+
+    /* ---------- INVENTARIO: TARJETAS ---------- */
+    .inv-back{border:0;background:transparent;padding:0;margin:0 0 8px;font-family:inherit;font-size:14.5px;font-weight:700;color:#4f6f95;cursor:pointer}
+    .inv-back:hover{color:#17263d;text-decoration:underline}
+    .inv-tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;min-height:calc(100vh - 230px)}
+    .inv-tile{position:relative;overflow:hidden;border:0;border-radius:20px;padding:28px 30px;text-align:left;font-family:inherit;color:#fff;cursor:pointer;display:flex;flex-direction:column;justify-content:space-between;gap:18px;min-height:220px;box-shadow:0 10px 30px #17263d26;transition:transform .2s ease,box-shadow .2s ease;animation:fadeUp .45s ease both}
+    .inv-tile:nth-child(2){animation-delay:.05s}.inv-tile:nth-child(3){animation-delay:.1s}.inv-tile:nth-child(4){animation-delay:.15s}
+    .inv-tile:hover{transform:translateY(-4px);box-shadow:0 18px 40px #17263d3d}
+    .inv-tile:active{transform:translateY(-1px)}
+    .t-sedes{background:linear-gradient(140deg,#17304f,#2d5d93)}
+    .t-bienes{background:linear-gradient(140deg,#0f4c47,#1f8a7c)}
+    .t-personas{background:linear-gradient(140deg,#3b2a6b,#6a4fb3)}
+    .t-completo{background:linear-gradient(140deg,#1f2937,#4b5563)}
+    .tile-bg{position:absolute;right:-30px;bottom:-40px;width:230px;height:230px;opacity:.1;pointer-events:none;transition:transform .35s ease}
+    .inv-tile:hover .tile-bg{transform:scale(1.08) rotate(-4deg)}
+    .tile-ico{width:64px;height:64px;border-radius:18px;background:#ffffff1f;border:1px solid #ffffff2e;display:grid;place-items:center}
+    .tile-ico svg{width:34px;height:34px}
+    .tile-text strong{display:block;font-size:28px;font-weight:800;letter-spacing:-.4px}
+    .tile-text small{display:block;font-size:15px;color:#ffffffb8;margin-top:5px}
+    .tile-num{font-size:42px;font-weight:800;letter-spacing:-1px;line-height:1}
+    .tile-num em{font-style:normal;font-size:15px;font-weight:600;letter-spacing:0;color:#ffffffb0;margin-left:8px}
+    .tile-go{position:absolute;right:26px;top:30px;font-size:14px;font-weight:700;background:#ffffff1f;border:1px solid #ffffff2e;padding:7px 13px;border-radius:20px;transition:background .2s}
+    .inv-tile:hover .tile-go{background:#ffffff33}
+
+    .sede-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+    .sede-card{position:relative;text-align:left;font-family:inherit;background:#fff;border:1px solid #e5eaf1;border-radius:16px;padding:20px;cursor:pointer;display:flex;flex-direction:column;gap:12px;box-shadow:0 3px 12px #233c5708;transition:transform .18s,box-shadow .18s,border-color .18s;animation:fadeUp .35s ease both}
+    .sede-card:hover{transform:translateY(-3px);border-color:#bcd0e8;box-shadow:0 12px 28px #233c5717}
+    .sede-top{display:flex;gap:12px;align-items:center}
+    .sede-ico{width:46px;height:46px;border-radius:13px;background:linear-gradient(140deg,#17304f,#2d5d93);color:#fff;display:grid;place-items:center;flex-shrink:0}
+    .sede-ico svg{width:24px;height:24px}
+    .sede-top strong{display:block;font-size:16.5px;color:#14243a}
+    .sede-top small{display:block;font-size:13.5px;color:#8a97a8;margin-top:3px}
+    .sede-num{font-size:36px;font-weight:800;color:#14243a;letter-spacing:-1px;line-height:1}
+    .sede-num span{font-size:14px;font-weight:600;color:#8a97a8;letter-spacing:0;margin-left:7px}
+    .sede-bar{height:6px;background:#edf1f6;border-radius:4px;overflow:hidden}
+    .sede-bar span{display:block;height:100%;background:#2fa36b;border-radius:4px}
+    .sede-meta{display:flex;justify-content:space-between;font-size:13.5px;color:#6f7d8f}
+    .sede-tags{display:flex;flex-wrap:wrap;gap:6px}
+    .sede-tags span{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:#4d5f75;background:#f3f6fa;border-radius:20px;padding:4px 10px}
+    .sede-tags i{width:7px;height:7px;border-radius:50%;display:inline-block}
+    .sede-go{font-size:14px;font-weight:700;color:#2d5d93;margin-top:2px}
+
+    .people-bar{display:flex;align-items:center;gap:14px;margin-bottom:16px}
+    .people-bar .search-box{background:#fff;max-width:420px}
+    .people-count{font-size:14px;color:#7d8a9b;font-weight:600}
+    .people-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+    .person-card{display:flex;align-items:center;gap:14px;text-align:left;font-family:inherit;background:#fff;border:1px solid #e5eaf1;border-radius:14px;padding:14px 16px;cursor:pointer;transition:transform .15s,box-shadow .15s,border-color .15s}
+    .person-card:hover{transform:translateY(-2px);border-color:#cbbdf0;box-shadow:0 10px 24px #3b2a6b14}
+    .person-avatar{width:46px;height:46px;border-radius:50%;background:linear-gradient(140deg,#3b2a6b,#6a4fb3);color:#fff;display:grid;place-items:center;font-size:15.5px;font-weight:800;flex-shrink:0}
+    .person-info{flex:1;min-width:0}
+    .person-info strong{display:block;font-size:15px;color:#14243a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .person-info small{display:block;font-size:13px;color:#8a97a8;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .person-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}
+    .person-tags span{font-size:12px;font-weight:700;color:#5b47a0;background:#f1edfb;border-radius:20px;padding:3px 8px}
+    .person-num{text-align:right;font-size:26px;font-weight:800;color:#3b2a6b;line-height:1;flex-shrink:0}
+    .person-num em{display:block;font-style:normal;font-size:12.5px;font-weight:600;color:#8a97a8;margin-top:3px}
+
+    .asset-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px;padding:4px 16px 16px}
+    .asset-card{display:flex;flex-direction:column;gap:7px;text-align:left;font-family:inherit;background:#fff;border:1px solid #e5eaf1;border-left:5px solid #c3ccd8;border-radius:14px;padding:15px 16px;cursor:pointer;transition:transform .15s,box-shadow .15s}
+    .asset-card:hover{transform:translateY(-2px);box-shadow:0 10px 24px #233c5714}
+    .asset-chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:3px}
+    .chip-key{font-family:"SFMono-Regular",Consolas,monospace;font-size:13px;font-weight:800;color:#14243a;background:#f3f5f8;border:1px solid #e1e6ed;border-radius:7px;padding:3px 8px}
+    .chip-class{font-size:12px;font-weight:800;letter-spacing:.3px;color:#4f6f95;background:#eef3f9;border-radius:7px;padding:4px 8px;text-transform:uppercase;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .asset-title{font-size:16px;color:#14243a;line-height:1.3;text-transform:uppercase}
+    .asset-sub{font-size:14px;color:#7d8a9b;margin-top:-3px}
+    .asset-line{display:flex;align-items:center;gap:7px;font-size:14px;color:#4b5a6d;min-width:0}
+    .asset-line svg{width:14px;height:14px;flex-shrink:0;color:#94a2b4}
+    .asset-line.muted{color:#a3adba}
+    .asset-foot{display:flex;justify-content:space-between;align-items:center;border-top:1px dashed #e5eaf1;padding-top:9px;margin-top:4px;font-size:13.5px;color:#8a97a8}
+    .asset-more{font-weight:700;color:#2d5d93}
+    .more-cards{display:flex;align-items:center;justify-content:center;gap:14px;padding:6px 16px 20px;font-size:14px;color:#7d8a9b}
+    .inv-empty{grid-column:1/-1;text-align:center;padding:40px 16px;color:#7d8a9b;font-size:15px}
+    @media(max-width:900px){.inv-tiles{grid-template-columns:1fr;min-height:0}.inv-tile{min-height:170px;padding:22px}.tile-num{font-size:34px}.tile-text strong{font-size:24px}}
+    @media(max-width:700px){.asset-cards{grid-template-columns:1fr;padding:4px 12px 12px}.people-grid,.sede-grid{grid-template-columns:1fr}.people-bar{flex-wrap:wrap}.tile-go{display:none}}
+
+    /* ---------- SALUDO DE INICIO ---------- */
+    .welcome{min-height:calc(100vh - 150px);background:#fff;border:1px solid #e7ecf2;border-radius:16px;display:flex;flex-direction:column;align-items:center;padding:32px 20px 22px;box-shadow:0 3px 12px #233c5708}
+    .welcome-inner{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;max-width:520px;width:100%}
+    .welcome-logo{width:min(300px,78%);height:auto;margin-bottom:34px;animation:fadeUp .6s ease both}
+    .welcome-chip{font-size:13.5px;font-weight:700;color:#4f6f95;background:#eef3f9;padding:6px 14px;border-radius:20px;margin-bottom:18px;animation:fadeUp .6s .1s ease both}
+    .welcome h1{margin:0 0 14px;font-size:36px;font-weight:800;letter-spacing:-.6px;color:#111827;animation:fadeUp .6s .18s ease both}
+    .welcome-inner p{margin:0;font-size:16.5px;line-height:1.7;color:#4b5563;animation:fadeUp .6s .26s ease both}
+    .welcome-foot{margin-top:28px;font-size:12.5px;font-weight:600;letter-spacing:2.2px;color:#9aa3af;text-align:center}
+    @media(max-width:700px){.welcome{min-height:calc(100vh - 120px)}.welcome h1{font-size:29px}.welcome-inner p{font-size:15.5px}}
+
     /* ---------- LOGIN ---------- */
-    .lg-screen{min-height:100vh;display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);background:#f4f6fa}
-    .lg-hero{position:relative;overflow:hidden;color:#fff;background:linear-gradient(150deg,#0f1c2e 0%,#17304f 55%,#244c78 100%);padding:44px 56px;display:flex;flex-direction:column;justify-content:space-between;gap:40px}
-    .lg-grid{position:absolute;inset:0;background-image:linear-gradient(#ffffff0d 1px,transparent 1px),linear-gradient(90deg,#ffffff0d 1px,transparent 1px);background-size:44px 44px;mask-image:radial-gradient(ellipse at 30% 40%,#000 20%,transparent 75%);-webkit-mask-image:radial-gradient(ellipse at 30% 40%,#000 20%,transparent 75%);pointer-events:none}
-    .lg-glow{position:absolute;width:520px;height:520px;right:-180px;bottom:-200px;border-radius:50%;background:radial-gradient(circle,#4f8ad055,transparent 65%);pointer-events:none}
-    .lg-hero>*{position:relative}
-    .lg-hero-top{display:flex;align-items:center;gap:14px;animation:fadeUp .5s ease both}
-    .lg-logo{width:46px;height:46px;border-radius:13px;background:#fff;color:#17304f;display:grid;place-items:center;font-size:25px;font-weight:900;box-shadow:0 8px 24px #0006;flex-shrink:0}
-    .lg-logo img{width:100%;height:100%;object-fit:contain;border-radius:inherit}
-    .lg-logo.small{width:38px;height:38px;font-size:21px;border-radius:11px;background:#17304f;color:#fff;box-shadow:none}
-    .lg-name{display:block;font-size:20px;letter-spacing:2px}
-    .lg-razon{display:block;font-size:11px;color:#a9bad0;margin-top:3px}
-    .lg-hero-body{max-width:470px;animation:fadeUp .6s .08s ease both}
-    .lg-kicker{display:inline-block;font-size:10px;font-weight:800;letter-spacing:1.6px;text-transform:uppercase;color:#9cc3f0;background:#ffffff12;border:1px solid #ffffff1f;padding:6px 12px;border-radius:20px}
-    .lg-hero-body h2{font-size:38px;line-height:1.12;letter-spacing:-.8px;margin:18px 0 14px;font-weight:800}
-    .lg-hero-body>p{font-size:14px;line-height:1.6;color:#bccbdd;margin:0 0 30px}
-    .lg-points{list-style:none;margin:0;padding:0;display:grid;gap:16px}
-    .lg-points li{display:flex;gap:14px;align-items:flex-start}
-    .lg-point-ico{width:38px;height:38px;border-radius:11px;background:#ffffff14;border:1px solid #ffffff1f;display:grid;place-items:center;flex-shrink:0}
-    .lg-point-ico svg{width:18px;height:18px;fill:none;stroke:#cfe0f5;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-    .lg-points strong{display:block;font-size:13px;margin-bottom:3px}
-    .lg-points small{font-size:12px;color:#a9bad0}
-    .lg-hero-foot{font-size:11px;color:#8ea2bb}
-    .lg-side{display:grid;place-items:center;padding:40px 24px;background:#fff}
-    .lg-form{width:min(380px,100%);animation:fadeUp .5s .12s ease both}
-    .lg-mobile-brand{display:none;align-items:center;gap:10px;margin-bottom:28px;color:#17304f;font-size:17px;letter-spacing:1.6px}
-    .lg-form h1{font-size:28px;letter-spacing:-.5px;color:#14243a;margin:0 0 6px}
-    .lg-sub{font-size:13px;color:#7a889a;margin:0 0 30px}
-    .lg-label{display:block;font-size:11px;font-weight:700;color:#4a5a6e;margin:0 0 7px}
-    .lg-field{position:relative;display:flex;align-items:center;margin-bottom:18px}
-    .lg-field>svg{position:absolute;left:14px;width:17px;height:17px;fill:none;stroke:#94a2b4;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;pointer-events:none;transition:stroke .2s}
-    .lg-field input{width:100%;height:48px;padding:0 44px;border:1.5px solid #dfe5ee;border-radius:11px;background:#f8fafc;font-size:14px;color:#14243a;transition:border-color .2s,box-shadow .2s,background .2s}
-    .lg-field input::placeholder{color:#a8b3c1}
-    .lg-field input:focus{outline:none;border-color:#244c78;background:#fff;box-shadow:0 0 0 4px #244c781f}
-    .lg-field:focus-within>svg{stroke:#244c78}
+    .lg-screen{min-height:100vh;background:#fff;display:flex;justify-content:center;padding:48px 16px 32px}
+    .lg-card{width:min(440px,100%);display:flex;flex-direction:column;align-items:stretch;animation:fadeUp .5s ease both}
+    .lg-logo-img{display:block;width:min(340px,86%);height:auto;margin:24px auto 44px}
+    .lg-titles{text-align:center;margin-bottom:40px}
+    .lg-titles h1{margin:0 0 12px;font-size:23px;font-weight:800;letter-spacing:6px;color:#111827;padding-left:6px}
+    .lg-titles p{margin:0;font-size:14.5px;font-weight:700;letter-spacing:5px;color:#5f6f86;padding-left:5px}
+    .lg-field{position:relative;margin-bottom:18px}
+    .lg-field input{width:100%;height:56px;padding:0 52px 0 22px;border:1.5px solid #dfe3ec;border-radius:14px;background:#f8fafc;font-family:"SFMono-Regular",Consolas,"Courier New",monospace;font-size:16.5px;letter-spacing:1px;color:#111827;transition:border-color .2s,box-shadow .2s,background .2s}
+    .lg-field input::placeholder{color:#9aa3af;font-weight:700;letter-spacing:2px}
+    .lg-field input:focus{outline:none;border-color:#111827;background:#fff;box-shadow:0 0 0 4px #11182714}
     .lg-field.invalid input{border-color:#e2a1a6}
-    .lg-eye{position:absolute;right:6px;width:36px;height:36px;border:0;background:transparent;border-radius:8px;display:grid;place-items:center;cursor:pointer}
-    .lg-eye:hover{background:#eef2f7}
-    .lg-eye svg{width:18px;height:18px;fill:none;stroke:#7a889a;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-    .lg-error{display:flex;gap:9px;align-items:flex-start;background:#fdf0f1;color:#b4404a;border:1px solid #f5d3d6;border-radius:10px;padding:11px 13px;font-size:12px;line-height:1.45;margin:-4px 0 16px;animation:fadeUp .25s ease both}
+    .lg-eye{position:absolute;right:9px;top:50%;transform:translateY(-50%);width:38px;height:38px;border:0;background:transparent;border-radius:10px;display:grid;place-items:center;cursor:pointer}
+    .lg-eye:hover{background:#eef1f5}
+    .lg-eye svg{width:18px;height:18px;fill:none;stroke:#7a8494;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+    .lg-error{display:flex;gap:9px;align-items:flex-start;background:#fdf0f1;color:#b4404a;border:1px solid #f5d3d6;border-radius:12px;padding:11px 14px;font-size:14.5px;line-height:1.45;margin:-2px 0 16px;animation:fadeUp .25s ease both}
     .lg-error svg{width:16px;height:16px;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
-    .lg-submit{width:100%;height:50px;border:0;border-radius:11px;background:linear-gradient(135deg,#244c78,#17304f);color:#fff;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:10px;cursor:pointer;box-shadow:0 10px 24px #17304f33;transition:transform .15s,box-shadow .2s,opacity .2s;margin-top:6px}
-    .lg-submit:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 14px 30px #17304f44}
-    .lg-submit:disabled{opacity:.55;cursor:not-allowed;box-shadow:none}
-    .lg-submit svg{width:17px;height:17px;fill:none;stroke:#fff;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
-    .lg-help{font-size:11.5px;line-height:1.55;color:#8592a3;margin:22px 0 0;padding-top:18px;border-top:1px solid #edf1f6}
-    @media (max-width:900px){
-      .lg-screen{grid-template-columns:1fr}
-      .lg-hero{display:none}
-      .lg-mobile-brand{display:flex}
-      .lg-side{min-height:100vh;align-items:start;padding-top:14vh}
-    }
+    .lg-submit{height:56px;margin-top:6px;border:0;border-radius:14px;background:#111827;color:#fff;font-family:inherit;font-size:16.5px;font-weight:800;letter-spacing:4px;display:flex;align-items:center;justify-content:center;gap:10px;cursor:pointer;transition:background .2s,transform .15s,box-shadow .2s}
+    .lg-submit:hover:not(:disabled){background:#1f2a3d;transform:translateY(-1px);box-shadow:0 10px 24px #11182733}
+    .lg-submit:disabled{opacity:.6;cursor:not-allowed}
+    .lg-forgot{align-self:center;margin-top:26px;border:0;background:transparent;font-family:inherit;font-size:15.5px;color:#5f6f86;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+    .lg-forgot:hover{color:#111827}
+    .lg-recover{text-align:center;margin:-12px 0 24px}
+    .lg-recover h2,.lg-sent h2{margin:0 0 10px;font-size:19px;color:#111827}
+    .lg-recover p,.lg-sent p{margin:0;font-size:15px;line-height:1.6;color:#5f6f86}
+    .lg-rules{list-style:none;display:flex;flex-wrap:wrap;gap:6px 16px;margin:-4px 0 18px;padding:0 4px;font-size:14px;color:#9aa3af}
+    .lg-rules li::before{content:'○ '}
+    .lg-rules li.ok{color:#21835a}
+    .lg-rules li.ok::before{content:'✓ '}
+    .lg-sent{text-align:center;margin-top:-8px;animation:fadeUp .3s ease both}
+    .lg-sent-ico{width:54px;height:54px;border-radius:50%;background:#e8f6ee;display:grid;place-items:center;margin:0 auto 16px}
+    .lg-sent-ico svg{width:26px;height:26px;fill:none;stroke:#21835a;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+    .lg-sent ol{text-align:left;margin:20px 0 0;padding:16px 18px 16px 38px;background:#f6f8fb;border-radius:12px;font-size:15px;line-height:1.9;color:#374151}
+    .rec-panel{background:#fff;border:1px solid #f0dcae;border-radius:12px;margin-bottom:20px;overflow:hidden;box-shadow:0 3px 12px #233c5708}
+    .rec-head{display:flex;align-items:center;gap:12px;padding:15px 20px;background:#fffaf0;border-bottom:1px solid #f5e6c4}
+    .rec-head-ico{width:36px;height:36px;border-radius:10px;background:#fdecc8;color:#a56a00;display:grid;place-items:center;font-size:19px;flex-shrink:0}
+    .rec-head strong{display:block;font-size:15.5px;color:#25364c}
+    .rec-head small{display:block;font-size:13.5px;color:#8a7a55;margin-top:2px}
+    .rec-row{display:flex;align-items:center;gap:14px;padding:13px 20px;border-bottom:1px solid #f1f4f8}
+    .rec-row:last-child{border-bottom:0}
+    .rec-avatar{width:36px;height:36px;border-radius:50%;background:#eef3f9;color:#244c78;display:grid;place-items:center;font-size:14px;font-weight:800;flex-shrink:0}
+    .rec-info{flex:1;min-width:0}
+    .rec-info strong{display:block;font-size:15px;color:#25364c;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .rec-info small{display:block;font-size:13.5px;color:#8c98a8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .rec-actions{display:flex;gap:8px;flex-shrink:0}
+    .temp-card{text-align:center;padding:30px 28px 24px}
+    .temp-ico{width:56px;height:56px;border-radius:50%;background:#e8f6ee;color:#21835a;display:grid;place-items:center;font-size:26px;margin:0 auto 14px}
+    .temp-card h2{margin:0 0 6px;font-size:21px;color:#1c2e45}
+    .temp-card>p{margin:0 0 20px;font-size:15px;color:#7a889a}
+    .temp-pass{display:flex;align-items:center;justify-content:center;gap:12px;background:#f4f7fb;border:1.5px dashed #c5d3e4;border-radius:12px;padding:16px}
+    .temp-pass code{font-family:"SFMono-Regular",Consolas,"Courier New",monospace;font-size:28px;font-weight:800;letter-spacing:3px;color:#14243a}
+    .temp-steps{text-align:left;margin:18px 0 0;padding:14px 16px 14px 34px;background:#fffaf0;border-radius:10px;font-size:14.5px;line-height:1.8;color:#5b4a26}
+    @media(max-width:700px){.rec-row{flex-wrap:wrap}.rec-actions{width:100%}.rec-actions button{flex:1}}
+    .lg-forgot-help{margin:12px 0 0;text-align:center;font-size:14.5px;line-height:1.55;color:#6b7686;background:#f6f8fb;border-radius:12px;padding:12px 16px;animation:fadeUp .2s ease both}
+    .lg-footer{margin-top:36px;padding-top:26px;border-top:1px solid #edf0f4;text-align:center}
+    .lg-footer p{margin:0 0 8px;font-size:12.5px;font-weight:600;letter-spacing:2.2px;color:#8a95a6}
+    .lg-footer b{color:#1f2937;font-weight:800}
+    @media (max-width:480px){.lg-screen{padding-top:24px}.lg-logo-img{margin:20px auto 34px}.lg-titles h1{letter-spacing:5px}.lg-titles p{letter-spacing:3.5px}}
     @keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
     @keyframes spin{to{transform:rotate(360deg)}}
     @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
@@ -1547,72 +2226,72 @@ interface DialogoConfirmacion {
     .sk-row{display:flex;align-items:center;gap:22px;padding:15px 22px;border-top:1px solid #f0f3f7}
     .sk-pill{height:20px;width:70px;border-radius:20px;margin-left:auto}
     .loading-banner{display:flex;align-items:center;gap:16px;padding:22px}
-    .loading-banner strong{font-size:14px;color:#25364c}
-    .loading-banner p{margin:5px 0 0;font-size:12px;color:#8491a3}
+    .loading-banner strong{font-size:15.5px;color:#25364c}
+    .loading-banner p{margin:5px 0 0;font-size:14px;color:#8491a3}
     .loader-ring{width:36px;height:36px;border-radius:50%;border:3px solid #dfe8f3;border-top-color:#244c78;animation:spin .9s linear infinite;flex-shrink:0}
     .mini-ring{display:inline-block;width:12px;height:12px;border-radius:50%;border:2px solid #dfe8f3;border-top-color:#244c78;animation:spin .9s linear infinite;vertical-align:-2px}
-    .refreshing{font-size:11px;color:#6b7b90;display:inline-flex;align-items:center;gap:7px}
+    .refreshing{font-size:13px;color:#6b7b90;display:inline-flex;align-items:center;gap:7px}
 
     /* ===== INVENTARIO: RESUMEN POR CLASIFICACIÓN ===== */
     .overview-panel{background:#fff;border:1px solid #e7ecf2;border-radius:12px;padding:20px 22px;margin-bottom:20px;box-shadow:0 3px 12px #233c5708}
     .overview-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:15px}
-    .overview-head h2{font-size:15px;margin:0 0 5px;color:#25364c}
-    .overview-head p{font-size:11px;color:#929eae;margin:0}
+    .overview-head h2{font-size:16.5px;margin:0 0 5px;color:#25364c}
+    .overview-head p{font-size:13px;color:#929eae;margin:0}
     .overview-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
     .overview-card{position:relative;text-align:left;font-family:inherit;border:1px solid #e8edf3;background:#fbfcfe;border-radius:10px;padding:13px 14px;cursor:pointer;display:flex;flex-direction:column;gap:6px;transition:.2s}
     .overview-card:hover{border-color:#c9d6e6;background:#fff;transform:translateY(-1px);box-shadow:0 4px 12px #233c570d}
     .overview-card.selected{border-color:#5e8fc7;background:#fff;box-shadow:0 0 0 3px #5e8fc71f}
     .overview-card.dimmed{opacity:.55}
     .overview-dot{position:absolute;top:15px;right:14px;width:8px;height:8px;border-radius:50%}
-    .overview-name{font-size:10px;font-weight:800;letter-spacing:.4px;color:#6a7b90;padding-right:16px;text-transform:uppercase;line-height:1.35}
-    .overview-card strong{font-size:22px;color:#1c2e45;letter-spacing:-.6px}
+    .overview-name{font-size:12px;font-weight:800;letter-spacing:.4px;color:#6a7b90;padding-right:16px;text-transform:uppercase;line-height:1.35}
+    .overview-card strong{font-size:24px;color:#1c2e45;letter-spacing:-.6px}
     .overview-bar{height:5px;background:#edf1f6;border-radius:4px;overflow:hidden}
     .overview-bar span{display:block;height:100%;border-radius:4px}
-    .overview-card small{font-size:10px;color:#97a3b3}
+    .overview-card small{font-size:12px;color:#97a3b3}
     .link-button.inline{display:inline;margin:0;white-space:nowrap}
 
     /* ===== INVENTARIO: TABLA ===== */
     .inventory-filters{flex-wrap:wrap}
     .inventory-filters select{width:auto;min-width:160px;height:39px}
     .search-box{position:relative}
-    .clear-search{background:transparent;border:0;color:#8a97a8;font-size:18px;cursor:pointer;padding:0 2px}
+    .clear-search{background:transparent;border:0;color:#8a97a8;font-size:20px;cursor:pointer;padding:0 2px}
     .inventory-table th.sortable{cursor:pointer;user-select:none}
     .inventory-table th.sortable:hover{color:#2f4d70}
-    .sort-icon{font-size:8px;margin-left:4px;color:#c2ccd8}
+    .sort-icon{font-size:10.5px;margin-left:4px;color:#c2ccd8}
     .sort-icon.active{color:#244c78}
     .inventory-table .num{text-align:center}
-    .chevron-col{width:28px;color:#b5c0cd;font-size:16px;text-align:center}
+    .chevron-col{width:28px;color:#b5c0cd;font-size:17.5px;text-align:center}
     .clickable-row:hover .chevron-col{color:#244c78}
     .row-selected{background:#f1f6fc!important}
-    .page-size{width:auto;height:30px;padding:4px 8px;font-size:11px}
+    .page-size{width:auto;height:30px;padding:4px 8px;font-size:13px}
     .column-picker{position:relative}
     .picker-backdrop{position:fixed;inset:0;z-index:40}
     .picker-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:41;width:270px;background:#fff;border:1px solid #e1e7ef;border-radius:12px;box-shadow:0 14px 40px #15243b2e;animation:fadeUp .18s ease both}
     .picker-head{padding:14px 16px 10px;border-bottom:1px solid #eef1f5}
-    .picker-head strong{display:block;font-size:12px;color:#25364c}
-    .picker-head small{font-size:10px;color:#8b97a7}
+    .picker-head strong{display:block;font-size:14px;color:#25364c}
+    .picker-head small{font-size:12px;color:#8b97a7}
     .picker-presets{display:flex;gap:6px;padding:10px 16px}
-    .picker-presets button{flex:1;border:1px solid #dce3ec;background:#f7f9fc;border-radius:7px;padding:6px 4px;font-size:10px;font-weight:700;color:#4d6077;cursor:pointer}
+    .picker-presets button{flex:1;border:1px solid #dce3ec;background:#f7f9fc;border-radius:7px;padding:6px 4px;font-size:12px;font-weight:700;color:#4d6077;cursor:pointer}
     .picker-presets button:hover{background:#eaf1f9;border-color:#b7c6d9}
     .picker-list{max-height:290px;overflow:auto;padding:4px 8px 10px}
-    .picker-list label{display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:6px;font-size:12px;color:#3d4f66;cursor:pointer}
+    .picker-list label{display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:6px;font-size:14px;color:#3d4f66;cursor:pointer}
     .picker-list label:hover{background:#f5f8fb}
     .picker-list label.locked{color:#97a3b3;cursor:default}
     .picker-list input{width:auto;margin:0}
-    .picker-list small{margin-left:auto;font-size:9px;color:#aab5c3;text-transform:uppercase;letter-spacing:.5px}
+    .picker-list small{margin-left:auto;font-size:11.5px;color:#aab5c3;text-transform:uppercase;letter-spacing:.5px}
 
     .filters-menu{width:320px;max-height:calc(100vh - 160px);display:flex;flex-direction:column;overflow:auto}
     .filters-active{border-color:#5e8fc7!important;color:#244c78!important;background:#f5f9fe!important}
     .filter-fields{display:grid;gap:10px;padding:12px 16px 14px}
-    .filter-fields label{display:flex;flex-direction:column;gap:5px;font-size:10px;font-weight:700;color:#64748a}
+    .filter-fields label{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:700;color:#64748a}
     .filter-fields select{height:36px;font-weight:400}
     .picker-subhead{border-top:1px solid #eef1f5}
     .picker-footer{position:sticky;bottom:0;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 16px;border-top:1px solid #eef1f5;background:#fafbfd}
     .picker-footer .link-button:disabled{opacity:.4;cursor:default;text-decoration:none}
     .active-filters{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-    .filter-chip{display:inline-flex;align-items:center;gap:5px;background:#eaf1f9;color:#2f5580;border:1px solid #d3e1f1;border-radius:20px;padding:5px 6px 5px 11px;font-size:11px;animation:fadeUp .15s ease both}
+    .filter-chip{display:inline-flex;align-items:center;gap:5px;background:#eaf1f9;color:#2f5580;border:1px solid #d3e1f1;border-radius:20px;padding:5px 6px 5px 11px;font-size:13px;animation:fadeUp .15s ease both}
     .filter-chip b{font-weight:700}
-    .filter-chip button{border:0;background:#d3e1f1;color:#2f5580;width:18px;height:18px;border-radius:50%;cursor:pointer;font-size:13px;line-height:1;display:grid;place-items:center;padding:0}
+    .filter-chip button{border:0;background:#d3e1f1;color:#2f5580;width:18px;height:18px;border-radius:50%;cursor:pointer;font-size:15px;line-height:1;display:grid;place-items:center;padding:0}
     .filter-chip button:hover{background:#244c78;color:#fff}
 
     /* ===== INVENTARIO: PANEL LATERAL ===== */
@@ -1620,16 +2299,16 @@ interface DialogoConfirmacion {
     .drawer{position:fixed;inset:0;margin:auto;width:min(780px,calc(100% - 32px));height:fit-content;max-height:calc(100vh - 48px);background:#fff;z-index:91;display:flex;flex-direction:column;border-radius:16px;overflow:hidden;box-shadow:0 24px 80px #15243b40;animation:zoomIn .22s ease both}
     .drawer-section dl{grid-template-columns:repeat(3,minmax(0,1fr))!important}
     .drawer-header{display:flex;justify-content:space-between;gap:12px;padding:24px 24px 18px;border-bottom:1px solid #edf0f4}
-    .drawer-header h2{margin:6px 0 10px;font-size:19px;color:#1c2d43;line-height:1.3}
+    .drawer-header h2{margin:6px 0 10px;font-size:21px;color:#1c2d43;line-height:1.3}
     .drawer-badges{display:flex;gap:6px;flex-wrap:wrap}
     .drawer-body{flex:1;overflow:auto;padding:6px 24px 20px}
     .drawer-section{padding:16px 0;border-bottom:1px solid #f0f3f7}
     .drawer-section:last-of-type{border-bottom:0}
-    .drawer-section h3{font-size:10px;font-weight:800;letter-spacing:1px;color:#6482a6;margin:0 0 12px;text-transform:uppercase}
+    .drawer-section h3{font-size:12px;font-weight:800;letter-spacing:1px;color:#6482a6;margin:0 0 12px;text-transform:uppercase}
     .drawer-section dl{margin:0;display:grid;grid-template-columns:1fr 1fr;gap:14px 18px}
     .drawer-section dl div{min-width:0}
-    .drawer-section dt{font-size:10px;color:#8996a7;margin-bottom:4px}
-    .drawer-section dd{margin:0;font-size:12px;font-weight:600;color:#2f4359;overflow-wrap:anywhere}
+    .drawer-section dt{font-size:12px;color:#8996a7;margin-bottom:4px}
+    .drawer-section dd{margin:0;font-size:14px;font-weight:600;color:#2f4359;overflow-wrap:anywhere}
     .drawer-footer{display:flex;gap:10px;justify-content:flex-end;padding:16px 24px;border-top:1px solid #edf0f4;background:#fafbfd}
     .drawer .info-box{margin-top:14px}
     @media(max-width:700px){.overview-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.inventory-filters select{flex:1;min-width:0}.picker-menu{right:auto;left:0}.drawer{width:calc(100% - 20px);max-height:calc(100vh - 20px)}.drawer-section dl{grid-template-columns:1fr 1fr!important}.drawer-footer button{flex:1}.sk-row span:nth-child(n+4){display:none}}
@@ -1637,27 +2316,27 @@ interface DialogoConfirmacion {
     /* ===== DIÁLOGO DE CONFIRMACIÓN ===== */
     .confirm-backdrop{position:fixed;inset:0;background:#15243b80;z-index:200;display:flex;align-items:center;justify-content:center;padding:16px;animation:fadeIn .15s ease both;backdrop-filter:blur(2px)}
     .confirm-card{width:min(460px,100%);max-height:calc(100vh - 32px);overflow:auto;background:#fff;border-radius:18px;padding:28px 26px 22px;text-align:center;box-shadow:0 30px 90px #0b172845;animation:zoomIn .2s ease both}
-    .confirm-icon{width:58px;height:58px;margin:0 auto 16px;border-radius:50%;display:grid;place-items:center;font-size:26px}
+    .confirm-icon{width:58px;height:58px;margin:0 auto 16px;border-radius:50%;display:grid;place-items:center;font-size:28px}
     .confirm-peligro .confirm-icon{background:#fdeced;color:#c0474e;box-shadow:0 0 0 8px #fdeced80}
     .confirm-confirmar .confirm-icon{background:#e9f1fc;color:#2f5f97;box-shadow:0 0 0 8px #e9f1fc80}
-    .confirm-card h2{margin:0 0 8px;font-size:19px;color:#1c2d43;letter-spacing:-.3px}
-    .confirm-card>p{margin:0 auto;max-width:360px;font-size:13px;color:#6b7b90;line-height:1.55}
+    .confirm-card h2{margin:0 0 8px;font-size:21px;color:#1c2d43;letter-spacing:-.3px}
+    .confirm-card>p{margin:0 auto;max-width:360px;font-size:15px;color:#6b7b90;line-height:1.55}
     .confirm-asset{margin:18px 0 0;background:#f6f8fb;border:1px solid #e8edf3;border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:4px;align-items:center}
-    .confirm-asset strong{font-size:13px;color:#2b3d53;text-transform:uppercase}
-    .confirm-asset small{font-size:11px;color:#8b97a7}
+    .confirm-asset strong{font-size:15px;color:#2b3d53;text-transform:uppercase}
+    .confirm-asset small{font-size:13px;color:#8b97a7}
     .confirm-changes{margin:16px 0 0;text-align:left;border:1px solid #e8edf3;border-radius:12px;overflow:hidden}
-    .confirm-changes-title{font-size:10px;font-weight:800;letter-spacing:1px;color:#6482a6;text-transform:uppercase;padding:10px 14px;background:#f7f9fc;border-bottom:1px solid #edf0f4}
-    .change-row{display:grid;grid-template-columns:110px minmax(0,1fr) 16px minmax(0,1fr);gap:8px;align-items:center;padding:9px 14px;border-bottom:1px solid #f0f3f7;font-size:11px}
+    .confirm-changes-title{font-size:12px;font-weight:800;letter-spacing:1px;color:#6482a6;text-transform:uppercase;padding:10px 14px;background:#f7f9fc;border-bottom:1px solid #edf0f4}
+    .change-row{display:grid;grid-template-columns:110px minmax(0,1fr) 16px minmax(0,1fr);gap:8px;align-items:center;padding:9px 14px;border-bottom:1px solid #f0f3f7;font-size:13px}
     .change-row:last-child{border-bottom:0}
     .change-label{font-weight:700;color:#5b6c82}
     .change-old{color:#9aa6b6;text-decoration:line-through;overflow-wrap:anywhere}
     .change-arrow{color:#b5c0cd;text-align:center}
     .change-new{color:#8a5a12;font-weight:700;overflow-wrap:anywhere}
-    .confirm-note{margin-top:14px;background:#fff8ea;border:1px solid #f3e1b8;color:#8a5a12;border-radius:10px;padding:10px 12px;font-size:11px;line-height:1.45;text-align:left}
+    .confirm-note{margin-top:14px;background:#fff8ea;border:1px solid #f3e1b8;color:#8a5a12;border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.45;text-align:left}
     .confirm-card .inline-error{margin:14px 0 0;text-align:left}
     .confirm-actions{display:flex;gap:10px;margin-top:22px}
     .confirm-actions button{flex:1;padding:12px 14px}
-    .btn-danger-solid{border-radius:8px;padding:11px 16px;font-size:12px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;background:#c0474e;color:#fff;border:1px solid #c0474e;transition:.2s}
+    .btn-danger-solid{border-radius:8px;padding:11px 16px;font-size:14px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;background:#c0474e;color:#fff;border:1px solid #c0474e;transition:.2s}
     .btn-danger-solid:hover{background:#a63a40}
     .btn-danger-solid:disabled{opacity:.6;cursor:not-allowed}
     .mini-ring.light{border-color:#ffffff55;border-top-color:#fff}
@@ -1668,18 +2347,18 @@ interface DialogoConfirmacion {
     .qr-frame{width:118px;height:118px;flex-shrink:0;border:1px solid #e3e9f0;border-radius:10px;display:grid;place-items:center;background:#fff;padding:6px}
     .qr-frame img{width:100%;height:100%;image-rendering:pixelated}
     .qr-info{display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-width:0}
-    .qr-info small{font-size:10px;color:#8996a7}
-    .qr-id{font-family:'Courier New',monospace;font-size:15px;letter-spacing:1.5px;color:#244c78}
-    .qr-info p{font-size:11px;color:#7d8b9d;margin:2px 0 8px;line-height:1.45}
+    .qr-info small{font-size:12px;color:#8996a7}
+    .qr-id{font-family:'Courier New',monospace;font-size:16.5px;letter-spacing:1.5px;color:#244c78}
+    .qr-info p{font-size:13px;color:#7d8b9d;margin:2px 0 8px;line-height:1.45}
     .label-config{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px;padding:20px 24px}
-    .label-config h3{font-size:10px;font-weight:800;letter-spacing:1px;color:#6482a6;margin:0 0 10px;text-transform:uppercase}
+    .label-config h3{font-size:12px;font-weight:800;letter-spacing:1px;color:#6482a6;margin:0 0 10px;text-transform:uppercase}
     .label-options h3:not(:first-child){margin-top:20px}
     .option-card{display:flex;gap:11px;align-items:flex-start;border:1px solid #e1e7ef;border-radius:10px;padding:12px 13px;margin-bottom:8px;cursor:pointer;transition:.15s}
     .option-card:hover{border-color:#b7c6d9}
     .option-card.selected{border-color:#5e8fc7;background:#f5f9fe;box-shadow:0 0 0 3px #5e8fc71a}
     .option-card input{width:auto;margin:2px 0 0}
-    .option-card strong{display:block;font-size:12px;color:#25364c;margin-bottom:3px}
-    .option-card small{font-size:11px;color:#8491a3;line-height:1.4}
+    .option-card strong{display:block;font-size:14px;color:#25364c;margin-bottom:3px}
+    .option-card small{font-size:13px;color:#8491a3;line-height:1.4}
     .label-options .warning-box{margin-top:12px}
     .label-preview-wrap{background:#f4f6fa;border-radius:12px;padding:16px;display:flex;flex-direction:column}
     .label-preview{background:#fff;border:1px solid #c9d3df;border-radius:9px;padding:14px;display:flex;gap:14px;align-items:center;box-shadow:0 6px 18px #233c5714;margin:auto 0;width:100%;max-width:340px;align-self:center}
@@ -1687,29 +2366,29 @@ interface DialogoConfirmacion {
     .lp-qr{width:112px;height:112px;flex-shrink:0;image-rendering:pixelated}
     .label-preview.compacta .lp-qr{width:76px;height:76px}
     .lp-info{display:flex;flex-direction:column;gap:4px;min-width:0}
-    .lp-brand{display:flex;align-items:center;gap:5px;font-size:9px;font-weight:800;letter-spacing:1px;color:#244c78}
-    .lp-brand span{width:15px;height:15px;border-radius:4px;background:#17263d;color:#fff;display:grid;place-items:center;font-size:9px}
-    .lp-clave{font-size:17px;font-weight:800;color:#17263d}
-    .label-preview.compacta .lp-clave{font-size:13px}
-    .lp-articulo{font-size:10px;font-weight:700;color:#33465e;text-transform:uppercase;line-height:1.25;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-    .lp-meta{font-size:9px;color:#5d6f86}
-    .lp-id{font-family:'Courier New',monospace;font-size:9px;color:#5d6f86;letter-spacing:.8px}
+    .lp-brand{display:flex;align-items:center;gap:5px;font-size:11.5px;font-weight:800;letter-spacing:1px;color:#244c78}
+    .lp-brand span{width:15px;height:15px;border-radius:4px;background:#17263d;color:#fff;display:grid;place-items:center;font-size:11.5px}
+    .lp-clave{font-size:19px;font-weight:800;color:#17263d}
+    .label-preview.compacta .lp-clave{font-size:15px}
+    .lp-articulo{font-size:12px;font-weight:700;color:#33465e;text-transform:uppercase;line-height:1.25;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+    .lp-meta{font-size:11.5px;color:#5d6f86}
+    .lp-id{font-family:'Courier New',monospace;font-size:11.5px;color:#5d6f86;letter-spacing:.8px}
     .label-preview-wrap .preview-note{margin-top:14px;line-height:1.5}
     @media(max-width:800px){.label-config{grid-template-columns:1fr}}
 
     /* ===== CATÁLOGOS ===== */
     .catalog-layout{display:grid;grid-template-columns:230px minmax(0,1fr);gap:18px;align-items:start}
     .catalog-nav{background:#fff;border:1px solid #e7ecf2;border-radius:12px;padding:12px;box-shadow:0 3px 12px #233c5708;position:sticky;top:16px}
-    .catalog-group{font-size:9px;font-weight:800;letter-spacing:1.2px;color:#8a9ab0;margin:12px 8px 6px}
+    .catalog-group{font-size:11.5px;font-weight:800;letter-spacing:1.2px;color:#8a9ab0;margin:12px 8px 6px}
     .catalog-group:first-child{margin-top:4px}
-    .catalog-nav button{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;border:0;background:transparent;padding:9px 10px;border-radius:7px;font-size:12px;color:#4d6077;cursor:pointer;text-align:left}
+    .catalog-nav button{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;border:0;background:transparent;padding:9px 10px;border-radius:7px;font-size:14px;color:#4d6077;cursor:pointer;text-align:left}
     .catalog-nav button:hover{background:#f3f6fa}
     .catalog-nav button.selected{background:#eaf1f9;color:#244c78;font-weight:700}
     .catalog-nav button.selected .tab-count{background:#244c78;color:#fff}
     .catalog-panel{min-width:0}
-    .catalog-main{color:#2b3d53;font-size:11px}
+    .catalog-main{color:#2b3d53;font-size:13px}
     .inactive-row td{opacity:.6}
-    .inline-check{display:inline-flex!important;align-items:center;gap:8px;font-size:12px!important;font-weight:600!important;color:#4d6077!important;white-space:nowrap;cursor:pointer;margin:0!important}
+    .inline-check{display:inline-flex!important;align-items:center;gap:8px;font-size:14px!important;font-weight:600!important;color:#4d6077!important;white-space:nowrap;cursor:pointer;margin:0!important}
     .inline-check input{width:auto;margin:0}
     .full-span{grid-column:1/-1}
     .pager{display:flex;align-items:center;gap:10px}
@@ -1721,54 +2400,54 @@ interface DialogoConfirmacion {
     .sidebar-bottom .logout{padding:0 2px}
     .password-card>p{line-height:1.5}
     .password-modal{max-width:460px}
-    .password-form label{display:block;font-size:10px;font-weight:700;color:#64748a;margin:16px 0 7px}
+    .password-form label{display:block;font-size:12px;font-weight:700;color:#64748a;margin:16px 0 7px}
     .password-form label:first-child{margin-top:0}
     .password-form input{height:42px}
     .password-rules{list-style:none;padding:0;margin:16px 0 0;display:grid;gap:6px}
-    .password-rules li{font-size:11px;color:#97a3b3;display:flex;align-items:center;gap:8px}
-    .password-rules li::before{content:'○';font-size:12px}
+    .password-rules li{font-size:13px;color:#97a3b3;display:flex;align-items:center;gap:8px}
+    .password-rules li::before{content:'○';font-size:14px}
     .password-rules li.ok{color:#21835a}
     .password-rules li.ok::before{content:'✓';font-weight:800}
-    .link-button{display:block;margin:14px auto 0;background:transparent;border:0;color:#5f7590;font-size:12px;cursor:pointer;text-decoration:underline}
+    .link-button{display:block;margin:14px auto 0;background:transparent;border:0;color:#5f7590;font-size:14px;cursor:pointer;text-decoration:underline}
 
     /* ===== BANDEJAS DE SOLICITUDES ===== */
-    .nav-badge{margin-left:auto;background:#e8913a;color:#fff;font-size:10px;font-weight:800;min-width:20px;height:20px;padding:0 6px;border-radius:10px;display:inline-grid;place-items:center}
+    .nav-badge{margin-left:auto;background:#e8913a;color:#fff;font-size:12px;font-weight:800;min-width:20px;height:20px;padding:0 6px;border-radius:10px;display:inline-grid;place-items:center}
     .red{background:#fdeced;color:#bd5056}
     .stat-button{font-family:inherit;text-align:left;cursor:pointer;width:100%;transition:.2s}
     .stat-button:hover{border-color:#c9d6e6;transform:translateY(-1px)}
     .stat-button.stat-selected{border-color:#5e8fc7;box-shadow:0 0 0 3px #5e8fc71f}
     .segmented{display:inline-flex;background:#eef2f7;border-radius:9px;padding:3px}
-    .segmented button{border:0;background:transparent;padding:8px 13px;border-radius:7px;font-size:12px;font-weight:700;color:#647890;cursor:pointer}
+    .segmented button{border:0;background:transparent;padding:8px 13px;border-radius:7px;font-size:14px;font-weight:700;color:#647890;cursor:pointer}
     .segmented button.selected{background:#fff;color:#244c78;box-shadow:0 1px 4px #1f3b5a1f}
     .request-tabs{display:flex;gap:4px;padding:14px 22px 0;border-bottom:1px solid #edf0f4;flex-wrap:wrap}
-    .request-tabs button{border:0;background:transparent;padding:11px 14px;font-size:12px;font-weight:700;color:#7a8a9e;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;display:inline-flex;align-items:center;gap:8px}
+    .request-tabs button{border:0;background:transparent;padding:11px 14px;font-size:14px;font-weight:700;color:#7a8a9e;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;display:inline-flex;align-items:center;gap:8px}
     .request-tabs button:hover{color:#2f4d70}
     .request-tabs button.selected{color:#244c78;border-bottom-color:#244c78}
-    .tab-count{background:#eef2f7;color:#5d7088;border-radius:10px;padding:2px 8px;font-size:10px}
+    .tab-count{background:#eef2f7;color:#5d7088;border-radius:10px;padding:2px 8px;font-size:12px}
     .request-tabs button.selected .tab-count{background:#244c78;color:#fff}
     .request-filters{padding-top:17px}
     .op-filter{width:auto;min-width:180px}
-    .op-badge{font-size:10px;font-weight:800;padding:5px 9px;border-radius:6px;display:inline-block;letter-spacing:.3px}
+    .op-badge{font-size:12px;font-weight:800;padding:5px 9px;border-radius:6px;display:inline-block;letter-spacing:.3px}
     .op-alta{background:#e9f1fc;color:#3c6ead}
     .op-modificacion{background:#f0edfc;color:#7059b3}
     .op-baja{background:#fdeced;color:#bd5056}
     .person-cell{display:flex;align-items:center;gap:9px}
-    .mini-avatar{width:28px;height:28px;border-radius:50%;background:#e4edf8;color:#2f5580;display:grid;place-items:center;font-size:10px;font-weight:800;flex-shrink:0}
+    .mini-avatar{width:28px;height:28px;border-radius:50%;background:#e4edf8;color:#2f5580;display:grid;place-items:center;font-size:12px;font-weight:800;flex-shrink:0}
     .clickable-row{cursor:pointer}
     .action-cell{text-align:right}
-    .btn-small{padding:7px 12px;font-size:11px}
+    .btn-small{padding:7px 12px;font-size:13px}
     .resolution-cell{max-width:260px;overflow:hidden;text-overflow:ellipsis}
     .muted{color:#9aa6b6;font-weight:400}
-    .inline-error{margin:0 22px 14px;background:#fdeced;border:1px solid #f5cfd2;color:#b2444b;border-radius:8px;padding:10px 13px;font-size:12px}
+    .inline-error{margin:0 22px 14px;background:#fdeced;border:1px solid #f5cfd2;color:#b2444b;border-radius:8px;padding:10px 13px;font-size:14px}
     .form-section .inline-error{margin:12px 0 0}
     .modal-title-row{display:flex;align-items:center;gap:10px;margin-bottom:6px}
     .modal-title-row h2{margin:0!important}
     .request-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;padding:20px 24px;background:#f9fbfd;border-bottom:1px solid #edf0f4}
     .request-summary div{display:flex;flex-direction:column;gap:6px;align-items:flex-start;min-width:0}
-    .request-summary small{font-size:10px;color:#8996a7;font-weight:700;letter-spacing:.3px}
-    .request-summary strong{font-size:12px;color:#2f4359;overflow-wrap:anywhere}
+    .request-summary small{font-size:12px;color:#8996a7;font-weight:700;letter-spacing:.3px}
+    .request-summary strong{font-size:14px;color:#2f4359;overflow-wrap:anywhere}
     .form-section+.form-section{padding-top:0}
-    .section-hint{font-size:11px;color:#8491a3;margin:-8px 0 12px}
+    .section-hint{font-size:13px;color:#8491a3;margin:-8px 0 12px}
     .compare-table{border:1px solid #e8edf3;border-radius:8px}
     .compare-table table{white-space:normal}
     .compare-table td{vertical-align:top}
@@ -1778,23 +2457,23 @@ interface DialogoConfirmacion {
     .changed-row:hover{background:#fff4dc!important}
     .changed-row .old-value{text-decoration:line-through}
     .changed-row .new-value{color:#8a5a12!important;font-weight:700}
-    .note-box{background:#f6f8fb;border:1px solid #e6ebf2;border-radius:8px;padding:12px 14px;font-size:12px;color:#40536b;white-space:pre-line}
-    .warning-box,.info-box,.resolution-box{border-radius:10px;padding:14px 16px;font-size:12px}
+    .note-box{background:#f6f8fb;border:1px solid #e6ebf2;border-radius:8px;padding:12px 14px;font-size:14px;color:#40536b;white-space:pre-line}
+    .warning-box,.info-box,.resolution-box{border-radius:10px;padding:14px 16px;font-size:14px}
     .warning-box{background:#fdf1f1;border:1px solid #f3d3d5;color:#9c3f45}
     .info-box{background:#f1f6fc;border:1px solid #d8e5f4;color:#36577e}
-    .warning-box p,.info-box p,.resolution-box p{margin:6px 0 0;font-size:11px;opacity:.9}
+    .warning-box p,.info-box p,.resolution-box p{margin:6px 0 0;font-size:13px;opacity:.9}
     .resolution-box.approved{background:#eef8f2;border:1px solid #cdebd9;color:#1f7a53}
     .resolution-box.rejected{background:#fdf1f1;border:1px solid #f3d3d5;color:#a6434a}
     .resolution-reason{margin-top:12px;background:#ffffffb3;border-radius:7px;padding:10px 12px;color:#3d4e63;white-space:pre-line}
-    .resolution-reason small{display:block;font-size:10px;font-weight:700;color:#8291a4;margin-bottom:4px}
+    .resolution-reason small{display:block;font-size:12px;font-weight:700;color:#8291a4;margin-bottom:4px}
     .decision-section{border-top:1px solid #edf0f4;padding-top:20px!important}
-    .decision-section label{display:block;font-size:10px;font-weight:700;color:#64748a;margin-bottom:7px}
+    .decision-section label{display:block;font-size:12px;font-weight:700;color:#64748a;margin-bottom:7px}
     .decision-section textarea{resize:vertical}
     .input-error{border-color:#d1666c!important;box-shadow:0 0 0 3px #d1666c1c!important}
     .field-footer{display:flex;justify-content:space-between;gap:10px;margin-top:6px}
-    .field-error{font-size:11px;color:#bd4b52}
-    .char-count{font-size:10px;color:#9aa6b6;margin-left:auto}
-    .btn-success,.btn-danger{border-radius:8px;padding:11px 16px;font-size:12px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:.2s}
+    .field-error{font-size:13px;color:#bd4b52}
+    .char-count{font-size:12px;color:#9aa6b6;margin-left:auto}
+    .btn-success,.btn-danger{border-radius:8px;padding:11px 16px;font-size:14px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:.2s}
     .btn-success{background:#21835a;color:#fff;border:1px solid #21835a}
     .btn-success:hover{background:#1a6d4a}
     .btn-danger{background:#fff;color:#bd4b52;border:1px solid #efc4c7}
@@ -1803,7 +2482,7 @@ interface DialogoConfirmacion {
     @media(max-width:900px){.request-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
     @media(max-width:700px){.request-tabs{padding:10px 12px 0}.request-tabs button{padding:10px 9px}.request-filters{flex-wrap:wrap}.op-filter{flex:1}.request-summary{padding:16px 17px}.heading-actions{flex-wrap:wrap}.segmented{width:100%}.segmented button{flex:1}.field-label{width:auto}.modal-footer{flex-wrap:wrap}.modal-footer button{flex:1}}
     @media(max-width:1100px){.stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.content-area{padding:24px 20px}}
-    @media(max-width:700px){.sidebar{width:72px;padding:20px 10px}.brand-text,.menu-label,.nav-item span:not(.nav-icon),.user-info{display:none}.nav-item{justify-content:center;padding:13px 5px}.sidebar-bottom{justify-content:center}.logout{display:none}.topbar{padding:0 15px}.content-area{padding:20px 12px}.page-heading{align-items:flex-start;flex-direction:column}.heading-actions{width:100%}.heading-actions button{flex:1;padding:10px 8px}.stats-grid{gap:9px}.stat-card{padding:13px}.stat-card>strong{font-size:23px}.inventory-toolbar{padding:17px 14px;align-items:flex-start;flex-direction:column}.search-row{padding:0 14px 14px}.table-footer{padding:13px}.form-grid{grid-template-columns:1fr}.detail-list{grid-template-columns:1fr}.modal-backdrop{padding:9px}.modal-card{max-height:95vh}.modal-header,.form-section{padding:17px}.modal-footer{padding:13px 17px}.upload-zone{margin:10px 17px 18px}.preview-section{padding:0 17px 17px}}
+    @media(max-width:700px){.topbar{padding:0 15px}.content-area{padding:20px 12px}.page-heading{align-items:flex-start;flex-direction:column}.heading-actions{width:100%}.heading-actions button{flex:1;padding:10px 8px}.stats-grid{gap:9px}.stat-card{padding:13px}.stat-card>strong{font-size:25px}.inventory-toolbar{padding:17px 14px;align-items:flex-start;flex-direction:column}.search-row{padding:0 14px 14px}.table-footer{padding:13px}.form-grid{grid-template-columns:1fr}.detail-list{grid-template-columns:1fr}.modal-backdrop{padding:9px}.modal-card{max-height:95vh}.modal-header,.form-section{padding:17px}.modal-footer{padding:13px 17px}.upload-zone{margin:10px 17px 18px}.preview-section{padding:0 17px 17px}}
   `]
 })
 export class AppComponent {
@@ -1840,6 +2519,11 @@ export class AppComponent {
   motivoRequerido = false;
   errorResolucion = '';
   resolviendo: '' | 'aprobar' | 'rechazar' = '';
+  modoRevocar = false;
+  motivoRevocacion = '';
+  revocacionRequerida = false;
+  errorRevocacion = '';
+  revocando = false;
 
   tabsSolicitudes = [
     { key: 'PENDIENTE', label: 'Pendientes' },
@@ -1869,11 +2553,32 @@ export class AppComponent {
     { clave: 'caracteristicas', claveActual: 'caracteristicas', etiqueta: 'Características' }
   ];
 
-  section = 'bienes';
-  menuCollapsed = false;
+  section = 'inicio';
+  menuCollapsed = true;
 
   error = '';
-  message = '';
+  aviso: { tipo: 'exito' | 'pendiente' | 'baja' | 'rechazo' | 'error' | 'info'; titulo: string; mensaje: string; ms: number;
+           accion?: { texto: string; fn: () => void } } | null = null;
+
+  // Formatos PDF de Alta / Baja
+  documento: { datos: FormatoDoc; url: string; vista: SafeResourceUrl; blob: Blob; nombre: string } | null = null;
+  docGenerando = false;
+  waNumero = '';
+  vistaDoc: 'inicio' | 'correo' | 'whatsapp' = 'inicio';
+  waUrl = '';
+  docDestinatarios: string[] = [];
+  docNuevoCorreo = '';
+  docContactos: { nombre: string; correo: string; rol: string }[] = [];
+  docAvisoCorreo = '';
+  waAviso = '';
+  docPara = '';
+  docMensaje = '';
+  docEnviando = false;
+  docError = '';
+  docEnviado = '';
+  correoConfigurado: boolean | null = null;
+  private logoDataUrl: string | null = null;
+  private avisoTimer: any;
   filter = '';
   statusFilter = '';
 
@@ -1943,7 +2648,27 @@ export class AppComponent {
   excelImportResult = '';
 
   verPasswordLogin = false;
+  // Recuperación de contraseña
+  modoRecuperar = false;
+  correoRecuperar = '';
+  recuperacionEnviando = false;
+  nuevaRecuperar = '';
+  confirmarRecuperar = '';
+  recuperacionError = '';
+  restablecerManualAbierto = false;
+  correoRestablecer = '';
+  passwordTemporal: any = null;
+  temporalCopiada = false;
   menuMasInventario = false;
+  vistaInv: 'menu' | 'sedes' | 'bienes' | 'personas' | 'completo' = 'menu';
+  origenVistaInv: 'menu' | 'sedes' | 'personas' = 'menu';
+  filtroPersona: any = null;
+  busquedaPersonas = '';
+  personasVisibles = 48;
+  tarjetasVisibles = 36;
+  resumenSedes: any[] = [];
+  resumenPersonas: any[] = [];
+  coloresClasificacion: Record<string, string> = {};
   readonly anioActual = new Date().getFullYear();
 
   login = {
@@ -2115,7 +2840,7 @@ export class AppComponent {
     ] }
   ];
 
-  constructor(private http: HttpClient) {
+  constructor(private http: HttpClient, private sanitizer: DomSanitizer) {
     if (this.logged && !this.mustChangePassword) {
       this.loadAll();
     }
@@ -2163,7 +2888,7 @@ export class AppComponent {
         this.pwdGuardando = false;
         this.pwd = { actual: '', nueva: '', confirmar: '' };
         this.cambioPasswordModal = false;
-        this.message = 'Tu contraseña se actualizó correctamente.';
+        this.notificar('exito', 'Contraseña actualizada', 'Tu nueva contraseña ya está activa.');
         if (this.mustChangePassword) {
           this.mustChangePassword = false;
           localStorage.removeItem('dozzer_cambio_password');
@@ -2177,12 +2902,31 @@ export class AppComponent {
     });
   }
 
+  // Saludo de bienvenida
+  get primerNombre(): string {
+    const nombre = (this.nombreUsuario || '').trim().split(/\s+/)[0];
+    if (nombre) return nombre.toUpperCase();
+    const usuario = (this.email || '').split('@')[0].split(/[._-]/)[0];
+    return usuario ? usuario.toUpperCase() : (this.isAdmin ? 'ADMINISTRADOR' : '');
+  }
+
+  get saludoHora(): string {
+    const h = new Date().getHours();
+    return h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches';
+  }
+
+  get fechaHoy(): string {
+    const texto = new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' });
+    return texto.charAt(0).toUpperCase() + texto.slice(1);
+  }
+
   get initials(): string {
     return this.email.split('@')[0].split(/[._-]/).map(x => x.charAt(0)).join('').substring(0, 2).toUpperCase() || 'AD';
   }
 
   get sectionTitle(): string {
     return ({
+      inicio: 'Inicio',
       bienes: 'Inventario',
       documentos: 'Documentos',
       solicitudes: 'Solicitudes',
@@ -2192,6 +2936,7 @@ export class AppComponent {
 
   get sectionLabel(): string {
     return ({
+      inicio: 'INICIO',
       bienes: 'INVENTARIO',
       documentos: 'DOCUMENTOS',
       solicitudes: 'SOLICITUDES',
@@ -2252,6 +2997,10 @@ export class AppComponent {
     }
     if (this.statusFilter) lista.push({ clave: 'estatus', etiqueta: 'Estatus', valor: this.textoCampo(this.statusFilter) });
     if (this.filtroEstadoFisico) lista.push({ clave: 'fisico', etiqueta: 'Estado físico', valor: this.textoCampo(this.filtroEstadoFisico) });
+    if (this.filtroPersona) {
+      const p = this.resumenPersonas.find(x => x.id === this.filtroPersona);
+      lista.push({ clave: 'persona', etiqueta: 'Persona', valor: p?.nombre || '#' + this.filtroPersona });
+    }
     if (this.filtroAsignacion) lista.push({ clave: 'asignacion', etiqueta: 'Asignación', valor: this.filtroAsignacion === 'ASIGNADO' ? 'Asignados' : 'Sin asignar' });
     return lista;
   }
@@ -2262,6 +3011,7 @@ export class AppComponent {
     if (clave === 'estatus') this.statusFilter = '';
     if (clave === 'fisico') this.filtroEstadoFisico = '';
     if (clave === 'asignacion') this.filtroAsignacion = '';
+    if (clave === 'persona') this.filtroPersona = null;
     this.aplicarFiltrosBienes();
   }
 
@@ -2353,15 +3103,125 @@ export class AppComponent {
     this.filtroClasificacion = null;
     this.filtroEstadoFisico = '';
     this.filtroAsignacion = '';
+    this.filtroPersona = null;
+    this.vistaInv = 'menu';
     this.filtroSolicitudes = '';
     this.filtroOperacion = '';
-    this.section = 'bienes';
+    this.section = 'inicio';
+    this.menuCollapsed = true;
   }
 
   loadAll(): void {
     this.loadBienes();
     Object.keys(this.catalogs).forEach(k => this.loadCatalog(k));
     this.loadSolicitudes();
+  }
+
+  // =========================
+  // RECUPERACIÓN DE CONTRASEÑA
+  // =========================
+
+  abrirRecuperacion(): void {
+    this.modoRecuperar = true;
+    this.correoRecuperar = this.login.correo || '';
+    this.nuevaRecuperar = '';
+    this.confirmarRecuperar = '';
+    this.recuperacionError = '';
+    this.error = '';
+  }
+
+  cerrarRecuperacion(): void {
+    this.modoRecuperar = false;
+    this.nuevaRecuperar = '';
+    this.confirmarRecuperar = '';
+    if (this.correoRecuperar && !this.login.correo) this.login.correo = this.correoRecuperar;
+  }
+
+  tieneLetrasYNumeros(texto: string): boolean {
+    return /[A-Za-zÁÉÍÓÚÑáéíóúñ]/.test(texto || '') && /\d/.test(texto || '');
+  }
+
+  // Restablece la contraseña solo con el correo y entra directamente
+  solicitarRecuperacion(): void {
+    const correo = (this.correoRecuperar || '').trim();
+    const nueva = this.nuevaRecuperar || '';
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(correo)) { this.recuperacionError = 'Escribe un correo electrónico válido.'; return; }
+    if (nueva.length < 8) { this.recuperacionError = 'La contraseña debe tener al menos 8 caracteres.'; return; }
+    if (!this.tieneLetrasYNumeros(nueva)) { this.recuperacionError = 'La contraseña debe incluir letras y números.'; return; }
+    if (nueva !== this.confirmarRecuperar) { this.recuperacionError = 'Las contraseñas no coinciden.'; return; }
+
+    this.recuperacionEnviando = true;
+    this.recuperacionError = '';
+    this.http.post<any>(this.api + '/auth/recuperar-password', { correo, passwordNueva: nueva }).subscribe({
+      next: () => {
+        this.recuperacionEnviando = false;
+        this.modoRecuperar = false;
+        this.login = { ...this.login, correo, password: nueva };
+        this.nuevaRecuperar = '';
+        this.confirmarRecuperar = '';
+        this.doLogin();
+      },
+      error: e => {
+        this.recuperacionEnviando = false;
+        this.recuperacionError = this.mensajeError(e, 'No fue posible restablecer la contraseña. Intenta de nuevo.');
+      }
+    });
+  }
+
+  abrirRestablecerManual(): void {
+    this.correoRestablecer = '';
+    this.restablecerManualAbierto = true;
+  }
+
+  restablecerPassword(correo: string, nombre?: string): void {
+    const destino = (correo || '').trim();
+    if (!destino) return;
+    this.abrirDialogo({
+      tipo: 'confirmar',
+      icono: '⚿',
+      titulo: '¿Generar contraseña temporal?',
+      mensaje: 'Se reemplazará la contraseña actual de ' + (nombre || destino) + '. Deberá crear una nueva al iniciar sesión.',
+      textoConfirmar: 'Sí, generar',
+      accion: terminar => {
+        this.http.post<any>(this.api + '/usuarios/recuperaciones/restablecer', { correo: destino }).subscribe({
+          next: r => {
+            terminar();
+            this.restablecerManualAbierto = false;
+            this.temporalCopiada = false;
+            this.passwordTemporal = r;
+          },
+          error: e => terminar(this.mensajeError(e, 'No fue posible restablecer la contraseña.'))
+        });
+      }
+    });
+  }
+
+  copiarTemporal(): void {
+    const texto = this.passwordTemporal?.passwordTemporal;
+    if (!texto) return;
+    const listo = () => { this.temporalCopiada = true; setTimeout(() => this.temporalCopiada = false, 2000); };
+    try {
+      navigator.clipboard.writeText(texto).then(listo).catch(() => this.copiarRespaldo(texto, listo));
+    } catch {
+      this.copiarRespaldo(texto, listo);
+    }
+  }
+
+  // Copiado alterno para páginas abiertas por IP (sin https el portapapeles moderno no está disponible)
+  private copiarRespaldo(texto: string, listo: () => void): void {
+    const area = document.createElement('textarea');
+    area.value = texto;
+    area.style.position = 'fixed';
+    area.style.opacity = '0';
+    document.body.appendChild(area);
+    area.select();
+    try { if (document.execCommand('copy')) listo(); } catch { /* sin portapapeles */ }
+    document.body.removeChild(area);
+  }
+
+  inicialesDe(texto: string): string {
+    const partes = String(texto || '').replace(/@.*/, '').split(/[\s._-]+/).filter(Boolean);
+    return ((partes[0]?.[0] || '') + (partes[1]?.[0] || '')).toUpperCase() || '?';
   }
 
   // =========================
@@ -2373,7 +3233,8 @@ export class AppComponent {
   }
 
   get pendientesBadge(): number {
-    return this.vistaSolicitudes === 'autorizacion' ? this.conteoSolicitudes('PENDIENTE') : 0;
+    const solicitudes = this.vistaSolicitudes === 'autorizacion' ? this.conteoSolicitudes('PENDIENTE') : 0;
+    return solicitudes;
   }
 
   get solicitudesFiltradas(): any[] {
@@ -2449,12 +3310,51 @@ export class AppComponent {
     this.motivoRequerido = false;
     this.errorResolucion = '';
     this.resolviendo = '';
+    this.modoRevocar = false;
+    this.motivoRevocacion = '';
+    this.revocacionRequerida = false;
+    this.errorRevocacion = '';
     this.construirCamposSolicitud(s);
   }
 
   cerrarSolicitud(): void {
-    if (this.resolviendo) return;
+    if (this.resolviendo || this.revocando) return;
     this.solicitudSeleccionada = null;
+  }
+
+  iniciarRevocacion(): void {
+    this.modoRevocar = true;
+    this.motivoRevocacion = '';
+    this.revocacionRequerida = false;
+    this.errorRevocacion = '';
+  }
+
+  // El admin se equivocó: deshace lo aplicado y la solicitud regresa a pendientes
+  revocarSolicitud(): void {
+    const s = this.solicitudSeleccionada;
+    if (!s || this.revocando) return;
+    const motivo = (this.motivoRevocacion || '').trim();
+    if (!motivo) { this.revocacionRequerida = true; return; }
+
+    this.revocando = true;
+    this.errorRevocacion = '';
+    this.http.post<any>(this.api + '/solicitudes-bienes/' + s.idSolicitud + '/revocar', { motivo }).subscribe({
+      next: () => {
+        this.revocando = false;
+        this.modoRevocar = false;
+        this.solicitudSeleccionada = null;
+        this.tabSolicitudes = 'PENDIENTE';
+        this.notificar('pendiente', 'Autorización revocada',
+          'La solicitud #' + s.idSolicitud + ' regresó a la bandeja como pendiente.' +
+          (s.estado === 'APROBADA' ? ' El cambio se deshizo en el inventario.' : ''), 4500);
+        this.loadSolicitudes();
+        if (s.estado === 'APROBADA') this.loadBienes();
+      },
+      error: e => {
+        this.revocando = false;
+        this.errorRevocacion = this.mensajeError(e, 'No fue posible revocar la autorización.');
+      }
+    });
   }
 
   resolverSolicitud(aprobar: boolean): void {
@@ -2469,6 +3369,7 @@ export class AppComponent {
 
     this.resolviendo = aprobar ? 'aprobar' : 'rechazar';
     this.errorResolucion = '';
+    const bienPrevio = s.idBien ? this.bienes.find(b => b.id_bien === s.idBien) : null;
     const accion = aprobar ? 'aprobar' : 'rechazar';
 
     this.http.post<any>(
@@ -2478,9 +3379,15 @@ export class AppComponent {
       next: r => {
         this.resolviendo = '';
         this.solicitudSeleccionada = null;
-        this.message = aprobar
-          ? 'Solicitud #' + s.idSolicitud + ' aprobada. El cambio ya se aplicó al inventario.'
-          : 'Solicitud #' + s.idSolicitud + ' rechazada. El solicitante verá el motivo en su bandeja.';
+        if (aprobar) {
+          const conFormato = s.tipoOperacion === 'ALTA' || s.tipoOperacion === 'BAJA';
+          const resuelta = { ...s, estado: 'APROBADA', nombreRevisor: this.miNombre, motivoResolucion: motivo || null };
+          this.notificar('exito', 'Solicitud aprobada',
+            'La solicitud #' + s.idSolicitud + ' se aplicó al inventario.' + (conFormato ? ' ¿Generamos el formato?' : ''), 3500,
+            conFormato ? { texto: '📄 Generar formato de ' + (s.tipoOperacion === 'ALTA' ? 'alta' : 'baja'),
+                           fn: () => this.abrirFormato(this.formatoDesdeSolicitud(resuelta, bienPrevio)) } : undefined);
+        }
+        else this.notificar('rechazo', 'Solicitud rechazada', 'Le avisamos al solicitante el motivo del rechazo.');
         this.loadSolicitudes();
         if (aprobar) this.loadBienes();
       },
@@ -2618,6 +3525,146 @@ export class AppComponent {
       .filter(g => g.id !== null)
       .sort((a, b) => b.total - a.total)
       .map(g => ({ ...g, pct: Math.round((g.total / total) * 1000) / 10 }));
+    this.coloresClasificacion = {};
+    this.resumenClasificaciones.forEach((c, i) => this.coloresClasificacion[String(c.id)] = this.colorClasificacion(i));
+    this.calcularSedesYPersonas();
+  }
+
+  // Agrupa los bienes por sede y por persona para las vistas de tarjetas
+  private calcularSedesYPersonas(): void {
+    const sedes = new Map<any, any>();
+    const personas = new Map<any, any>();
+
+    for (const b of this.bienes) {
+      const idSede = b.id_sede ?? 'sin';
+      const s = sedes.get(idSede) || { id: b.id_sede ?? null, nombre: b.sede || 'Sin sede', total: 0, piezas: 0, buenos: 0,
+                                         ubic: new Set<any>(), pers: new Set<any>(), clas: new Map<any, any>() };
+      s.total++;
+      s.piezas += Number(b.cantidad_piezas || 1);
+      if (String(b.estado_fisico || '').toUpperCase() === 'BUENO') s.buenos++;
+      if (b.id_ubicacion) s.ubic.add(b.id_ubicacion);
+      if (b.id_responsable_area) s.pers.add(b.id_responsable_area);
+      if (b.id_usuario_directo) s.pers.add(b.id_usuario_directo);
+      if (b.id_clasificacion) {
+        const c = s.clas.get(b.id_clasificacion) || { id: b.id_clasificacion, nombre: b.clasificacion || '', total: 0 };
+        c.total++;
+        s.clas.set(b.id_clasificacion, c);
+      }
+      sedes.set(idSede, s);
+
+      const asignar = (id: any, nombre: string, rol: 'responsable' | 'usuario') => {
+        if (!id) return;
+        const p = personas.get(id) || { id, nombre: nombre || 'Sin nombre', total: 0, responsable: 0, usuario: 0, ids: new Set<any>(), sedesSet: new Set<string>() };
+        p[rol]++;
+        if (!p.ids.has(b.id_bien)) { p.ids.add(b.id_bien); p.total++; }
+        if (b.sede) p.sedesSet.add(b.sede);
+        personas.set(id, p);
+      };
+      asignar(b.id_responsable_area, b.responsable, 'responsable');
+      asignar(b.id_usuario_directo, b.usuario_directo, 'usuario');
+    }
+
+    this.resumenSedes = Array.from(sedes.values())
+      .map(s => ({
+        id: s.id, nombre: s.nombre, total: s.total, piezas: s.piezas,
+        pctBueno: s.total ? Math.round((s.buenos / s.total) * 100) : 0,
+        ubicaciones: s.ubic.size, personas: s.pers.size,
+        top: Array.from(s.clas.values()).sort((a: any, b: any) => b.total - a.total).slice(0, 3)
+      }))
+      .sort((a, b) => b.total - a.total);
+
+    this.resumenPersonas = Array.from(personas.values())
+      .map(p => ({ id: p.id, nombre: p.nombre, total: p.total, responsable: p.responsable, usuario: p.usuario,
+                   sedes: Array.from(p.sedesSet).sort().join(', '), _busqueda: String(p.nombre || '').toLowerCase() }))
+      .sort((a, b) => b.total - a.total || a.nombre.localeCompare(b.nombre, 'es'));
+  }
+
+  get personasFiltradas(): any[] {
+    const palabras = this.busquedaPersonas.toLowerCase().trim().split(/\s+/).filter(Boolean);
+    return palabras.length
+      ? this.resumenPersonas.filter(p => palabras.every(w => p._busqueda.includes(w)))
+      : this.resumenPersonas;
+  }
+
+  colorDeClasificacion(id: any): string {
+    return this.coloresClasificacion[String(id)] || '#c3ccd8';
+  }
+
+  // Navegación entre las vistas del inventario
+  abrirVistaInv(vista: 'sedes' | 'bienes' | 'personas' | 'completo'): void {
+    this.origenVistaInv = 'menu';
+    if (vista === 'bienes' || vista === 'completo') {
+      this.filtroPersona = null;
+      if (this.isAdmin) this.filtroSede = null;
+      this.aplicarFiltrosBienes();
+    }
+    if (vista === 'personas') { this.busquedaPersonas = ''; this.personasVisibles = 48; }
+    this.vistaInv = vista;
+    this.subirAlInicio();
+  }
+
+  verBienesDeSede(s: any): void {
+    this.filtroPersona = null;
+    this.filtroSede = s.id;
+    this.origenVistaInv = 'sedes';
+    this.aplicarFiltrosBienes();
+    this.vistaInv = 'bienes';
+    this.subirAlInicio();
+  }
+
+  verBienesDePersona(p: any): void {
+    if (this.isAdmin) this.filtroSede = null;
+    this.filtroPersona = p.id;
+    this.origenVistaInv = 'personas';
+    this.aplicarFiltrosBienes();
+    this.vistaInv = 'bienes';
+    this.subirAlInicio();
+  }
+
+  volverInventario(): void {
+    if (this.vistaInv === 'bienes' && this.origenVistaInv !== 'menu') {
+      this.vistaInv = this.origenVistaInv;
+      this.origenVistaInv = 'menu';
+      this.filtroPersona = null;
+      if (this.isAdmin) this.filtroSede = null;
+      this.aplicarFiltrosBienes();
+    } else {
+      this.vistaInv = 'menu';
+    }
+    this.subirAlInicio();
+  }
+
+  get textoVolverInv(): string {
+    if (this.vistaInv === 'bienes' && this.origenVistaInv === 'sedes') return 'Sedes';
+    if (this.vistaInv === 'bienes' && this.origenVistaInv === 'personas') return 'Personas';
+    return 'Inventario';
+  }
+
+  get tituloVistaInv(): string {
+    switch (this.vistaInv) {
+      case 'sedes': return 'Sedes';
+      case 'personas': return 'Personas';
+      case 'completo': return 'Inventario completo';
+      case 'bienes': {
+        if (this.filtroPersona) return this.resumenPersonas.find(p => p.id === this.filtroPersona)?.nombre || 'Bienes';
+        if (this.filtroSede && this.origenVistaInv === 'sedes') return this.resumenSedes.find(s => s.id === this.filtroSede)?.nombre || 'Bienes';
+        return 'Bienes';
+      }
+      default: return 'Inventario';
+    }
+  }
+
+  get subtituloVistaInv(): string {
+    switch (this.vistaInv) {
+      case 'sedes': return 'Selecciona una sede para ver sus bienes.';
+      case 'personas': return 'Selecciona una persona para ver los bienes que tiene a su cargo.';
+      case 'completo': return 'Todos los bienes en tabla, con búsqueda, filtros y columnas a tu medida.';
+      default: return this.filtroPersona ? 'Bienes de los que es responsable o usuario directo.' : 'Toca una tarjeta para ver el detalle del bien.';
+    }
+  }
+
+  private subirAlInicio(): void {
+    try { document.querySelector('.content-area')?.scrollTo({ top: 0 }); window.scrollTo({ top: 0 }); } catch { /* opcional */ }
   }
 
   // Búsqueda con pausa para no recalcular en cada tecla
@@ -2636,6 +3683,7 @@ export class AppComponent {
       (!this.filtroClasificacion || b.id_clasificacion === this.filtroClasificacion) &&
       (!this.filtroEstadoFisico || String(b.estado_fisico || '').toUpperCase() === this.filtroEstadoFisico) &&
       (!this.filtroAsignacion || String(b.estatus_asignacion || '').toUpperCase() === this.filtroAsignacion) &&
+      (!this.filtroPersona || b.id_responsable_area === this.filtroPersona || b.id_usuario_directo === this.filtroPersona) &&
       palabras.every(p => b._busqueda.includes(p))
     );
 
@@ -2655,7 +3703,7 @@ export class AppComponent {
     }
 
     this.bienesVista = lista;
-    if (reiniciarPagina) this.paginaActualBienes = 1;
+    if (reiniciarPagina) { this.paginaActualBienes = 1; this.tarjetasVisibles = 36; }
     else this.paginaActualBienes = Math.min(this.paginaActualBienes, this.totalPaginasBienes);
   }
 
@@ -2678,6 +3726,7 @@ export class AppComponent {
     this.filtroClasificacion = null;
     this.filtroEstadoFisico = '';
     this.filtroAsignacion = '';
+    this.filtroPersona = null;
     this.aplicarFiltrosBienes();
   }
 
@@ -2822,7 +3871,7 @@ export class AppComponent {
 
     const ventana = window.open('', '_blank');
     if (!ventana) {
-      this.message = 'Tu navegador bloqueó la ventana de impresión. Permite las ventanas emergentes para DOZZER e inténtalo de nuevo.';
+      this.notificar('error', 'Ventana bloqueada', 'Tu navegador bloqueó la impresión. Permite las ventanas emergentes para DOZZER e inténtalo de nuevo.', 0);
       return;
     }
     ventana.document.write('<p style="font-family:Arial;padding:30px;color:#41546b">Generando ' + bienes.length + ' etiqueta(s)...</p>');
@@ -2843,7 +3892,7 @@ export class AppComponent {
       this.modalEtiquetas = false;
     } catch {
       ventana.close();
-      this.message = 'No fue posible generar las etiquetas QR.';
+      this.notificar('error', 'No se generaron las etiquetas', 'Ocurrió un problema al preparar las etiquetas QR. Inténtalo de nuevo.', 0);
     } finally {
       this.generandoEtiquetas = false;
     }
@@ -2980,6 +4029,515 @@ export class AppComponent {
   // DIÁLOGO DE CONFIRMACIÓN
   // =========================
 
+  ejecutarAccionAviso(): void {
+    const accion = this.aviso?.accion;
+    this.cerrarAviso();
+    accion?.fn();
+  }
+
+  // =========================
+  // FORMATOS PDF DE ALTA / BAJA
+  // =========================
+
+  get miNombre(): string {
+    return this.nombreUsuario || this.email || 'Administrador';
+  }
+
+  get puedeCompartir(): boolean {
+    try {
+      const nav: any = navigator;
+      return !!(this.documento && nav.canShare && nav.canShare({ files: [new File([this.documento.blob], this.documento.nombre, { type: 'application/pdf' })] }));
+    } catch { return false; }
+  }
+
+  bienPorId(id: any): any {
+    return this.bienes.find(b => b.id_bien === id) || null;
+  }
+
+  folio(tipo: 'ALTA' | 'BAJA', idSolicitud: any, referencia?: any): string {
+    const anio = String(new Date().getFullYear()).slice(-2);
+    const pref = tipo === 'ALTA' ? 'A' : 'B';
+    if (idSolicitud) return pref + '-' + anio + '-' + String(idSolicitud).padStart(4, '0');
+    const ref = referencia === null || referencia === undefined || referencia === '' ? '0' : String(referencia);
+    return pref + '-' + anio + '-D' + (/^\d+$/.test(ref) ? ref.padStart(4, '0') : ref);
+  }
+
+  private fechaTexto(valor?: any): string {
+    const f = valor ? new Date(valor) : new Date();
+    const fecha = isNaN(f.getTime()) ? new Date() : f;
+    return fecha.toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase();
+  }
+
+  private nombreDe(lista: any[], idKey: string, nombreKey: string, id: any): string {
+    if (id === null || id === undefined || id === '') return '';
+    const x = (lista || []).find((i: any) => String(i[idKey]) === String(id));
+    return x ? String(x[nombreKey] || '') : '';
+  }
+
+  private filaDe(clave: any, articulo: any, marca: any, modelo: any, serie: any) {
+    return {
+      inventario: String(clave || ''),
+      descripcion: [articulo, marca].filter(x => x).join(' · '),
+      modeloSerie: [modelo, serie].filter(x => x).join(' / ')
+    };
+  }
+
+  // Desde un bien del inventario (llaves en minúsculas con guion bajo)
+  formatoDesdeBien(tipo: 'ALTA' | 'BAJA', b: any, extra: Partial<FormatoDoc> = {}): FormatoDoc {
+    return {
+      tipo,
+      folio: extra.folio || this.folio(tipo, null, b?.id_bien),
+      sede: b?.sede || '',
+      fecha: extra.fecha || this.fechaTexto(tipo === 'ALTA' ? b?.fecha_alta : null),
+      filas: [this.filaDe(b?.clave, b?.articulo, b?.marca, b?.modelo, b?.numero_serie)],
+      detalle: [
+        { etiqueta: 'Clasificación', valor: b?.clasificacion || '' },
+        { etiqueta: 'Ubicación', valor: [b?.ubicacion, b?.sede].filter((x: any) => x).join(' · ') },
+        { etiqueta: 'Responsable', valor: b?.responsable || '' },
+        { etiqueta: 'Estado físico', valor: b?.estado_fisico || '' },
+        { etiqueta: 'Piezas', valor: String(b?.cantidad_piezas || 1) },
+        { etiqueta: 'Usuario directo', valor: b?.usuario_directo || '' }
+      ],
+      observaciones: extra.observaciones ?? (b?.caracteristicas || ''),
+      solicito: extra.solicito || '',
+      autorizo: extra.autorizo || '',
+      correoSugerido: extra.correoSugerido,
+      contactos: [...(extra.contactos || []),
+                  ...this.contactoPersona(b?.id_responsable_area, 'Responsable'),
+                  ...this.contactoPersona(b?.id_usuario_directo, 'Usuario directo')]
+    };
+  }
+
+  // Desde datos del formulario o de una solicitud (llaves camelCase)
+  formatoDesdeDatos(tipo: 'ALTA' | 'BAJA', d: any, extra: Partial<FormatoDoc> = {}): FormatoDoc {
+    const ubic = (this.catalogs.ubicaciones || []).find((u: any) => String(u.id_ubicacion) === String(d?.idUbicacion));
+    const marca = this.nombreDe(this.catalogs.marcas, 'id_marca', 'nombre_marca', d?.idMarca);
+    const obs = [extra.observaciones, d?.caracteristicas ? 'Características: ' + d.caracteristicas : ''].filter(x => x).join('\n');
+    return {
+      tipo,
+      folio: extra.folio || this.folio(tipo, null, d?.clave),
+      sede: extra.sede || ubic?.nombre_sede || '',
+      fecha: extra.fecha || this.fechaTexto(),
+      filas: [this.filaDe(d?.clave, d?.articulo, marca, d?.modelo, d?.numeroSerie)],
+      detalle: [
+        { etiqueta: 'Clasificación', valor: this.nombreDe(this.catalogs.clasificaciones, 'id_clasificacion', 'nombre', d?.idClasificacion) },
+        { etiqueta: 'Ubicación', valor: [ubic?.nombre_area, ubic?.nombre_sede].filter((x: any) => x).join(' · ') },
+        { etiqueta: 'Responsable', valor: this.nombreDe(this.catalogs.personas, 'id_persona', 'nombre_completo', d?.idResponsableArea) },
+        { etiqueta: 'Estado físico', valor: d?.estadoFisico || '' },
+        { etiqueta: 'Piezas', valor: String(d?.cantidadPiezas || 1) },
+        { etiqueta: 'Usuario directo', valor: this.nombreDe(this.catalogs.personas, 'id_persona', 'nombre_completo', d?.idUsuarioDirecto) }
+      ],
+      observaciones: obs,
+      solicito: extra.solicito || '',
+      autorizo: extra.autorizo || '',
+      correoSugerido: extra.correoSugerido,
+      contactos: [...(extra.contactos || []),
+                  ...this.contactoPersona(d?.idResponsableArea, 'Responsable'),
+                  ...this.contactoPersona(d?.idUsuarioDirecto, 'Usuario directo')]
+    };
+  }
+
+  private contactoPersona(id: any, rol: string): { nombre: string; correo: string; rol: string }[] {
+    if (id === null || id === undefined || id === '') return [];
+    const p = (this.catalogs.personas || []).find((x: any) => String(x.id_persona) === String(id));
+    return p?.correo ? [{ nombre: p.nombre_completo || p.correo, correo: p.correo, rol }] : [];
+  }
+
+  formatoDesdeSolicitud(s: any, bien: any): FormatoDoc {
+    const tipo: 'ALTA' | 'BAJA' = s.tipoOperacion === 'BAJA' ? 'BAJA' : 'ALTA';
+    const obs = [s.motivoSolicitud ? 'Motivo: ' + s.motivoSolicitud : '', s.motivoResolucion ? 'Comentario del administrador: ' + s.motivoResolucion : '']
+      .filter(x => x).join('\n');
+    const extra: Partial<FormatoDoc> = {
+      folio: this.folio(tipo, s.idSolicitud),
+      fecha: this.fechaTexto(s.fechaSolicitud),
+      solicito: s.nombreSolicitante || s.correoSolicitante || '',
+      autorizo: s.nombreRevisor || this.miNombre,
+      sede: s.nombreSede || '',
+      observaciones: obs,
+      correoSugerido: s.correoSolicitante,
+      contactos: s.correoSolicitante ? [{ nombre: s.nombreSolicitante || s.correoSolicitante, correo: s.correoSolicitante, rol: 'Solicitó' }] : []
+    };
+    if (tipo === 'ALTA') return this.formatoDesdeDatos('ALTA', s.datosPropuestos || {}, extra);
+    if (bien) return { ...this.formatoDesdeBien('BAJA', bien, extra), sede: s.nombreSede || bien.sede || '', observaciones: obs };
+    return {
+      tipo, folio: extra.folio!, sede: s.nombreSede || '', fecha: extra.fecha!,
+      filas: [this.filaDe(s.claveBien, s.articuloBien, '', '', '')],
+      observaciones: obs, solicito: extra.solicito!, autorizo: extra.autorizo!, correoSugerido: s.correoSolicitante,
+      contactos: extra.contactos
+    };
+  }
+
+  async abrirFormato(datos: FormatoDoc): Promise<void> {
+    this.cerrarFormato();
+    this.docGenerando = true;
+    this.docError = '';
+    this.docEnviado = '';
+    this.docPara = '';
+    this.docNuevoCorreo = '';
+    this.docAvisoCorreo = '';
+    this.vistaDoc = 'inicio';
+    this.docDestinatarios = datos.correoSugerido ? [datos.correoSugerido.toLowerCase()] : [];
+    const vistos = new Set<string>();
+    this.docContactos = [...(datos.contactos || []),
+                         ...(this.email ? [{ nombre: 'Mi correo', correo: this.email, rol: 'Copia para mí' }] : [])]
+      .filter(c => c.correo && !vistos.has(c.correo.toLowerCase()) && vistos.add(c.correo.toLowerCase()));
+    this.waAviso = '';
+    this.docMensaje = 'Se adjunta el formato de ' + (datos.tipo === 'ALTA' ? 'alta' : 'baja') + ' con folio ' + datos.folio + '.';
+    this.revisarCorreo();
+    try {
+      const blob = await this.crearPdfFormato(datos);
+      const url = URL.createObjectURL(blob);
+      this.documento = {
+        datos, url, blob,
+        vista: this.sanitizer.bypassSecurityTrustResourceUrl(url),
+        nombre: 'Formato de ' + (datos.tipo === 'ALTA' ? 'Alta' : 'Baja') + ' ' + datos.folio + '.pdf'
+      };
+    } catch {
+      this.notificar('error', 'No se generó el formato', 'Ocurrió un problema al crear el PDF. Inténtalo de nuevo.', 0);
+    } finally {
+      this.docGenerando = false;
+    }
+  }
+
+  cerrarFormato(): void {
+    if (this.docEnviando) return;
+    if (this.documento) URL.revokeObjectURL(this.documento.url);
+    this.documento = null;
+  }
+
+  descargarFormato(): void {
+    if (!this.documento) return;
+    const a = document.createElement('a');
+    a.href = this.documento.url;
+    a.download = this.documento.nombre;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+
+  imprimirFormato(): void {
+    if (!this.documento) return;
+    const w = window.open(this.documento.url, '_blank');
+    if (!w) this.descargarFormato();
+  }
+
+  get correosPersonas(): { nombre: string; correo: string }[] {
+    return (this.catalogs.personas || [])
+      .filter((p: any) => p.correo && p.estatus !== false)
+      .map((p: any) => ({ nombre: p.nombre_completo || '', correo: String(p.correo).toLowerCase() }))
+      .sort((a: any, b: any) => a.nombre.localeCompare(b.nombre, 'es'));
+  }
+
+  abrirVistaDoc(vista: 'correo' | 'whatsapp'): void {
+    this.vistaDoc = vista;
+    this.docError = '';
+    this.docEnviado = '';
+    this.docAvisoCorreo = '';
+    this.waAviso = '';
+    this.waUrl = '';
+  }
+
+  correoIncluido(correo: string): boolean {
+    return this.docDestinatarios.includes(String(correo || '').toLowerCase());
+  }
+
+  alternarCorreo(correo: string): void {
+    const c = String(correo || '').toLowerCase();
+    this.docDestinatarios = this.correoIncluido(c) ? this.docDestinatarios.filter(x => x !== c) : [...this.docDestinatarios, c];
+    this.docError = ''; this.docEnviado = '';
+  }
+
+  quitarCorreo(correo: string): void {
+    this.docDestinatarios = this.docDestinatarios.filter(x => x !== correo);
+  }
+
+  // Agrega lo escrito (uno o varios separados por coma/espacio)
+  agregarCorreo(): void {
+    const partes = (this.docNuevoCorreo || '').split(/[,;\s]+/).map(x => x.trim().toLowerCase()).filter(Boolean);
+    if (!partes.length) return;
+    const invalido = partes.find(x => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x));
+    if (invalido) { this.docError = 'Correo no válido: ' + invalido; return; }
+    const nuevos = partes.filter(x => !this.docDestinatarios.includes(x));
+    if (this.docDestinatarios.length + nuevos.length > 5) { this.docError = 'Máximo 5 destinatarios por envío.'; return; }
+    this.docDestinatarios = [...this.docDestinatarios, ...nuevos];
+    this.docNuevoCorreo = '';
+    this.docError = ''; this.docEnviado = '';
+  }
+
+  // Si eligió un correo de la lista de sugerencias, se agrega solo
+  alCambiarCorreo(): void {
+    const v = (this.docNuevoCorreo || '').trim().toLowerCase();
+    if (this.correosPersonas.some(p => p.correo === v)) this.agregarCorreo();
+  }
+
+  // Abre el correo del equipo (Outlook, Gmail...) con destinatarios, asunto y mensaje listos, y descarga el PDF para adjuntarlo
+  abrirEnMiCorreo(): void {
+    const d = this.documento;
+    if (!d) return;
+    if (this.docNuevoCorreo.trim()) this.agregarCorreo();
+    if (this.docError) return;
+    const asunto = 'Formato de ' + (d.datos.tipo === 'ALTA' ? 'Alta' : 'Baja') + ' ' + d.datos.folio + ' · DOZZER';
+    const cuerpo = (this.docMensaje || '') + '\n\n(El PDF del formato va adjunto.)';
+    const url = 'mailto:' + this.docDestinatarios.map(c => encodeURIComponent(c)).join(',') +
+      '?subject=' + encodeURIComponent(asunto) + '&body=' + encodeURIComponent(cuerpo);
+    this.descargarFormato();
+    const a = document.createElement('a');
+    a.href = url;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    this.docEnviado = '';
+    this.waAviso = '';
+    this.docAvisoCorreo = 'Se abrió tu correo y se descargó "' + d.nombre + '". Adjúntalo con el clip 📎 antes de enviar.';
+  }
+
+  // Abre WhatsApp (app en celular, WhatsApp Web/escritorio en PC) con el mensaje listo y descarga el PDF para adjuntarlo.
+  // WhatsApp no acepta archivos por enlace, por eso el PDF se adjunta con el clip.
+  abrirWhatsApp(): void {
+    const d = this.documento;
+    if (!d) return;
+    let numero = (this.waNumero || '').replace(/\D/g, '');
+    if (numero && numero.length !== 10 && numero.length !== 12 && numero.length !== 13) {
+      this.waAviso = 'Escribe el número a 10 dígitos (ej. 4611234567) o déjalo vacío para elegir el contacto en WhatsApp.';
+      return;
+    }
+    if (numero.length === 10) numero = '52' + numero; // México
+    const bien = d.datos.filas[0];
+    const texto = 'Formato de ' + (d.datos.tipo === 'ALTA' ? 'Alta' : 'Baja') + ' · Folio ' + d.datos.folio +
+      (bien ? '\n' + [bien.inventario, bien.descripcion].filter(x => x).join(' · ') : '') +
+      (d.datos.sede ? '\nSede: ' + d.datos.sede : '') +
+      '\n\nTe comparto el PDF del formato (va adjunto).';
+    // Celular: abre la app. Computadora: WhatsApp Web directo (sin la página intermedia de wa.me)
+    const movil = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+    const params = (numero ? 'phone=' + numero + '&' : '') + 'text=' + encodeURIComponent(texto);
+    const url = (movil ? 'https://api.whatsapp.com/send?' : 'https://web.whatsapp.com/send?') + params;
+    this.waUrl = url;
+
+    // Se abre con un enlace real en pestaña nueva; nunca se sale de DOZZER
+    const a = document.createElement('a');
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+    // La descarga va un instante después para que el navegador no cancele la apertura
+    setTimeout(() => this.descargarFormato(), 700);
+    this.waAviso = 'Se descargó "' + d.nombre + '". En el chat de WhatsApp toca 📎 → Documento y adjúntalo.';
+  }
+
+  async compartirFormato(): Promise<void> {
+    if (!this.documento) return;
+    try {
+      const archivo = new File([this.documento.blob], this.documento.nombre, { type: 'application/pdf' });
+      await (navigator as any).share({ files: [archivo], title: this.documento.nombre, text: this.docMensaje });
+    } catch { /* el usuario canceló */ }
+  }
+
+  private revisarCorreo(): void {
+    if (this.correoConfigurado !== null) return;
+    this.http.get<any>(this.api + '/documentos/correo').subscribe({
+      next: r => this.correoConfigurado = !!r?.configurado,
+      error: () => this.correoConfigurado = null
+    });
+  }
+
+  enviarFormato(): void {
+    const d = this.documento;
+    if (!d || this.docEnviando) return;
+    this.docEnviando = true;
+    this.docError = '';
+    this.docEnviado = '';
+    const lector = new FileReader();
+    lector.onload = () => {
+      const base64 = String(lector.result || '').split(',')[1] || '';
+      this.http.post<any>(this.api + '/documentos/enviar', {
+        para: this.docDestinatarios.join(','),
+        asunto: 'Formato de ' + (d.datos.tipo === 'ALTA' ? 'Alta' : 'Baja') + ' ' + d.datos.folio + ' · DOZZER',
+        mensaje: this.docMensaje,
+        nombreArchivo: d.nombre,
+        pdfBase64: base64
+      }).subscribe({
+        next: r => {
+          this.docEnviando = false;
+          this.docEnviado = 'Enviado a ' + (r?.enviados || 1) + (r?.enviados === 1 ? ' destinatario.' : ' destinatarios.');
+        },
+        error: e => {
+          this.docEnviando = false;
+          if (e?.status === 503) this.correoConfigurado = false;
+          this.docError = this.mensajeError(e, 'No fue posible enviar el correo.');
+        }
+      });
+    };
+    lector.onerror = () => { this.docEnviando = false; this.docError = 'No fue posible leer el PDF.'; };
+    lector.readAsDataURL(d.blob);
+  }
+
+  private async cargarLogo(): Promise<string | null> {
+    if (this.logoDataUrl) return this.logoDataUrl;
+    try {
+      const resp = await fetch('logo-dozzer.png');
+      if (!resp.ok) return null;
+      const blob = await resp.blob();
+      this.logoDataUrl = await new Promise<string>((ok, mal) => {
+        const fr = new FileReader();
+        fr.onload = () => ok(String(fr.result));
+        fr.onerror = mal;
+        fr.readAsDataURL(blob);
+      });
+      return this.logoDataUrl;
+    } catch { return null; }
+  }
+
+  // Formato de Alta/Baja — diseño "Institucional moderno" (propuesta A elegida).
+  // Contenido guiado por los formatos oficiales FA-04-02-03 / FA-04-02-04.
+  // Las firmas quedan como espacio vacío: ahí irá la imagen de la firma de cada persona.
+  private async crearPdfFormato(d: FormatoDoc): Promise<Blob> {
+    type RGB = [number, number, number];
+    const NAVY: RGB = [23, 38, 61], AZUL: RGB = [36, 76, 120], GRIS: RGB = [110, 120, 135];
+    const CLARO: RGB = [244, 246, 250], LINEA: RGB = [214, 220, 229];
+    const ACENTO: RGB = d.tipo === 'ALTA' ? [33, 131, 90] : [194, 65, 75];
+    const doc = new jsPDF({ unit: 'mm', format: 'letter', compress: true });
+    const X = 20, W = 176, R = X + W;
+    const ajustar = (t: string, ancho: number) => {
+      t = String(t || '');
+      if (doc.getTextWidth(t) <= ancho) return t;
+      while (t.length && doc.getTextWidth(t + '...') > ancho) t = t.slice(0, -1);
+      return t + '...';
+    };
+    const seccion = (titulo: string, y: number, color: RGB = AZUL) => {
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(...color);
+      doc.text(titulo, X, y);
+    };
+
+    // Encabezado
+    const logo = await this.cargarLogo();
+    if (logo) {
+      try { doc.addImage(logo, 'PNG', X, 15, 52, 52 * 227 / 879, 'logo', 'FAST'); } catch { /* sin logo */ }
+    }
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(17); doc.setTextColor(...NAVY);
+    doc.text('FORMATO DE ' + d.tipo, R, 21, { align: 'right' });
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...GRIS);
+    doc.text('Clave ' + (d.tipo === 'ALTA' ? 'FA-04-02-03' : 'FA-04-02-04') + '   ·   Revisión 0   ·   Emisión 01/06/2026', R, 27, { align: 'right' });
+    doc.setDrawColor(...NAVY); doc.setLineWidth(0.8); doc.line(X, 34, R, 34);
+    doc.setDrawColor(...ACENTO); doc.setLineWidth(0.8); doc.line(R - 30, 34, R, 34);
+
+    // Datos generales
+    const cajas: [string, string][] = [['SEDE', d.sede || '—'], ['FOLIO', d.folio], ['FECHA DE SOLICITUD', d.fecha]];
+    const anchosCaja = [50, 46, 76];
+    let x = X;
+    cajas.forEach(([l, v], i) => {
+      doc.setFillColor(...CLARO); doc.roundedRect(x, 40, anchosCaja[i], 15, 2, 2, 'F');
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(...GRIS); doc.text(l, x + 4, 45.5);
+      doc.setFontSize(11); doc.setTextColor(...NAVY); doc.text(ajustar(v, anchosCaja[i] - 8), x + 4, 51.5);
+      x += anchosCaja[i] + 2;
+    });
+
+    // Tabla de bienes (solo las filas con datos)
+    seccion(d.tipo === 'ALTA' ? 'BIENES QUE SE DAN DE ALTA' : 'BIENES QUE SE DAN DE BAJA', 66);
+    const cols = [14, 30, 82, 50];
+    const titulos = ['Núm.', 'Inventario', 'Descripción del bien', 'Modelo / Serie'];
+    doc.setFillColor(...NAVY); doc.rect(X, 69, W, 8, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(255, 255, 255);
+    x = X; titulos.forEach((t, i) => { doc.text(t, x + 3, 74.2); x += cols[i]; });
+    let y = 77;
+    doc.setFont('helvetica', 'normal');
+    d.filas.forEach((f, n) => {
+      if (n % 2 === 0) { doc.setFillColor(...CLARO); doc.rect(X, y, W, 10, 'F'); }
+      doc.setFontSize(8.5); doc.setTextColor(...NAVY);
+      const celdas = [String(n + 1), f.inventario, f.descripcion, f.modeloSerie];
+      x = X;
+      celdas.forEach((t, i) => {
+        const ancho = cols[i] - 5;
+        if (doc.getTextWidth(String(t || '')) <= ancho || i < 2) {
+          doc.text(ajustar(String(t || ''), ancho), x + 3, y + 6);
+        } else {
+          doc.setFontSize(7);
+          const renglones = doc.splitTextToSize(String(t), ancho);
+          if (renglones.length === 1) doc.text(renglones[0], x + 3, y + 6);
+          else doc.text([renglones[0], ajustar(renglones.slice(1).join(' '), ancho)], x + 3, y + 4.2, { lineHeightFactor: 1.15 });
+          doc.setFontSize(8.5);
+        }
+        x += cols[i];
+      });
+      y += 10;
+    });
+    doc.setDrawColor(...LINEA); doc.setLineWidth(0.3); doc.line(X, y, R, y);
+
+    // Detalle del bien (cuando es uno solo)
+    const detalle = (d.detalle || []).filter(c => c.valor && c.valor.trim());
+    y += 8;
+    if (d.filas.length === 1 && detalle.length) {
+      detalle.forEach((c, i) => {
+        const cx = X + (i % 3) * 59, cy = y + Math.floor(i / 3) * 12;
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(6.8); doc.setTextColor(...GRIS); doc.text(c.etiqueta.toUpperCase(), cx, cy);
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...NAVY); doc.text(ajustar(c.valor, 56), cx, cy + 4.6);
+      });
+      y += Math.ceil(detalle.length / 3) * 12 + 6;
+    }
+
+    // Observaciones
+    seccion(d.tipo === 'ALTA' ? 'OBSERVACIONES' : 'MOTIVO Y OBSERVACIONES', y);
+    doc.setFillColor(...CLARO); doc.roundedRect(X, y + 3, W, 26, 2, 2, 'F');
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...NAVY);
+    const lineas = doc.splitTextToSize(d.observaciones || 'Sin observaciones.', W - 8).slice(0, 5);
+    doc.text(lineas, X + 4, y + 9.5);
+    y += 3 + 26 + 13;
+
+    // Firmas: espacio vacío para la imagen de la firma, línea, nombre y rol
+    seccion('FIRMAS', y);
+    const espacioFirma = (fx: number, fy: number, w: number, nombre: string, rol: string) => {
+      doc.setDrawColor(...LINEA); doc.setLineWidth(0.3);
+      (doc as any).setLineDashPattern([1.2, 1.2], 0);
+      doc.roundedRect(fx + 4, fy, w - 8, 22, 2, 2);
+      (doc as any).setLineDashPattern([], 0);
+      doc.setFont('helvetica', 'italic'); doc.setFontSize(7); doc.setTextColor(170, 178, 190);
+      doc.text('Espacio para firma', fx + w / 2, fy + 12, { align: 'center' });
+      doc.setDrawColor(...NAVY); doc.setLineWidth(0.35);
+      doc.line(fx + 4, fy + 26, fx + w - 4, fy + 26);
+      if (nombre) {
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...NAVY);
+        doc.text(ajustar(nombre.toUpperCase(), w - 6), fx + w / 2, fy + 30.5, { align: 'center' });
+      } else {
+        doc.setFont('helvetica', 'italic'); doc.setFontSize(7.5); doc.setTextColor(170, 178, 190);
+        doc.text('Nombre y cargo', fx + w / 2, fy + 30.5, { align: 'center' });
+      }
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...GRIS);
+      doc.text(rol, fx + w / 2, fy + 34.5, { align: 'center' });
+    };
+    const fy = Math.min(y + 5, 222);
+    espacioFirma(X, fy, 58, d.solicito, 'Solicitó');
+    espacioFirma(X + 59, fy, 58, d.autorizo, 'Autorizó');
+    if (d.tipo === 'BAJA') espacioFirma(X + 118, fy, 58, 'Juan Carlos Zuno Muñiz', 'Validó · Jefe de recursos materiales');
+    else espacioFirma(X + 118, fy, 58, '', 'Validó');
+
+    // Pie de página
+    doc.setDrawColor(...LINEA); doc.setLineWidth(0.3); doc.line(X, 264, R, 264);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(...GRIS);
+    doc.text('DOZZER Construcción y Asesoría S.A. de C.V.', X, 269);
+    const ahora = new Date();
+    const sello = ahora.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' +
+      ahora.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false });
+    doc.text('Folio ' + d.folio + ' · Generado en DOZZER el ' + sello, R, 269, { align: 'right' });
+
+    return doc.output('blob');
+  }
+
+  // Ventana de aviso: se cierra sola (ms > 0) o con "Entendido"; los errores esperan al usuario (ms = 0)
+  notificar(tipo: 'exito' | 'pendiente' | 'baja' | 'rechazo' | 'error' | 'info', titulo: string, mensaje: string, ms = 3500,
+            accion?: { texto: string; fn: () => void }): void {
+    clearTimeout(this.avisoTimer);
+    if (accion) ms = 0; // con acción, espera a que el usuario decida
+    this.aviso = { tipo, titulo, mensaje, ms, accion };
+    if (ms > 0) this.avisoTimer = setTimeout(() => this.aviso = null, ms);
+  }
+
+  cerrarAviso(): void {
+    clearTimeout(this.avisoTimer);
+    this.aviso = null;
+  }
+
   abrirDialogo(opciones: DialogoConfirmacion): void {
     this.dialogo = { ...opciones, cargando: false, error: '' };
   }
@@ -3027,7 +4585,7 @@ export class AppComponent {
     const cambios = this.cambiosBien();
     if (!cambios.length) {
       this.editing = false;
-      this.message = 'No hiciste cambios en el bien.';
+      this.notificar('info', 'Sin cambios', 'No modificaste ningún dato del bien.');
       return;
     }
 
@@ -3053,6 +4611,8 @@ export class AppComponent {
   private guardarBien(terminar?: (error?: string) => void): void {
     this.saving = true;
 
+    const esNuevo = !this.bien.idBien;
+    const formulario = { ...this.bien };
     const req = this.bien.idBien
       ? this.http.put(this.api + '/bienes/' + this.bien.idBien, this.bien)
       : this.http.post(this.api + '/bienes', this.bien);
@@ -3063,9 +4623,18 @@ export class AppComponent {
         this.editing = false;
         this.bienOriginal = null;
         terminar?.();
-        this.message = response?.pendienteAutorizacion
-          ? 'Tu solicitud #' + response.idSolicitud + ' fue enviada y está pendiente de autorización. Puedes darle seguimiento en Solicitudes.'
-          : 'Bien guardado correctamente.';
+        if (response?.pendienteAutorizacion) {
+          this.notificar('pendiente', 'Solicitud enviada',
+            'Tu solicitud #' + response.idSolicitud + (esNuevo ? ' de alta' : ' de cambio') + ' espera la autorización del administrador.');
+        } else {
+          this.notificar('exito', esNuevo ? '¡Bien creado!' : 'Bien modificado',
+            esNuevo ? 'El bien ya forma parte del inventario. ¿Generamos su formato de alta?' : 'Los cambios se guardaron correctamente.',
+            3500, esNuevo && this.isAdmin
+              ? { texto: '📄 Generar formato de alta', fn: () => this.abrirFormato(this.formatoDesdeDatos('ALTA', formulario, {
+                    folio: this.folio('ALTA', null, response?.id_bien ?? formulario.clave), solicito: this.miNombre, autorizo: this.miNombre,
+                    observaciones: 'Alta registrada directamente por el administrador.' })) }
+              : undefined);
+        }
         this.loadBienes();
         if (response?.pendienteAutorizacion) this.loadSolicitudes();
       },
@@ -3073,7 +4642,7 @@ export class AppComponent {
         this.saving = false;
         const error = this.mensajeError(e, 'No se pudo guardar el bien.');
         if (terminar) terminar(error);
-        else this.message = error;
+        else this.notificar('error', 'No se pudo guardar', error, 0);
       }
     });
   }
@@ -3094,9 +4663,14 @@ export class AppComponent {
           next: response => {
             terminar();
             this.bienSeleccionado = null;
-            this.message = response?.pendienteAutorizacion
-              ? 'Tu solicitud de baja #' + response.idSolicitud + ' fue enviada para autorización.'
-              : 'Bien dado de baja correctamente.';
+            if (response?.pendienteAutorizacion) {
+              this.notificar('pendiente', 'Solicitud de baja enviada', 'Tu solicitud #' + response.idSolicitud + ' espera la autorización del administrador.');
+            } else {
+              this.notificar('baja', 'Bien dado de baja', 'Ya no aparece en el inventario activo. ¿Generamos su formato de baja?', 3500,
+                bien ? { texto: '📄 Generar formato de baja', fn: () => this.abrirFormato(this.formatoDesdeBien('BAJA', bien, {
+                  folio: this.folio('BAJA', null, bien.id_bien), solicito: this.miNombre, autorizo: this.miNombre,
+                  observaciones: 'Baja registrada directamente por el administrador.' })) } : undefined);
+            }
             this.loadBienes();
             if (response?.pendienteAutorizacion) this.loadSolicitudes();
           },
@@ -3222,13 +4796,15 @@ export class AppComponent {
     this.catalogFormError = '';
     this.catalogFieldError = '';
     const url = this.api + '/catalogos/' + this.catalog;
+    const esNuevoRegistro = !this.catalogEditId;
     const req = this.catalogEditId ? this.http.put<any>(url + '/' + this.catalogEditId, datos) : this.http.post<any>(url, datos);
 
     req.subscribe({
       next: r => {
         this.catalogSaving = false;
         this.catalogModal = false;
-        this.message = r?.mensaje || 'Catálogo actualizado correctamente.';
+        this.notificar('exito', esNuevoRegistro ? '¡Registro creado!' : 'Registro modificado',
+          esNuevoRegistro ? 'Se agregó al catálogo correctamente.' : 'Los cambios se guardaron correctamente.');
         this.refreshAfterCatalogChange();
       },
       error: e => {
@@ -3253,7 +4829,8 @@ export class AppComponent {
         this.http.delete<any>(this.api + '/catalogos/' + this.catalog + '/' + x[config.id]).subscribe({
           next: r => {
             terminar();
-            this.message = r?.mensaje || 'Registro actualizado.';
+            this.notificar('baja', config.estatus ? 'Registro desactivado' : 'Registro eliminado',
+              config.estatus ? 'Ya no aparecerá en las listas; puedes reactivarlo cuando quieras.' : 'Se eliminó definitivamente del catálogo.');
             this.refreshAfterCatalogChange();
           },
           error: e => terminar(this.mensajeError(e, 'No se pudo completar la operación.'))
@@ -3265,7 +4842,7 @@ export class AppComponent {
   reactivateCatalogItem(x: any): void {
     this.http.put<any>(this.api + '/catalogos/' + this.catalog + '/' + x[this.catalogConfig.id], { estatus: true }).subscribe({
       next: () => {
-        this.message = 'Registro reactivado correctamente.';
+        this.notificar('exito', 'Registro reactivado', 'Vuelve a estar disponible en las listas.');
         this.refreshAfterCatalogChange();
       },
       error: e => this.catalogError = this.mensajeError(e, 'No se pudo reactivar el registro.')
@@ -3380,7 +4957,7 @@ export class AppComponent {
     this.excelImporting = true;
     this.excelError = '';
     this.excelImportResult = '';
-    this.message = '';
+    this.aviso = null;
 
     const headers = new HttpHeaders({
       Authorization: `Bearer ${token}`,
@@ -3421,8 +4998,7 @@ export class AppComponent {
         }
 
         if (importados > 0) {
-          this.message =
-            `Se importaron ${importados} de ${total} bienes correctamente.`;
+          this.notificar('exito', 'Importación completa', `Se importaron ${importados} de ${total} bienes correctamente.`);
           this.loadBienes();
         }
 
