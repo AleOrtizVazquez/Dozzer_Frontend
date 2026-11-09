@@ -38,6 +38,7 @@ interface FormatoDoc {
   detalle?: { etiqueta: string; valor: string }[];
   correoSugerido?: string;
   contactos?: { nombre: string; correo: string; rol: string }[];
+  anulado?: boolean;
 }
 
 @Component({
@@ -77,7 +78,7 @@ interface FormatoDoc {
         <span class="nav-badge" *ngIf="pendientesBadge > 0">{{ pendientesBadge }}</span>
       </button>
 
-      <button class="nav-item" [class.active]="section==='documentos'" (click)="menuCollapsed=true; section='documentos'">
+      <button class="nav-item" [class.active]="section==='documentos'" (click)="menuCollapsed=true; section='documentos'; docsVista='menu'; loadDocumentos()">
         <span class="nav-icon">▤</span>
         <span>Documentos</span>
       </button>
@@ -245,11 +246,11 @@ interface FormatoDoc {
               <div class="doc-title">
                 <span class="doc-badge" [class.baja]="d.datos.tipo==='BAJA'">{{ d.datos.tipo }}</span>
                 <div>
-                  <h2>Formato de {{ d.datos.tipo==='ALTA' ? 'Alta' : 'Baja' }}</h2>
+                  <h2>Formato de {{ d.datos.tipo==='ALTA' ? 'Alta' : 'Baja' }} <span class="doc-anulado" *ngIf="d.datos.anulado">ANULADO</span></h2>
                   <p>Folio {{ d.datos.folio }} · {{ d.datos.tipo==='ALTA' ? 'FA-04-02-03' : 'FA-04-02-04' }} · {{ d.datos.sede || 'Sin sede' }}</p>
                 </div>
               </div>
-              <button class="close-button" [disabled]="docEnviando" (click)="cerrarFormato()">×</button>
+              <button class="close-button" (click)="cerrarFormato()">×</button>
             </div>
 
             <!-- Vista principal: vista previa + acciones -->
@@ -266,76 +267,11 @@ interface FormatoDoc {
                 <button class="doc-action" (click)="imprimirFormato()">
                   <span>⎙</span><div><strong>Abrir / imprimir</strong><small>Para firmarlo en papel</small></div>
                 </button>
-                <button class="doc-action" (click)="abrirVistaDoc('correo')">
-                  <span class="ico-mail"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></span><div><strong>Enviar por correo</strong><small>A la persona o a quien tú elijas</small></div><em>›</em>
-                </button>
                 <button class="doc-action" (click)="abrirVistaDoc('whatsapp')">
                   <span class="ico-wa"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.6.8-.8 1-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.3-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.5 4c1.7.7 2.3.8 3.2.6a2.7 2.7 0 0 0 1.8-1.3 2.2 2.2 0 0 0 .2-1.3c-.1-.1-.3-.2-.5-.3z"/></svg></span><div><strong>Compartir por WhatsApp</strong><small>Abre la app con el mensaje listo</small></div><em>›</em>
                 </button>
-                <button class="doc-action" *ngIf="puedeCompartir" (click)="compartirFormato()">
-                  <span>⇪</span><div><strong>Otras apps</strong><small>Drive, Teams, etc.</small></div>
-                </button>
                 <div class="doc-file-mini">📄 {{ d.nombre }}</div>
               </div>
-            </div>
-
-            <!-- Vista: correo -->
-            <div class="doc-flow" *ngIf="vistaDoc==='correo'">
-              <button class="doc-back" [disabled]="docEnviando" (click)="vistaDoc='inicio'">← Volver al formato</button>
-              <div class="flow-head">
-                <span class="flow-ico ico-mail"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></span>
-                <div>
-                  <h2>Enviar por correo</h2>
-                  <p>Adjunto: <b>{{ d.nombre }}</b></p>
-                </div>
-              </div>
-
-              <div class="flow-step">
-                <div class="step-title"><span>1</span> ¿A quién se lo envías?</div>
-                <div class="contact-grid" *ngIf="docContactos.length">
-                  <button *ngFor="let c of docContactos" class="contact-card" [class.on]="correoIncluido(c.correo)" (click)="alternarCorreo(c.correo)">
-                    <span class="contact-avatar">{{ inicialesDe(c.nombre) }}</span>
-                    <span class="contact-info">
-                      <strong>{{ c.nombre | titlecase }}</strong>
-                      <small>{{ c.rol }} · {{ c.correo }}</small>
-                    </span>
-                    <span class="contact-check">{{ correoIncluido(c.correo) ? '✓' : '+' }}</span>
-                  </button>
-                </div>
-                <label class="flow-label">Otro correo</label>
-                <div class="mail-add">
-                  <input [(ngModel)]="docNuevoCorreo" type="email" list="dozzer-correos" placeholder="Escribe un correo o busca por nombre"
-                         (keydown.enter)="agregarCorreo()" (change)="alCambiarCorreo()" (input)="docError=''">
-                  <button class="btn-outline" [disabled]="!docNuevoCorreo.trim()" (click)="agregarCorreo()">Agregar</button>
-                </div>
-                <datalist id="dozzer-correos">
-                  <option *ngFor="let p of correosPersonas" [value]="p.correo">{{ p.nombre }}</option>
-                </datalist>
-                <div class="mail-dest" *ngIf="docDestinatarios.length">
-                  <small>Se enviará a:</small>
-                  <span *ngFor="let c of docDestinatarios">{{ c }}<button (click)="quitarCorreo(c)" title="Quitar">×</button></span>
-                </div>
-              </div>
-
-              <div class="flow-step">
-                <div class="step-title"><span>2</span> Mensaje <em>(opcional)</em></div>
-                <textarea rows="3" maxlength="3000" [(ngModel)]="docMensaje"></textarea>
-              </div>
-
-              <div class="inline-error" *ngIf="docError">{{ docError }}</div>
-              <div class="doc-ok" *ngIf="docEnviado">✓ {{ docEnviado }}</div>
-              <div class="wa-hint mail-hint" *ngIf="docAvisoCorreo">{{ docAvisoCorreo }}</div>
-
-              <div class="flow-actions">
-                <button class="btn-outline" [disabled]="!docDestinatarios.length && !docNuevoCorreo.trim()" (click)="abrirEnMiCorreo()">
-                  Abrir en mi correo (Outlook / Gmail)
-                </button>
-                <button class="btn-primary" *ngIf="correoConfigurado !== false" [disabled]="docEnviando || !docDestinatarios.length" (click)="enviarFormato()">
-                  <span class="mini-ring light" *ngIf="docEnviando"></span>
-                  {{ docEnviando ? 'Enviando…' : 'Enviar con el PDF adjunto' }}
-                </button>
-              </div>
-              <small class="mail-note" *ngIf="correoConfigurado === false">El envío automático aún no está configurado en el servidor; con “Abrir en mi correo” lo mandas desde tu propia cuenta.</small>
             </div>
 
             <!-- Vista: WhatsApp -->
@@ -374,6 +310,47 @@ interface FormatoDoc {
               </div>
             </div>
           </ng-container>
+        </div>
+      </div>
+
+      <!-- RESTABLECER MANUAL (ADMIN) -->
+      <div class="modal-backdrop" *ngIf="restablecerManualAbierto">
+        <div class="modal-card" style="max-width:460px">
+          <div class="modal-header">
+            <div>
+              <h2>Restablecer contraseña</h2>
+              <p>Asigna una contraseña temporal a cualquier usuario, aunque no la haya solicitado.</p>
+            </div>
+            <button class="close-button" (click)="restablecerManualAbierto=false">×</button>
+          </div>
+          <div class="form-section">
+            <label>Correo del usuario</label>
+            <input [(ngModel)]="correoRestablecer" type="email" placeholder="nombre.apellido@dozzer.mx"
+                   (keyup.enter)="correoRestablecer && restablecerPassword(correoRestablecer)">
+          </div>
+          <div class="modal-footer">
+            <button class="btn-outline" (click)="restablecerManualAbierto=false">Cancelar</button>
+            <button class="btn-primary" [disabled]="!correoRestablecer.trim()" (click)="restablecerPassword(correoRestablecer)">Continuar</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- CONTRASEÑA TEMPORAL GENERADA -->
+      <div class="modal-backdrop" *ngIf="passwordTemporal" style="z-index:210">
+        <div class="modal-card temp-card" style="max-width:440px">
+          <div class="temp-ico">✓</div>
+          <h2>Contraseña temporal lista</h2>
+          <p>Para <b>{{ passwordTemporal.nombre || passwordTemporal.correo }}</b><br>{{ passwordTemporal.correo }}</p>
+          <div class="temp-pass">
+            <code>{{ passwordTemporal.passwordTemporal }}</code>
+            <button class="btn-outline btn-small" (click)="copiarTemporal()">{{ temporalCopiada ? '✓ Copiada' : 'Copiar' }}</button>
+          </div>
+          <ol class="temp-steps">
+            <li>Entrégasela a la persona en privado.</li>
+            <li>Al iniciar sesión, el sistema le pedirá crear su propia contraseña.</li>
+            <li>Por seguridad, <b>no se volverá a mostrar</b> al cerrar esta ventana.</li>
+          </ol>
+          <button class="btn-primary full" (click)="passwordTemporal=null">Listo</button>
         </div>
       </div>
 
@@ -471,7 +448,31 @@ interface FormatoDoc {
           <div class="topbar-right">
             <span class="online-dot"></span>
             <span class="online-label">Sistema activo</span>
-            <div class="top-avatar">{{ initials }}</div>
+            <div class="user-menu-wrap">
+              <button class="top-avatar top-avatar-btn" [class.open]="menuUsuario" title="Mi cuenta" (click)="menuUsuario=!menuUsuario">{{ initials }}</button>
+              <div class="picker-backdrop" *ngIf="menuUsuario" (click)="menuUsuario=false"></div>
+              <div class="user-menu" *ngIf="menuUsuario">
+                <div class="user-menu-head">
+                  <span class="top-avatar">{{ initials }}</span>
+                  <div>
+                    <strong>{{ nombreUsuario || email }}</strong>
+                    <small>{{ isAdmin ? 'Administrador' : 'Empleado' }} · {{ email }}</small>
+                  </div>
+                </div>
+                <button *ngIf="isAdmin" (click)="menuUsuario=false; abrirRestablecerManual()">
+                  <span class="more-ico">⚿</span>
+                  <div><strong>Restablecer contraseña</strong><small>Asignar una temporal a un usuario</small></div>
+                </button>
+                <button (click)="menuUsuario=false; abrirCambioPassword()">
+                  <span class="more-ico">✎</span>
+                  <div><strong>Cambiar mi contraseña</strong><small>Actualiza tu acceso</small></div>
+                </button>
+                <button class="user-menu-exit" (click)="menuUsuario=false; logout()">
+                  <span class="more-ico">↪</span>
+                  <div><strong>Cerrar sesión</strong></div>
+                </button>
+              </div>
+            </div>
           </div>
         </header>
 
@@ -1013,7 +1014,7 @@ interface FormatoDoc {
               </div>
 
               <div class="drawer-footer">
-                <button class="btn-outline" *ngIf="isAdmin" (click)="abrirFormato(formatoDesdeBien('ALTA', b, { folio: folio('ALTA', null, b.id_bien), solicito: b.usuario_registro || miNombre, autorizo: miNombre }))">📄 Formato de alta</button>
+                <button class="btn-outline" *ngIf="isAdmin" (click)="formatoAltaDeBien(b)">📄 Formato de alta</button>
                 <button class="btn-danger" (click)="deleteBien(b.id_bien)">⌫ {{ isAdmin ? 'Dar de baja' : 'Solicitar baja' }}</button>
                 <button class="btn-primary" (click)="editarDesdePanel(b)">✎ {{ isAdmin ? 'Editar bien' : 'Solicitar cambio' }}</button>
               </div>
@@ -1236,53 +1237,9 @@ interface FormatoDoc {
                   <button [class.selected]="vistaSolicitudes==='autorizacion'" (click)="cambiarVistaSolicitudes('autorizacion')">Por autorizar</button>
                   <button [class.selected]="vistaSolicitudes==='mias'" (click)="cambiarVistaSolicitudes('mias')">Mis solicitudes</button>
                 </div>
-                <button class="btn-outline" *ngIf="isAdmin" (click)="abrirRestablecerManual()">
-                  <span>⚿</span> Restablecer contraseña
-                </button>
                 <button class="btn-outline" [disabled]="solicitudesLoading" (click)="loadSolicitudes()">
                   <span>⟳</span> {{ solicitudesLoading ? 'Actualizando...' : 'Actualizar' }}
                 </button>
-              </div>
-            </div>
-
-            <!-- RESTABLECER MANUAL (ADMIN) -->
-            <div class="modal-backdrop" *ngIf="restablecerManualAbierto">
-              <div class="modal-card" style="max-width:460px">
-                <div class="modal-header">
-                  <div>
-                    <h2>Restablecer contraseña</h2>
-                    <p>Asigna una contraseña temporal a cualquier usuario, aunque no la haya solicitado.</p>
-                  </div>
-                  <button class="close-button" (click)="restablecerManualAbierto=false">×</button>
-                </div>
-                <div class="form-section">
-                  <label>Correo del usuario</label>
-                  <input [(ngModel)]="correoRestablecer" type="email" placeholder="nombre.apellido@dozzer.mx"
-                         (keyup.enter)="correoRestablecer && restablecerPassword(correoRestablecer)">
-                </div>
-                <div class="modal-footer">
-                  <button class="btn-outline" (click)="restablecerManualAbierto=false">Cancelar</button>
-                  <button class="btn-primary" [disabled]="!correoRestablecer.trim()" (click)="restablecerPassword(correoRestablecer)">Continuar</button>
-                </div>
-              </div>
-            </div>
-
-            <!-- CONTRASEÑA TEMPORAL GENERADA -->
-            <div class="modal-backdrop" *ngIf="passwordTemporal" style="z-index:210">
-              <div class="modal-card temp-card" style="max-width:440px">
-                <div class="temp-ico">✓</div>
-                <h2>Contraseña temporal lista</h2>
-                <p>Para <b>{{ passwordTemporal.nombre || passwordTemporal.correo }}</b><br>{{ passwordTemporal.correo }}</p>
-                <div class="temp-pass">
-                  <code>{{ passwordTemporal.passwordTemporal }}</code>
-                  <button class="btn-outline btn-small" (click)="copiarTemporal()">{{ temporalCopiada ? '✓ Copiada' : 'Copiar' }}</button>
-                </div>
-                <ol class="temp-steps">
-                  <li>Entrégasela a la persona en privado.</li>
-                  <li>Al iniciar sesión, el sistema le pedirá crear su propia contraseña.</li>
-                  <li>Por seguridad, <b>no se volverá a mostrar</b> al cerrar esta ventana.</li>
-                </ol>
-                <button class="btn-primary full" (click)="passwordTemporal=null">Listo</button>
               </div>
             </div>
 
@@ -1570,7 +1527,7 @@ interface FormatoDoc {
                     </ng-container>
                     <ng-template #botonCerrar>
                       <button class="btn-outline" *ngIf="s.estado==='APROBADA' && (s.tipoOperacion==='ALTA' || s.tipoOperacion==='BAJA')"
-                              (click)="abrirFormato(formatoDesdeSolicitud(s, s.idBien ? bienPorId(s.idBien) : null))">
+                              (click)="formatoDeSolicitud(s)">
                         📄 Formato de {{ s.tipoOperacion==='ALTA' ? 'alta' : 'baja' }}
                       </button>
                       <button class="btn-primary" (click)="cerrarSolicitud()">Cerrar</button>
@@ -1583,18 +1540,92 @@ interface FormatoDoc {
 
           <!-- DOCUMENTOS -->
           <section *ngIf="section==='documentos'">
-            <div class="page-heading">
+            <div class="inv-head">
               <div>
-                <div class="eyebrow">ARCHIVO DIGITAL</div>
-                <h1>Documentos</h1>
-                <p>Consulta y administra los documentos asociados a los bienes.</p>
+                <button class="inv-back" *ngIf="docsVista!=='menu'" (click)="docsVista='menu'; docsBusqueda=''">← Documentos</button>
+                <h1>{{ docsVista==='menu' ? 'Documentos' : (docsVista==='ALTA' ? 'Formatos de alta' : 'Formatos de baja') }}</h1>
+                <p class="inv-resumen">
+                  {{ isAdmin || canAuthorize ? 'Formatos autorizados de tu sede.' : 'Tus formatos autorizados.' }}
+                  Se generan solos al autorizar y se abren aquí mismo.
+                </p>
+              </div>
+              <div class="heading-actions">
+                <button class="btn-outline" [disabled]="docsCargando" (click)="loadDocumentos()">⟳ {{ docsCargando ? 'Actualizando…' : 'Actualizar' }}</button>
               </div>
             </div>
-            <div class="inventory-panel placeholder-panel">
-              <div class="placeholder-icon">▤</div>
-              <h2>Gestión documental</h2>
-              <p>Aquí estarán disponibles las facturas, fotografías, resguardos y archivos PDF de cada bien.</p>
-              <span class="coming-soon">Módulo en preparación</span>
+
+            <div class="inventory-panel placeholder-panel" *ngIf="docsError && !documentosLista.length">
+              <div class="placeholder-icon">⚠</div>
+              <h2>No fue posible cargar los documentos</h2>
+              <p>{{ docsError }}</p>
+              <button class="btn-primary" (click)="loadDocumentos()">Reintentar</button>
+            </div>
+
+            <!-- Tarjetas -->
+            <div class="inv-tiles doc-tiles" *ngIf="docsVista==='menu'">
+              <button class="inv-tile t-alta" (click)="docsVista='ALTA'">
+                <svg class="tile-bg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M12 12v6M9 15h6"/></svg>
+                <span class="tile-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M12 12v6M9 15h6"/></svg></span>
+                <span class="tile-text"><strong>Alta</strong><small>Formato FA-04-02-03</small></span>
+                <span class="tile-num">{{ docsCargando && !documentosLista.length ? '…' : conteoDocs('ALTA') }}<em>documentos</em></span>
+                <span class="tile-go">Ver altas →</span>
+              </button>
+              <button class="inv-tile t-baja" (click)="docsVista='BAJA'">
+                <svg class="tile-bg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M9 15h6"/></svg>
+                <span class="tile-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M9 15h6"/></svg></span>
+                <span class="tile-text"><strong>Baja</strong><small>Formato FA-04-02-04</small></span>
+                <span class="tile-num">{{ docsCargando && !documentosLista.length ? '…' : conteoDocs('BAJA') }}<em>documentos</em></span>
+                <span class="tile-go">Ver bajas →</span>
+              </button>
+              <div class="inv-tile t-transfer disabled">
+                <span class="tile-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h13l-3-3M20 16H7l3 3"/></svg></span>
+                <span class="tile-text"><strong>Transferencia</strong><small>Cambio de ubicación o responsable</small></span>
+                <span class="tile-soon">Próximamente</span>
+              </div>
+              <div class="inv-tile t-resguardo disabled">
+                <span class="tile-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/><path d="M9 12l2 2 4-4"/></svg></span>
+                <span class="tile-text"><strong>Resguardo individual</strong><small>Bienes a cargo de cada persona</small></span>
+                <span class="tile-soon">Próximamente</span>
+              </div>
+            </div>
+
+            <!-- Lista de documentos -->
+            <div class="inventory-panel" *ngIf="docsVista!=='menu'">
+              <div class="inv-toolbar">
+                <div class="search-box">
+                  <span>⌕</span>
+                  <input [(ngModel)]="docsBusqueda" placeholder="Buscar por folio, clave, bien, sede o persona...">
+                  <button class="clear-search" *ngIf="docsBusqueda" (click)="docsBusqueda=''">×</button>
+                </div>
+                <span class="people-count">{{ documentosFiltrados.length | number }} {{ documentosFiltrados.length === 1 ? 'documento' : 'documentos' }}</span>
+              </div>
+              <div class="doc-list">
+                <button class="doc-row" *ngFor="let d of documentosFiltrados" [class.anulado]="d.estado==='ANULADO'"
+                        [disabled]="abriendoDocumento" (click)="abrirDocumentoGuardado(d.idDocumento)">
+                  <span class="doc-row-ico" [class.baja]="d.tipo==='BAJA'">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/></svg>
+                  </span>
+                  <span class="doc-row-main">
+                    <span class="doc-row-top">
+                      <b class="chip-key">{{ d.folio }}</b>
+                      <span class="doc-anulado" *ngIf="d.estado==='ANULADO'">ANULADO</span>
+                    </span>
+                    <strong>{{ d.clave }} · {{ d.descripcion }}</strong>
+                    <small>{{ d.sede || 'Sin sede' }} · Solicitó {{ d.solicito || '—' }} · Autorizó {{ d.autorizo || '—' }}</small>
+                  </span>
+                  <span class="doc-row-date">
+                    {{ d.fechaCreacion | date:'dd/MM/yyyy' }}
+                    <small>{{ d.fechaCreacion | date:'HH:mm' }}</small>
+                  </span>
+                  <span class="doc-row-go">
+                    <span class="mini-ring" *ngIf="abriendoDocumento===d.idDocumento"></span>
+                    <ng-container *ngIf="abriendoDocumento!==d.idDocumento">Ver →</ng-container>
+                  </span>
+                </button>
+                <div class="inv-empty" *ngIf="!documentosFiltrados.length && !docsCargando">
+                  {{ docsBusqueda ? 'Ningún documento coincide con la búsqueda.' : 'Aún no hay formatos de ' + (docsVista==='ALTA' ? 'alta' : 'baja') + '. Se generan solos cuando se autoriza un movimiento.' }}
+                </div>
+              </div>
             </div>
           </section>
 
@@ -1779,6 +1810,19 @@ interface FormatoDoc {
     .topbar-title{display:flex;flex-direction:column;gap:5px}
     .topbar-title small{font-size:12px;color:#8793a5;letter-spacing:1px}
     .topbar-title strong{font-size:15.5px;color:#25374e}
+    .user-menu-wrap{position:relative}
+    .top-avatar-btn{border:0;cursor:pointer;font-family:inherit;transition:box-shadow .2s,transform .15s}
+    .top-avatar-btn:hover,.top-avatar-btn.open{box-shadow:0 0 0 3px #244c7833;transform:translateY(-1px)}
+    .user-menu{position:absolute;right:0;top:calc(100% + 8px);z-index:45;width:300px;background:#fff;border:1px solid #e3e9f1;border-radius:14px;box-shadow:0 16px 44px #1b2c4430;padding:6px;animation:fadeUp .15s ease both}
+    .user-menu-head{display:flex;align-items:center;gap:11px;padding:10px 10px 12px;border-bottom:1px solid #edf1f6;margin-bottom:4px}
+    .user-menu-head strong{display:block;font-size:14px;color:#25364c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}
+    .user-menu-head small{display:block;font-size:12px;color:#8d99a9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}
+    .user-menu button{width:100%;display:flex;gap:12px;align-items:center;text-align:left;border:0;background:transparent;padding:10px;border-radius:9px;cursor:pointer;font-family:inherit}
+    .user-menu button:hover{background:#f3f6fa}
+    .user-menu button strong{display:block;font-size:14px;color:#25364c}
+    .user-menu button small{display:block;font-size:12px;color:#8d99a9;margin-top:2px}
+    .user-menu-exit strong{color:#bd4b52!important}
+    .user-menu-exit .more-ico{background:#fdeced;color:#c2414b}
     .topbar-right{margin-left:auto;display:flex;align-items:center;gap:9px}
     .online-dot{width:8px;height:8px;border-radius:50%;background:#25a878}
     .online-label{font-size:13px;color:#6b7b90}
@@ -1949,7 +1993,6 @@ interface FormatoDoc {
     .doc-action em{margin-left:auto;font-style:normal;font-size:22px;color:#a3b0c0}
     .ico-wa{background:#e3f8eb!important}
     .ico-wa svg{width:19px;height:19px;fill:#25d366}
-    .ico-mail svg{width:18px;height:18px}
     .doc-file-mini{margin-top:auto;font-size:12.5px;color:#8d99a9;word-break:break-all;padding-top:10px}
     .doc-flow{max-width:620px;margin:0 auto;padding:18px 24px 26px;display:flex;flex-direction:column;gap:16px;animation:fadeUp .25s ease both}
     .doc-back{align-self:flex-start;border:0;background:transparent;padding:4px 0;font-family:inherit;font-size:14.5px;font-weight:700;color:#4f6f95;cursor:pointer}
@@ -1963,18 +2006,6 @@ interface FormatoDoc {
     .step-title{display:flex;align-items:center;gap:9px;font-size:15px;font-weight:800;color:#25364c}
     .step-title span{width:22px;height:22px;border-radius:50%;background:#17263d;color:#fff;display:grid;place-items:center;font-size:13px}
     .step-title em{font-style:normal;font-weight:500;color:#8d99a9;font-size:14px}
-    .contact-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}
-    .contact-card{display:flex;align-items:center;gap:10px;text-align:left;font-family:inherit;background:#fff;border:1.5px solid #e3e9f1;border-radius:12px;padding:10px 12px;cursor:pointer;transition:.15s}
-    .contact-card:hover{border-color:#b9cbe0}
-    .contact-card.on{border-color:#244c78;background:#f1f6fc}
-    .contact-avatar{width:34px;height:34px;border-radius:50%;background:#e5eef8;color:#244c78;display:grid;place-items:center;font-size:13px;font-weight:800;flex-shrink:0}
-    .contact-info{flex:1;min-width:0}
-    .contact-info strong{display:block;font-size:14.5px;color:#25364c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .contact-info small{display:block;font-size:12.5px;color:#8d99a9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .contact-check{width:22px;height:22px;border-radius:50%;border:1.5px solid #c9d6e6;color:#8d99a9;display:grid;place-items:center;font-size:14px;font-weight:800;flex-shrink:0}
-    .contact-card.on .contact-check{background:#244c78;border-color:#244c78;color:#fff}
-    .flow-label{font-size:13px;font-weight:700;color:#4a5a6e;margin-top:2px}
-    .mail-dest small{width:100%;font-size:12.5px;font-weight:700;color:#8d99a9}
     .flow-help{font-size:13px;color:#8d99a9}
     .wa-input{height:46px;font-size:17.5px!important;letter-spacing:1px}
     .wa-steps{margin:0;padding-left:20px;font-size:14.5px;line-height:1.9;color:#41546b}
@@ -1988,24 +2019,6 @@ interface FormatoDoc {
     .wa-direct{border:0;background:transparent;color:#1d7a46;font-family:inherit;font-size:13.5px;font-weight:700;text-decoration:underline;cursor:pointer;padding:2px}
     .wa-manual{display:block;margin-top:6px;font-weight:800;color:#128c4a;text-decoration:underline}
     .wa-hint{font-size:13.5px;line-height:1.45;color:#1d7a46;background:#fff;border-radius:8px;padding:8px 10px}
-    .mail-sug{display:flex;flex-wrap:wrap;gap:6px}
-    .mail-sug button{display:inline-flex;align-items:center;gap:6px;max-width:100%;border:1px solid #d9e2ee;background:#fff;border-radius:20px;padding:5px 10px 5px 6px;font-family:inherit;font-size:13.5px;color:#25364c;cursor:pointer;transition:.15s}
-    .mail-sug button:hover{border-color:#9fb6d3;background:#f6f9fc}
-    .mail-sug button b{width:18px;height:18px;border-radius:50%;background:#eef3f9;color:#244c78;display:grid;place-items:center;font-size:13px;flex-shrink:0}
-    .mail-sug button span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px}
-    .mail-sug button small{color:#8d99a9;font-size:12px}
-    .mail-sug button.on{border-color:#244c78;background:#eef3f9}
-    .mail-sug button.on b{background:#244c78;color:#fff}
-    .mail-dest{display:flex;flex-wrap:wrap;gap:5px}
-    .mail-dest span{display:inline-flex;align-items:center;gap:4px;font-size:13px;font-weight:600;color:#244c78;background:#e5eef8;border-radius:6px;padding:4px 4px 4px 8px;word-break:break-all}
-    .mail-dest button{border:0;background:transparent;color:#244c78;font-size:15.5px;line-height:1;cursor:pointer;padding:0 3px}
-    .mail-add{display:flex;gap:6px}
-    .mail-add input{flex:1;min-width:0}
-    .mail-open{margin-top:6px!important}
-    .mail-hint{background:#eef3f9!important;color:#2d5d93!important}
-    .mail-note{font-size:12.5px;line-height:1.45;color:#8a7a55}
-    .doc-mail-off{font-size:13.5px;line-height:1.5;color:#7a5200;background:#fffaf0;border:1px solid #f0d49a;border-radius:10px;padding:10px 12px}
-    .doc-ok{font-size:14px;font-weight:700;color:#21835a;background:#e8f6ee;border-radius:8px;padding:8px 10px}
     @media(max-width:860px){.flow-actions>*{flex:1}.doc-flow{padding:14px 16px 20px}.doc-body{grid-template-columns:1fr}.doc-preview iframe{min-height:420px}.doc-side{border-left:0;border-top:1px solid #edf0f4}}
 
     /* ---------- REVOCACIÓN ---------- */
@@ -2141,6 +2154,31 @@ interface FormatoDoc {
     .inv-empty{grid-column:1/-1;text-align:center;padding:40px 16px;color:#7d8a9b;font-size:15px}
     @media(max-width:900px){.inv-tiles{grid-template-columns:1fr;min-height:0}.inv-tile{min-height:170px;padding:22px}.tile-num{font-size:34px}.tile-text strong{font-size:24px}}
     @media(max-width:700px){.asset-cards{grid-template-columns:1fr;padding:4px 12px 12px}.people-grid,.sede-grid{grid-template-columns:1fr}.people-bar{flex-wrap:wrap}.tile-go{display:none}}
+
+    /* ---------- DOCUMENTOS ---------- */
+    .t-alta{background:linear-gradient(140deg,#0f4c3a,#21835a)}
+    .t-baja{background:linear-gradient(140deg,#6b1f2a,#c2414b)}
+    .t-transfer{background:linear-gradient(140deg,#17304f,#2d5d93)}
+    .t-resguardo{background:linear-gradient(140deg,#3b2a6b,#6a4fb3)}
+    .inv-tile.disabled{cursor:default;opacity:.55;filter:saturate(.55)}
+    .inv-tile.disabled:hover{transform:none;box-shadow:0 10px 30px #17263d26}
+    .tile-soon{align-self:flex-start;font-size:13px;font-weight:700;background:#ffffff26;border:1px solid #ffffff38;border-radius:20px;padding:6px 14px}
+    .doc-list{display:flex;flex-direction:column;padding:4px 12px 14px;gap:8px}
+    .doc-row{display:flex;align-items:center;gap:14px;text-align:left;font-family:inherit;background:#fff;border:1px solid #e5eaf1;border-radius:14px;padding:13px 16px;cursor:pointer;transition:transform .15s,box-shadow .15s,border-color .15s}
+    .doc-row:hover:not(:disabled){transform:translateY(-1px);border-color:#c9d6e6;box-shadow:0 8px 20px #233c5712}
+    .doc-row.anulado{opacity:.6}
+    .doc-row-ico{width:44px;height:44px;border-radius:12px;background:#e8f6ee;color:#21835a;display:grid;place-items:center;flex-shrink:0}
+    .doc-row-ico.baja{background:#fdeced;color:#c2414b}
+    .doc-row-ico svg{width:22px;height:22px}
+    .doc-row-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+    .doc-row-top{display:flex;align-items:center;gap:8px}
+    .doc-row-main strong{font-size:15px;color:#14243a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .doc-row-main small{font-size:13px;color:#7d8a9b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .doc-row-date{text-align:right;font-size:14px;font-weight:700;color:#41546b;flex-shrink:0}
+    .doc-row-date small{display:block;font-size:12px;font-weight:500;color:#8d99a9}
+    .doc-row-go{font-size:14px;font-weight:700;color:#2d5d93;flex-shrink:0;min-width:44px;text-align:right}
+    .doc-anulado{display:inline-block;font-size:11px;font-weight:800;letter-spacing:1px;color:#fff;background:#c2414b;border-radius:6px;padding:3px 8px;vertical-align:middle}
+    @media(max-width:700px){.doc-row{flex-wrap:wrap}.doc-row-date{text-align:left}.doc-row-go{display:none}}
 
     /* ---------- SALUDO DE INICIO ---------- */
     .welcome{min-height:calc(100vh - 150px);background:#fff;border:1px solid #e7ecf2;border-radius:16px;display:flex;flex-direction:column;align-items:center;padding:32px 20px 22px;box-shadow:0 3px 12px #233c5708}
@@ -2564,19 +2602,19 @@ export class AppComponent {
   documento: { datos: FormatoDoc; url: string; vista: SafeResourceUrl; blob: Blob; nombre: string } | null = null;
   docGenerando = false;
   waNumero = '';
-  vistaDoc: 'inicio' | 'correo' | 'whatsapp' = 'inicio';
+  vistaDoc: 'inicio' | 'whatsapp' = 'inicio';
   waUrl = '';
-  docDestinatarios: string[] = [];
-  docNuevoCorreo = '';
-  docContactos: { nombre: string; correo: string; rol: string }[] = [];
-  docAvisoCorreo = '';
+
+  // Pantalla de Documentos
+  docsVista: 'menu' | 'ALTA' | 'BAJA' = 'menu';
+  documentosLista: any[] = [];
+  docsCargando = false;
+  docsError = '';
+  docsBusqueda = '';
+  abriendoDocumento: any = null;
   waAviso = '';
-  docPara = '';
   docMensaje = '';
-  docEnviando = false;
   docError = '';
-  docEnviado = '';
-  correoConfigurado: boolean | null = null;
   private logoDataUrl: string | null = null;
   private avisoTimer: any;
   filter = '';
@@ -2660,6 +2698,7 @@ export class AppComponent {
   passwordTemporal: any = null;
   temporalCopiada = false;
   menuMasInventario = false;
+  menuUsuario = false;
   vistaInv: 'menu' | 'sedes' | 'bienes' | 'personas' | 'completo' = 'menu';
   origenVistaInv: 'menu' | 'sedes' | 'personas' = 'menu';
   filtroPersona: any = null;
@@ -3383,9 +3422,9 @@ export class AppComponent {
           const conFormato = s.tipoOperacion === 'ALTA' || s.tipoOperacion === 'BAJA';
           const resuelta = { ...s, estado: 'APROBADA', nombreRevisor: this.miNombre, motivoResolucion: motivo || null };
           this.notificar('exito', 'Solicitud aprobada',
-            'La solicitud #' + s.idSolicitud + ' se aplicó al inventario.' + (conFormato ? ' ¿Generamos el formato?' : ''), 3500,
-            conFormato ? { texto: '📄 Generar formato de ' + (s.tipoOperacion === 'ALTA' ? 'alta' : 'baja'),
-                           fn: () => this.abrirFormato(this.formatoDesdeSolicitud(resuelta, bienPrevio)) } : undefined);
+            'La solicitud #' + s.idSolicitud + ' se aplicó al inventario.' + (conFormato ? ' Su formato quedó guardado en Documentos.' : ''), 3500,
+            conFormato ? { texto: '📄 Ver formato de ' + (s.tipoOperacion === 'ALTA' ? 'alta' : 'baja'),
+                           fn: () => this.verOFormato(r?.idDocumento, () => this.formatoDesdeSolicitud(resuelta, bienPrevio)) } : undefined);
         }
         else this.notificar('rechazo', 'Solicitud rechazada', 'Le avisamos al solicitante el motivo del rechazo.');
         this.loadSolicitudes();
@@ -4167,23 +4206,84 @@ export class AppComponent {
     };
   }
 
+  // ===== Documentos guardados =====
+
+  loadDocumentos(): void {
+    if (!this.logged) return;
+    this.docsCargando = true;
+    this.docsError = '';
+    this.http.get<any[]>(this.api + '/documentos').subscribe({
+      next: rows => { this.documentosLista = rows || []; this.docsCargando = false; },
+      error: e => { this.docsCargando = false; this.docsError = this.mensajeError(e, 'No fue posible consultar los documentos.'); }
+    });
+  }
+
+  conteoDocs(tipo: string): number {
+    return this.documentosLista.filter(d => d.tipo === tipo && d.estado !== 'ANULADO').length;
+  }
+
+  get documentosFiltrados(): any[] {
+    const palabras = this.docsBusqueda.toLowerCase().trim().split(/\s+/).filter(Boolean);
+    return this.documentosLista
+      .filter(d => d.tipo === this.docsVista)
+      .filter(d => {
+        if (!palabras.length) return true;
+        const t = [d.folio, d.clave, d.descripcion, d.sede, d.solicito, d.autorizo].join(' ').toLowerCase();
+        return palabras.every(p => t.includes(p));
+      });
+  }
+
+  abrirDocumentoGuardado(id: any): void {
+    if (!id || this.abriendoDocumento) return;
+    this.abriendoDocumento = id;
+    this.docGenerando = true;
+    this.http.get<any>(this.api + '/documentos/' + id).subscribe({
+      next: r => {
+        this.abriendoDocumento = null;
+        this.docGenerando = false;
+        this.abrirFormato({ ...(r.datos || {}), anulado: r.estado === 'ANULADO' } as FormatoDoc);
+      },
+      error: e => {
+        this.abriendoDocumento = null;
+        this.docGenerando = false;
+        this.notificar('error', 'No se abrió el documento', this.mensajeError(e, 'Inténtalo de nuevo.'), 0);
+      }
+    });
+  }
+
+  // Abre el documento guardado; si no existe (bienes anteriores), lo arma con los datos actuales
+  verOFormato(idDocumento: any, generar: () => FormatoDoc): void {
+    if (idDocumento) this.abrirDocumentoGuardado(idDocumento);
+    else this.abrirFormato(generar());
+  }
+
+  private buscarDocumento(params: string, generar: () => FormatoDoc): void {
+    this.http.get<any[]>(this.api + '/documentos?' + params).subscribe({
+      next: rows => {
+        const doc = (rows || []).find(d => d.estado !== 'ANULADO') || (rows || [])[0];
+        this.verOFormato(doc?.idDocumento, generar);
+      },
+      error: () => this.abrirFormato(generar())
+    });
+  }
+
+  formatoAltaDeBien(b: any): void {
+    this.buscarDocumento('tipo=ALTA&idBien=' + b.id_bien, () =>
+      this.formatoDesdeBien('ALTA', b, { folio: this.folio('ALTA', null, b.id_bien), solicito: this.miNombre, autorizo: this.miNombre }));
+  }
+
+  formatoDeSolicitud(s: any): void {
+    this.buscarDocumento('idSolicitud=' + s.idSolicitud, () =>
+      this.formatoDesdeSolicitud(s, s.idBien ? this.bienPorId(s.idBien) : null));
+  }
+
   async abrirFormato(datos: FormatoDoc): Promise<void> {
     this.cerrarFormato();
     this.docGenerando = true;
     this.docError = '';
-    this.docEnviado = '';
-    this.docPara = '';
-    this.docNuevoCorreo = '';
-    this.docAvisoCorreo = '';
-    this.vistaDoc = 'inicio';
-    this.docDestinatarios = datos.correoSugerido ? [datos.correoSugerido.toLowerCase()] : [];
-    const vistos = new Set<string>();
-    this.docContactos = [...(datos.contactos || []),
-                         ...(this.email ? [{ nombre: 'Mi correo', correo: this.email, rol: 'Copia para mí' }] : [])]
-      .filter(c => c.correo && !vistos.has(c.correo.toLowerCase()) && vistos.add(c.correo.toLowerCase()));
-    this.waAviso = '';
     this.docMensaje = 'Se adjunta el formato de ' + (datos.tipo === 'ALTA' ? 'alta' : 'baja') + ' con folio ' + datos.folio + '.';
-    this.revisarCorreo();
+    this.waAviso = '';
+    this.vistaDoc = 'inicio';
     try {
       const blob = await this.crearPdfFormato(datos);
       const url = URL.createObjectURL(blob);
@@ -4200,7 +4300,6 @@ export class AppComponent {
   }
 
   cerrarFormato(): void {
-    if (this.docEnviando) return;
     if (this.documento) URL.revokeObjectURL(this.documento.url);
     this.documento = null;
   }
@@ -4221,74 +4320,11 @@ export class AppComponent {
     if (!w) this.descargarFormato();
   }
 
-  get correosPersonas(): { nombre: string; correo: string }[] {
-    return (this.catalogs.personas || [])
-      .filter((p: any) => p.correo && p.estatus !== false)
-      .map((p: any) => ({ nombre: p.nombre_completo || '', correo: String(p.correo).toLowerCase() }))
-      .sort((a: any, b: any) => a.nombre.localeCompare(b.nombre, 'es'));
-  }
-
-  abrirVistaDoc(vista: 'correo' | 'whatsapp'): void {
+  abrirVistaDoc(vista: 'whatsapp'): void {
     this.vistaDoc = vista;
     this.docError = '';
-    this.docEnviado = '';
-    this.docAvisoCorreo = '';
     this.waAviso = '';
     this.waUrl = '';
-  }
-
-  correoIncluido(correo: string): boolean {
-    return this.docDestinatarios.includes(String(correo || '').toLowerCase());
-  }
-
-  alternarCorreo(correo: string): void {
-    const c = String(correo || '').toLowerCase();
-    this.docDestinatarios = this.correoIncluido(c) ? this.docDestinatarios.filter(x => x !== c) : [...this.docDestinatarios, c];
-    this.docError = ''; this.docEnviado = '';
-  }
-
-  quitarCorreo(correo: string): void {
-    this.docDestinatarios = this.docDestinatarios.filter(x => x !== correo);
-  }
-
-  // Agrega lo escrito (uno o varios separados por coma/espacio)
-  agregarCorreo(): void {
-    const partes = (this.docNuevoCorreo || '').split(/[,;\s]+/).map(x => x.trim().toLowerCase()).filter(Boolean);
-    if (!partes.length) return;
-    const invalido = partes.find(x => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x));
-    if (invalido) { this.docError = 'Correo no válido: ' + invalido; return; }
-    const nuevos = partes.filter(x => !this.docDestinatarios.includes(x));
-    if (this.docDestinatarios.length + nuevos.length > 5) { this.docError = 'Máximo 5 destinatarios por envío.'; return; }
-    this.docDestinatarios = [...this.docDestinatarios, ...nuevos];
-    this.docNuevoCorreo = '';
-    this.docError = ''; this.docEnviado = '';
-  }
-
-  // Si eligió un correo de la lista de sugerencias, se agrega solo
-  alCambiarCorreo(): void {
-    const v = (this.docNuevoCorreo || '').trim().toLowerCase();
-    if (this.correosPersonas.some(p => p.correo === v)) this.agregarCorreo();
-  }
-
-  // Abre el correo del equipo (Outlook, Gmail...) con destinatarios, asunto y mensaje listos, y descarga el PDF para adjuntarlo
-  abrirEnMiCorreo(): void {
-    const d = this.documento;
-    if (!d) return;
-    if (this.docNuevoCorreo.trim()) this.agregarCorreo();
-    if (this.docError) return;
-    const asunto = 'Formato de ' + (d.datos.tipo === 'ALTA' ? 'Alta' : 'Baja') + ' ' + d.datos.folio + ' · DOZZER';
-    const cuerpo = (this.docMensaje || '') + '\n\n(El PDF del formato va adjunto.)';
-    const url = 'mailto:' + this.docDestinatarios.map(c => encodeURIComponent(c)).join(',') +
-      '?subject=' + encodeURIComponent(asunto) + '&body=' + encodeURIComponent(cuerpo);
-    this.descargarFormato();
-    const a = document.createElement('a');
-    a.href = url;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    this.docEnviado = '';
-    this.waAviso = '';
-    this.docAvisoCorreo = 'Se abrió tu correo y se descargó "' + d.nombre + '". Adjúntalo con el clip 📎 antes de enviar.';
   }
 
   // Abre WhatsApp (app en celular, WhatsApp Web/escritorio en PC) con el mensaje listo y descarga el PDF para adjuntarlo.
@@ -4333,45 +4369,6 @@ export class AppComponent {
       const archivo = new File([this.documento.blob], this.documento.nombre, { type: 'application/pdf' });
       await (navigator as any).share({ files: [archivo], title: this.documento.nombre, text: this.docMensaje });
     } catch { /* el usuario canceló */ }
-  }
-
-  private revisarCorreo(): void {
-    if (this.correoConfigurado !== null) return;
-    this.http.get<any>(this.api + '/documentos/correo').subscribe({
-      next: r => this.correoConfigurado = !!r?.configurado,
-      error: () => this.correoConfigurado = null
-    });
-  }
-
-  enviarFormato(): void {
-    const d = this.documento;
-    if (!d || this.docEnviando) return;
-    this.docEnviando = true;
-    this.docError = '';
-    this.docEnviado = '';
-    const lector = new FileReader();
-    lector.onload = () => {
-      const base64 = String(lector.result || '').split(',')[1] || '';
-      this.http.post<any>(this.api + '/documentos/enviar', {
-        para: this.docDestinatarios.join(','),
-        asunto: 'Formato de ' + (d.datos.tipo === 'ALTA' ? 'Alta' : 'Baja') + ' ' + d.datos.folio + ' · DOZZER',
-        mensaje: this.docMensaje,
-        nombreArchivo: d.nombre,
-        pdfBase64: base64
-      }).subscribe({
-        next: r => {
-          this.docEnviando = false;
-          this.docEnviado = 'Enviado a ' + (r?.enviados || 1) + (r?.enviados === 1 ? ' destinatario.' : ' destinatarios.');
-        },
-        error: e => {
-          this.docEnviando = false;
-          if (e?.status === 503) this.correoConfigurado = false;
-          this.docError = this.mensajeError(e, 'No fue posible enviar el correo.');
-        }
-      });
-    };
-    lector.onerror = () => { this.docEnviando = false; this.docError = 'No fue posible leer el PDF.'; };
-    lector.readAsDataURL(d.blob);
   }
 
   private async cargarLogo(): Promise<string | null> {
@@ -4509,8 +4506,15 @@ export class AppComponent {
     const fy = Math.min(y + 5, 222);
     espacioFirma(X, fy, 58, d.solicito, 'Solicitó');
     espacioFirma(X + 59, fy, 58, d.autorizo, 'Autorizó');
-    if (d.tipo === 'BAJA') espacioFirma(X + 118, fy, 58, 'Juan Carlos Zuno Muñiz', 'Validó · Jefe de recursos materiales');
-    else espacioFirma(X + 118, fy, 58, '', 'Validó');
+    // Valida siempre el Jefe de recursos materiales (alta y baja)
+    espacioFirma(X + 118, fy, 58, 'Ing. Juan Carlos Zuno Muñiz', 'Validó · Jefe de recursos materiales');
+
+    if (d.anulado) {
+      try { (doc as any).setGState(new (doc as any).GState({ opacity: 0.18 })); } catch { /* sin transparencia */ }
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(72); doc.setTextColor(194, 65, 75);
+      doc.text('ANULADO', 108, 165, { align: 'center', angle: 32 });
+      try { (doc as any).setGState(new (doc as any).GState({ opacity: 1 })); } catch { /* sin transparencia */ }
+    }
 
     // Pie de página
     doc.setDrawColor(...LINEA); doc.setLineWidth(0.3); doc.line(X, 264, R, 264);
@@ -4628,9 +4632,9 @@ export class AppComponent {
             'Tu solicitud #' + response.idSolicitud + (esNuevo ? ' de alta' : ' de cambio') + ' espera la autorización del administrador.');
         } else {
           this.notificar('exito', esNuevo ? '¡Bien creado!' : 'Bien modificado',
-            esNuevo ? 'El bien ya forma parte del inventario. ¿Generamos su formato de alta?' : 'Los cambios se guardaron correctamente.',
+            esNuevo ? 'El bien ya forma parte del inventario. Su formato de alta quedó guardado en Documentos.' : 'Los cambios se guardaron correctamente.',
             3500, esNuevo && this.isAdmin
-              ? { texto: '📄 Generar formato de alta', fn: () => this.abrirFormato(this.formatoDesdeDatos('ALTA', formulario, {
+              ? { texto: '📄 Ver formato de alta', fn: () => this.verOFormato(response?.idDocumento, () => this.formatoDesdeDatos('ALTA', formulario, {
                     folio: this.folio('ALTA', null, response?.id_bien ?? formulario.clave), solicito: this.miNombre, autorizo: this.miNombre,
                     observaciones: 'Alta registrada directamente por el administrador.' })) }
               : undefined);
@@ -4666,8 +4670,8 @@ export class AppComponent {
             if (response?.pendienteAutorizacion) {
               this.notificar('pendiente', 'Solicitud de baja enviada', 'Tu solicitud #' + response.idSolicitud + ' espera la autorización del administrador.');
             } else {
-              this.notificar('baja', 'Bien dado de baja', 'Ya no aparece en el inventario activo. ¿Generamos su formato de baja?', 3500,
-                bien ? { texto: '📄 Generar formato de baja', fn: () => this.abrirFormato(this.formatoDesdeBien('BAJA', bien, {
+              this.notificar('baja', 'Bien dado de baja', 'Ya no aparece en el inventario activo. Su formato de baja quedó guardado en Documentos.', 3500,
+                bien ? { texto: '📄 Ver formato de baja', fn: () => this.verOFormato(response?.idDocumento, () => this.formatoDesdeBien('BAJA', bien, {
                   folio: this.folio('BAJA', null, bien.id_bien), solicito: this.miNombre, autorizo: this.miNombre,
                   observaciones: 'Baja registrada directamente por el administrador.' })) } : undefined);
             }
