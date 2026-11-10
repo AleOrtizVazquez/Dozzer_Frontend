@@ -152,12 +152,16 @@ interface FormatoDoc {
           <ng-container *ngIf="modoRecuperar">
             <div class="lg-recover">
               <h2>Restablecer contraseña</h2>
-              <p>Escribe tu correo y crea una contraseña nueva. Al guardarla entrarás directamente.</p>
+              <p>Escribe tu correo y tu número de empleado, y crea una contraseña nueva. Al guardarla entrarás directamente.</p>
             </div>
 
             <div class="lg-field" [class.invalid]="recuperacionError">
               <input name="correoRecuperar" [(ngModel)]="correoRecuperar" type="email" placeholder="CORREO ELECTRÓNICO"
                      aria-label="Correo electrónico" autocomplete="username" (input)="recuperacionError=''">
+            </div>
+            <div class="lg-field" [class.invalid]="recuperacionError">
+              <input name="numeroRecuperar" [(ngModel)]="numeroRecuperar" type="text" placeholder="NÚMERO DE EMPLEADO (EJ. DZ-0001)"
+                     aria-label="Número de empleado" autocomplete="off" (input)="recuperacionError=''">
             </div>
             <div class="lg-field" [class.invalid]="recuperacionError">
               <input name="nuevaRecuperar" [(ngModel)]="nuevaRecuperar" [type]="verPasswordLogin ? 'text' : 'password'"
@@ -468,6 +472,10 @@ interface FormatoDoc {
                 <button *ngIf="isAdmin" (click)="menuUsuario=false; abrirRestablecerManual()">
                   <span class="more-ico">⚿</span>
                   <div><strong>Restablecer contraseña</strong><small>Asignar una temporal a un usuario</small></div>
+                </button>
+                <button *ngIf="isAdmin" (click)="menuUsuario=false; generarTemporalesPendientes()">
+                  <span class="more-ico">⇩</span>
+                  <div><strong>Contraseñas temporales</strong><small>Una distinta por empleado (Excel)</small></div>
                 </button>
                 <button (click)="menuUsuario=false; abrirCambioPassword()">
                   <span class="more-ico">✎</span>
@@ -3229,6 +3237,7 @@ export class AppComponent {
   // Recuperación de contraseña
   modoRecuperar = false;
   correoRecuperar = '';
+  numeroRecuperar = '';
   recuperacionEnviando = false;
   nuevaRecuperar = '';
   confirmarRecuperar = '';
@@ -3713,6 +3722,7 @@ export class AppComponent {
   abrirRecuperacion(): void {
     this.modoRecuperar = true;
     this.correoRecuperar = this.login.correo || '';
+    this.numeroRecuperar = '';
     this.nuevaRecuperar = '';
     this.confirmarRecuperar = '';
     this.recuperacionError = '';
@@ -3730,29 +3740,67 @@ export class AppComponent {
     return /[A-Za-zÁÉÍÓÚÑáéíóúñ]/.test(texto || '') && /\d/.test(texto || '');
   }
 
-  // Restablece la contraseña solo con el correo y entra directamente
+  // Restablece la contraseña con el correo + número de empleado y entra directamente
   solicitarRecuperacion(): void {
     const correo = (this.correoRecuperar || '').trim();
     const nueva = this.nuevaRecuperar || '';
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(correo)) { this.recuperacionError = 'Escribe un correo electrónico válido.'; return; }
+    const numeroEmpleado = (this.numeroRecuperar || '').trim();
+    if (!numeroEmpleado) { this.recuperacionError = 'Escribe tu número de empleado.'; return; }
     if (nueva.length < 8) { this.recuperacionError = 'La contraseña debe tener al menos 8 caracteres.'; return; }
     if (!this.tieneLetrasYNumeros(nueva)) { this.recuperacionError = 'La contraseña debe incluir letras y números.'; return; }
     if (nueva !== this.confirmarRecuperar) { this.recuperacionError = 'Las contraseñas no coinciden.'; return; }
 
     this.recuperacionEnviando = true;
     this.recuperacionError = '';
-    this.http.post<any>(this.api + '/auth/recuperar-password', { correo, passwordNueva: nueva }).subscribe({
+    this.http.post<any>(this.api + '/auth/recuperar-password', { correo, numeroEmpleado, passwordNueva: nueva }).subscribe({
       next: () => {
         this.recuperacionEnviando = false;
         this.modoRecuperar = false;
         this.login = { ...this.login, correo, password: nueva };
         this.nuevaRecuperar = '';
         this.confirmarRecuperar = '';
+        this.numeroRecuperar = '';
         this.doLogin();
       },
       error: e => {
         this.recuperacionEnviando = false;
         this.recuperacionError = this.mensajeError(e, 'No fue posible restablecer la contraseña. Intenta de nuevo.');
+      }
+    });
+  }
+
+  // Asigna una contraseña temporal distinta a cada empleado que aún no cambia la suya y descarga la lista.
+  generarTemporalesPendientes(): void {
+    this.abrirDialogo({
+      tipo: 'peligro', icono: '⚿',
+      titulo: '¿Generar contraseñas temporales?',
+      mensaje: 'Cada empleado que todavía no ha cambiado su contraseña recibirá una temporal distinta y se descargará un archivo de Excel con la lista. ' +
+        'Las contraseñas anteriores dejarán de funcionar. Guarda el archivo en un lugar seguro y entrégale a cada persona solo la suya.',
+      textoConfirmar: 'Sí, generar y descargar',
+      accion: terminar => {
+        this.http.post<any>(this.api + '/usuarios/recuperaciones/temporales-pendientes', {}).subscribe({
+          next: r => {
+            terminar();
+            const filas = r?.usuarios || [];
+            if (!filas.length) {
+              this.notificar('exito', 'Nada que generar', 'Todos los empleados ya cambiaron su contraseña.');
+              return;
+            }
+            const celda = (v: any) => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+            const csv = ['Sede,Nombre,Número de empleado,Correo,Contraseña temporal']
+              .concat(filas.map((u: any) => [u.sedes, u.nombre, u.numeroEmpleado, u.correo, u.passwordTemporal].map(celda).join(',')))
+              .join(String.fromCharCode(13, 10));
+            const blob = new Blob([String.fromCharCode(0xFEFF) + csv], { type: 'text/csv;charset=utf-8' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'dozzer-contrasenas-temporales-' + new Date().toISOString().slice(0, 10) + '.csv';
+            document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+            this.notificar('exito', 'Contraseñas generadas', 'Se descargó la lista con ' + filas.length + ' empleados. Al entrar, cada uno deberá crear su propia contraseña.', 6000);
+          },
+          error: e => terminar(this.mensajeError(e, 'No fue posible generar las contraseñas.'))
+        });
       }
     });
   }
