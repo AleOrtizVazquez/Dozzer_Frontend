@@ -968,6 +968,12 @@ interface FormatoDoc {
               </div>
 
               <div class="drawer-body">
+                <div class="drawer-section drawer-foto" *ngIf="b.foto_mini">
+                  <button type="button" class="foto-mini" (click)="ampliarFoto(b)" title="Ver foto en grande">
+                    <img [src]="b.foto_mini" [alt]="'Foto de ' + b.articulo" loading="lazy">
+                    <span>🔍 Ver en grande</span>
+                  </button>
+                </div>
                 <div class="drawer-section">
                   <h3>Información general</h3>
                   <dl>
@@ -1590,9 +1596,11 @@ interface FormatoDoc {
 
                     <div class="lev-actions">
                       <button class="btn-primary" *ngIf="l.estado==='EN_CURSO' && (l.soyCapturista || l.puedoAdministrar)" (click)="iniciarCaptura(l)">📷 Capturar bienes</button>
+                      <button class="btn-outline" (click)="abrirAvance(l)">📊 Ver avance</button>
                       <button class="btn-outline" *ngIf="l.idDocumentoInicio" (click)="abrirDocumentoGuardado(l.idDocumentoInicio)">📄 Acta de inicio</button>
                       <button class="btn-outline" *ngIf="l.idDocumentoCierre" (click)="abrirDocumentoGuardado(l.idDocumentoCierre)">📄 Acta de cierre</button>
                       <button class="btn-danger" *ngIf="l.estado==='EN_CURSO' && l.puedoAdministrar" (click)="cerrarLevantamiento(l)">Cerrar levantamiento</button>
+                      <button class="btn-eliminar-lev" *ngIf="l.puedoAdministrar" (click)="eliminarLevantamiento(l)">🗑 Eliminar inventario</button>
                     </div>
 
                     <button class="lev-more" (click)="levDetalle = levDetalle===l.idLevantamiento ? null : l.idLevantamiento">
@@ -1614,13 +1622,110 @@ interface FormatoDoc {
               </div>
             </ng-container>
 
+            <!-- ===== Avance (monitoreo): resumen -> areas -> bienes ===== -->
+            <div class="cap av" *ngIf="av">
+              <div class="cap-top">
+                <button class="doc-back" (click)="cerrarAvance()">{{ av.enCaptura ? '← Volver a capturar' : '← Inventarios' }}</button>
+                <strong>Avance · Inventario {{ av.lev.anio }} · {{ av.lev.sede }}</strong>
+                <span class="lev-bar"><span [style.width.%]="av.vista.pct"></span></span>
+                <small>{{ av.vista.revisados | number }} de {{ av.vista.total | number }} revisados · {{ av.vista.pct }}%
+                  <ng-container *ngIf="!av.enCaptura && av.actualizado"> · {{ av.lev.estado==='EN_CURSO' ? 'se actualiza solo · ' : '' }}{{ av.actualizado | date:'HH:mm' }}</ng-container>
+                </small>
+              </div>
+
+              <div class="cap-loading" *ngIf="av.cargando"><div class="loader-ring"></div><strong>Cargando avance…</strong></div>
+              <div class="inline-error" *ngIf="av.error">{{ av.error }}</div>
+
+              <ng-container *ngIf="!av.cargando">
+                <div class="av-aviso" *ngIf="av.antesDeCerrar">
+                  <b>Antes de cerrar: faltan {{ av.vista.cuentas.pendientes | number }} bienes por revisar.</b>
+                  <span>Revisa los pendientes por área. Si cierras así, quedarán como "no localizados" en el acta.</span>
+                  <button class="btn-danger" (click)="cerrarDesdeAvance()">Cerrar de todos modos</button>
+                </div>
+
+                <!-- Nivel 1: resumen (cada numero es un filtro) -->
+                <div class="av-chips">
+                  <button *ngFor="let f of avFiltros" [class.on]="av.filtro===f.key" [ngClass]="'f-' + f.key" (click)="avFiltrar(f.key)">
+                    <b>{{ av.vista.cuentas[f.key] | number }}</b><small>{{ f.ico }} {{ f.label }}</small>
+                  </button>
+                </div>
+
+                <input class="cap-search" [(ngModel)]="av.busqueda" (ngModelChange)="avRecalcular()" placeholder="Buscar por clave, artículo o serie...">
+
+                <!-- Con busqueda: resultados directos -->
+                <div class="av-items av-flat" *ngIf="av.busqueda?.trim()">
+                  <ng-container *ngFor="let b of av.vista.resultados">
+                    <ng-container *ngTemplateOutlet="avItemTpl; context: { $implicit: b, conArea: true }"></ng-container>
+                  </ng-container>
+                  <p class="cap-hint" *ngIf="!av.vista.resultados.length">Ningún bien coincide con la búsqueda.</p>
+                </div>
+
+                <!-- Nivel 2: areas (cerradas) -->
+                <div class="av-areas" *ngIf="!av.busqueda?.trim()">
+                  <div class="av-area" *ngFor="let a of av.vista.areas; trackBy: trackArea" [class.open]="av.areaAbierta===a.key">
+                    <button class="av-area-head" (click)="av.areaAbierta = av.areaAbierta===a.key ? null : a.key">
+                      <span class="av-area-main">
+                        <strong>{{ a.nombre }}</strong>
+                        <span class="lev-bar"><span [style.width.%]="a.pct"></span></span>
+                      </span>
+                      <span class="av-area-count">{{ a.revisados }} / {{ a.total }}</span>
+                      <span class="av-tag ok" *ngIf="a.revisados===a.total">✓ Completa</span>
+                      <span class="av-tag" *ngIf="!a.revisados">Sin iniciar</span>
+                      <span class="av-tag warn" *ngIf="a.fuera">⚠ {{ a.fuera }}</span>
+                      <span class="lev-chev">⌄</span>
+                    </button>
+                    <!-- Nivel 3: bienes del area -->
+                    <div class="av-items" *ngIf="av.areaAbierta===a.key">
+                      <ng-container *ngFor="let b of a.items.slice(0, avLimite(a.key))">
+                        <ng-container *ngTemplateOutlet="avItemTpl; context: { $implicit: b, conArea: false }"></ng-container>
+                      </ng-container>
+                      <button class="lev-more" *ngIf="a.items.length > avLimite(a.key)" (click)="av.limites[a.key] = avLimite(a.key) + 50">
+                        ▾ Ver {{ a.items.length - avLimite(a.key) }} más
+                      </button>
+                    </div>
+                  </div>
+                  <p class="cap-hint" *ngIf="!av.vista.areas.length">No hay bienes en este filtro. 🎉</p>
+                </div>
+
+                <button class="lev-more av-pdf" *ngIf="av.vista.cuentas.pendientes" (click)="avPdfPendientes()">🖨 Descargar lista de pendientes por área (PDF)</button>
+              </ng-container>
+
+              <ng-template #avItemTpl let-b let-conArea="conArea">
+                <div class="av-item" [ngClass]="'st-' + avEstado(b)">
+                  <button class="av-item-row" (click)="avTocarBien(b)">
+                    <span class="av-ico">{{ avEstado(b)==='ok' ? '✓' : avEstado(b)==='fuera' ? '⚠' : '⏳' }}</span>
+                    <span class="av-txt">
+                      <span><b class="chip-key">{{ b.clave }}</b> {{ b.articulo }}</span>
+                      <small>
+                        <ng-container *ngIf="conArea">📍 {{ b.ubicacion || 'Sin ubicación' }} · </ng-container>
+                        <ng-container *ngIf="avEstado(b)==='ok'">{{ b.respuesta }}</ng-container>
+                        <ng-container *ngIf="avEstado(b)==='fuera'">{{ b.respuesta }} · encontrado en {{ b.ubicacion_encontrada || 'otra área' }}</ng-container>
+                        <ng-container *ngIf="avEstado(b)==='pendiente'">Pendiente{{ b.tiene_foto ? '' : ' · 📷 sin foto' }}</ng-container>
+                      </small>
+                    </span>
+                    <span class="av-go" *ngIf="av.enCaptura">›</span>
+                  </button>
+                  <div class="av-detalle" *ngIf="!av.enCaptura && av.detalle===b.id_bien">
+                    <img *ngIf="b.foto_mini" [src]="b.foto_mini" alt="Foto del bien" loading="lazy" (click)="ampliarFoto(b)">
+                    <dl>
+                      <div *ngIf="esTexto(b.marca) || esTexto(b.modelo)"><dt>Marca / modelo</dt><dd>{{ [b.marca, b.modelo].filter(esTexto).join(' · ') }}</dd></div>
+                      <div *ngIf="esTexto(b.numero_serie)"><dt>Serie</dt><dd>{{ b.numero_serie }}</dd></div>
+                      <div><dt>Responsable</dt><dd>{{ b.responsable || 'Sin asignar' }}</dd></div>
+                      <div *ngIf="b.fecha_registro"><dt>Revisado</dt><dd>{{ b.fecha_registro | date:'dd/MM/yyyy HH:mm' }}</dd></div>
+                    </dl>
+                  </div>
+                </div>
+              </ng-template>
+            </div>
+
             <!-- ===== Captura (celular) ===== -->
-            <div class="cap" *ngIf="anualVista==='captura' && cap">
+            <div class="cap" *ngIf="anualVista==='captura' && cap && !av">
               <div class="cap-top">
                 <button class="doc-back" (click)="salirCaptura()">← Salir</button>
                 <strong>Inventario {{ cap.lev.anio }} · {{ cap.lev.sede }}</strong>
                 <span class="lev-bar"><span [style.width.%]="capPct"></span></span>
                 <small>{{ capRevisados | number }} de {{ cap.bienes.length | number }} revisados</small>
+                <button class="cap-avance-btn" *ngIf="!cap.cargando && cap.paso!=='bien'" (click)="abrirAvanceCaptura()">📋 Ver avance</button>
               </div>
 
               <div class="cap-loading" *ngIf="cap.cargando"><div class="loader-ring"></div><strong>Cargando bienes de la sede…</strong></div>
@@ -1667,13 +1772,7 @@ interface FormatoDoc {
                     <button class="btn-primary" (click)="buscarPorClave()">Buscar</button>
                   </div>
 
-                  <button class="lev-more" (click)="cap.verLista = !cap.verLista">{{ cap.verLista ? '▴' : '▾' }} Ver pendientes de esta área ({{ pendientesArea.length }})</button>
-                  <div class="cap-list" *ngIf="cap.verLista">
-                    <button *ngFor="let b of pendientesArea.slice(0, 60)" (click)="abrirBienCaptura(b)">
-                      <b class="chip-key">{{ b.clave }}</b><span>{{ b.articulo }}</span>
-                    </button>
-                    <p class="cap-hint" *ngIf="!pendientesArea.length">¡Todo revisado en esta área! 🎉</p>
-                  </div>
+                  <button class="lev-more" (click)="abrirAvanceCaptura('pendientes')">📋 Pendientes de esta área ({{ pendientesArea.length }})</button>
                 </ng-container>
               </ng-container>
 
@@ -1699,7 +1798,10 @@ interface FormatoDoc {
                     <label class="btn-outline btn-small">Repetir<input type="file" accept="image/*" capture="environment" (change)="tomarFotoBien($event)" hidden></label>
                   </div>
                 </div>
-                <div class="cap-info" *ngIf="b.tiene_foto">✓ Este bien ya tiene foto</div>
+                <div class="cap-info cap-tiene-foto" *ngIf="b.tiene_foto">
+                  <img *ngIf="b.foto_mini" [src]="b.foto_mini" alt="Foto del bien" loading="lazy" (click)="ampliarFoto(b)">
+                  <span>✓ Este bien ya tiene foto</span>
+                </div>
 
                 <div class="cap-step" *ngIf="b.tiene_foto || cap.fotoUrl">
                   <div class="step-title"><span>{{ b.tiene_foto ? 1 : 2 }}</span> {{ cap.lev.pregunta?.texto }}</div>
@@ -1733,7 +1835,7 @@ interface FormatoDoc {
 
                 <div class="form-section" *ngIf="levNuevo.paso===1">
                   <label>Sede</label>
-                  <select [(ngModel)]="levNuevo.idSede" (ngModelChange)="cargarCandidatos()">
+                  <select [(ngModel)]="levNuevo.idSede" (ngModelChange)="cargarCandidatos(); ponerDireccionSede()">
                     <option [ngValue]="null">Selecciona la sede</option>
                     <option *ngFor="let s of activos(catalogs.sedes, levNuevo.idSede, 'id_sede')" [ngValue]="s.id_sede">{{ s.nombre_sede }}</option>
                   </select>
@@ -2038,6 +2140,10 @@ interface FormatoDoc {
 
         </div>
       </ng-container>
+      <div class="foto-visor" *ngIf="fotoAmpliada" (click)="fotoAmpliada=null">
+        <img [src]="fotoAmpliada.url" [alt]="fotoAmpliada.titulo" (click)="$event.stopPropagation()">
+        <div class="foto-visor-pie"><b>{{ fotoAmpliada.titulo }}</b><button type="button" (click)="fotoAmpliada=null">Cerrar ✕</button></div>
+      </div>
     </main>
   </div>
   `,
@@ -2442,6 +2548,58 @@ interface FormatoDoc {
     .lev-stats b{display:block;font-size:22px;color:#14243a}
     .lev-stats small{font-size:12.5px;color:#7d8a9b}
     .lev-actions{display:flex;flex-wrap:wrap;gap:10px}
+    .cap-avance-btn{align-self:flex-start;border:1px solid #d6e0ec;background:#fff;color:#2d5d93;font-family:inherit;font-size:14px;font-weight:700;border-radius:999px;padding:7px 14px;cursor:pointer}
+    .av-aviso{display:flex;flex-direction:column;gap:8px;background:#fff7ec;border:1px solid #f3d6a8;border-radius:14px;padding:14px 16px;color:#7a4b0c;font-size:14px}
+    .av-aviso b{font-size:15px}
+    .av-aviso .btn-danger{align-self:flex-start}
+    .av-chips{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+    .av-chips button{display:flex;flex-direction:column;align-items:flex-start;gap:2px;border:1px solid #e3e9f1;background:#fff;border-radius:12px;padding:10px 12px;font-family:inherit;cursor:pointer;text-align:left;min-width:0}
+    .av-chips b{font-size:20px;color:#14243a;line-height:1.1}
+    .av-chips small{font-size:12.5px;color:#6d7b8e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+    .av-chips button.on{border-color:#2d5d93;background:#eef4fb;box-shadow:0 0 0 1px #2d5d93 inset}
+    .av-chips .f-pendientes b{color:#a8650f}
+    .av-chips .f-fuera b{color:#bd4b52}
+    .av-chips .f-revisados b{color:#21835a}
+    .av-areas{display:flex;flex-direction:column;gap:8px}
+    .av-area{border:1px solid #e3e9f1;background:#fff;border-radius:14px;overflow:hidden}
+    .av-area.open{border-color:#c9d7e8;box-shadow:0 6px 18px rgba(20,36,58,.06)}
+    .av-area-head{display:flex;align-items:center;gap:10px;width:100%;border:0;background:transparent;padding:13px 14px;font-family:inherit;text-align:left;cursor:pointer}
+    .av-area-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+    .av-area-main strong{font-size:15px;color:#1c2d43;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .av-area-count{font-size:14px;font-weight:700;color:#41536b;white-space:nowrap}
+    .av-tag{font-size:12px;font-weight:700;border-radius:999px;padding:3px 9px;background:#f0f2f5;color:#6d7b8e;white-space:nowrap}
+    .av-tag.ok{background:#e6f5ee;color:#21835a}
+    .av-tag.warn{background:#fdecee;color:#bd4b52}
+    .av-area.open .lev-chev{transform:rotate(180deg)}
+    .av-items{display:flex;flex-direction:column;gap:6px;padding:0 10px 12px}
+    .av-flat{padding:0}
+    .av-item{border:1px solid #edf0f4;border-radius:11px;background:#fff;overflow:hidden}
+    .av-item-row{display:flex;align-items:center;gap:10px;width:100%;border:0;background:transparent;padding:10px 12px;font-family:inherit;text-align:left;cursor:pointer}
+    .av-ico{flex:0 0 26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:800}
+    .st-ok .av-ico{background:#e6f5ee;color:#21835a}
+    .st-fuera .av-ico{background:#fdecee;color:#bd4b52}
+    .st-pendiente .av-ico{background:#fff4e2;color:#a8650f}
+    .av-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+    .av-txt > span{font-size:14.5px;color:#25364c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .av-txt small{font-size:13px;color:#7d8a9b}
+    .st-fuera .av-txt small{color:#bd4b52}
+    .av-go{font-size:22px;color:#9aa8b9}
+    .av-detalle{display:flex;gap:12px;padding:0 12px 12px 48px;align-items:flex-start}
+    .av-detalle img{width:72px;height:72px;border-radius:10px;object-fit:cover;cursor:zoom-in;background:#eef2f7}
+    .av-detalle dl{margin:0;display:grid;gap:4px;font-size:13.5px}
+    .av-detalle dl div{display:flex;gap:6px}
+    .av-detalle dt{color:#7d8a9b;min-width:96px}
+    .av-detalle dd{margin:0;color:#25364c}
+    .av-pdf{margin-top:4px}
+    @media (max-width:640px){
+      .av-chips{grid-template-columns:repeat(3,minmax(0,1fr))}
+      .av-chips button:first-child{grid-column:span 3;flex-direction:row;align-items:baseline;gap:8px}
+      .av-area-head{flex-wrap:wrap}
+      .av-area-main{flex-basis:100%}
+      .av-detalle{padding-left:12px}
+    }
+    .btn-eliminar-lev{margin-left:auto;background:none;border:1px solid transparent;color:#a3474e;font-size:14px;font-weight:700;padding:11px 14px;border-radius:8px;cursor:pointer}
+    .btn-eliminar-lev:hover{background:#fdf1f2;border-color:#efc4c7}
     .lev-more{align-self:flex-start;border:0;background:transparent;padding:4px 0;font-family:inherit;font-size:14px;font-weight:700;color:#2d5d93;cursor:pointer}
     .lev-detail dl{margin:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
     .lev-detail dt{font-size:12px;font-weight:800;letter-spacing:.6px;color:#8d99a9;text-transform:uppercase;margin-bottom:3px}
@@ -2487,6 +2645,16 @@ interface FormatoDoc {
     .cap-bien small{font-size:14px;color:#6f7d8f}
     .cap-warn{margin-top:6px;font-size:13.5px;font-weight:700;color:#a56a00;background:#fff4dc;border-radius:10px;padding:9px 11px}
     .cap-info{font-size:14px;color:#2d5d93;background:#eef3f9;border-radius:10px;padding:10px 12px}
+    .cap-tiene-foto{display:flex;align-items:center;gap:12px}
+    .cap-tiene-foto img{width:64px;height:64px;border-radius:10px;object-fit:cover;cursor:zoom-in;background:#dfe7f1}
+    .drawer-foto{padding-top:14px}
+    .foto-mini{display:block;position:relative;width:100%;padding:0;border:0;border-radius:14px;overflow:hidden;cursor:zoom-in;background:#eef2f7}
+    .foto-mini img{display:block;width:100%;height:220px;object-fit:cover}
+    .foto-mini span{position:absolute;right:10px;bottom:10px;background:rgba(15,30,50,.72);color:#fff;font-size:13px;font-weight:700;padding:6px 10px;border-radius:999px}
+    .foto-visor{position:fixed;inset:0;z-index:3000;background:rgba(8,15,28,.88);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:20px}
+    .foto-visor img{max-width:100%;max-height:calc(100vh - 110px);border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.5);background:#fff}
+    .foto-visor-pie{display:flex;align-items:center;gap:16px;color:#fff;font-size:15px;flex-wrap:wrap;justify-content:center}
+    .foto-visor-pie button{background:#fff;color:#1c2d43;border:0;border-radius:999px;padding:8px 16px;font-weight:700;font-size:14px;cursor:pointer}
     .cap-step{background:#fff;border:1px solid #e3e9f1;border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:12px}
     .cap-photo{display:flex;align-items:center;justify-content:center;gap:10px;height:110px;border:2px dashed #b9cbe0;border-radius:14px;color:#244c78;font-size:17px;font-weight:800;cursor:pointer;background:#f6f9fc}
     .cap-photo span{font-size:28px}
@@ -2957,7 +3125,16 @@ export class AppComponent {
   levCargando = false;
   levAbierto: any = null;
   levDetalle: any = null;
-  anualVista: 'lista' | 'captura' = 'lista';
+  anualVista: 'lista' | 'captura' | 'avance' = 'lista';
+  av: any = null;
+  private avTimer: any = null;
+  readonly avFiltros = [
+    { key: 'todos', label: 'Todos', ico: '' },
+    { key: 'pendientes', label: 'Pendientes', ico: '⏳' },
+    { key: 'revisados', label: 'Revisados', ico: '✓' },
+    { key: 'fuera', label: 'Fuera de lugar', ico: '⚠' },
+    { key: 'sinfoto', label: 'Sin foto', ico: '📷' }
+  ];
   levNuevo: any = null;
   levGuardando = false;
   levError = '';
@@ -2991,6 +3168,7 @@ export class AppComponent {
   bienesError = '';
   bienesVista: any[] = [];
   bienSeleccionado: any = null;
+  fotoAmpliada: { url: string; titulo: string } | null = null;
   filtroSede: number | null = null;
   filtroClasificacion: number | null = null;
   filtroEstadoFisico = '';
@@ -3135,6 +3313,7 @@ export class AppComponent {
       campos: [
         { key: 'nombre_sede', label: 'Nombre de la sede', requerido: true, max: 150 },
         { key: 'prefijo_clave', label: 'Prefijo de clave', max: 20, placeholder: 'Ej. CE' },
+        { key: 'direccion_completa', label: 'Dirección completa', max: 300, placeholder: 'Calle, número, colonia y código postal' },
         { key: 'entidad', label: 'Entidad', tipo: 'select', texto: true, opciones: { catalogo: 'entidades', valor: 'id_entidad', texto: 'nombre_entidad' } },
         { key: 'estatus', label: 'Activa', tipo: 'check' }
       ]
@@ -3515,6 +3694,8 @@ export class AppComponent {
     this.detenerEscaner();
     this.levantamientos = [];
     this.cap = null;
+    this.detenerTimerAvance();
+    this.av = null;
     this.anualVista = 'lista';
   }
 
@@ -4181,6 +4362,7 @@ export class AppComponent {
   abrirBien(b: any): void {
     this.bienSeleccionado = b;
     this.qrPreview = '';
+    this.refrescarFotoBien(b);
     if (!b?.codigo_qr) return;
     QRCode.toDataURL(this.contenidoQr(b), { errorCorrectionLevel: 'M', margin: 1, width: 220, color: { dark: '#17263d' } })
       .then(url => { if (this.bienSeleccionado?.id_bien === b.id_bien) this.qrPreview = url; })
@@ -4607,8 +4789,8 @@ export class AppComponent {
     this.levError = '';
     this.levNuevo = {
       paso: 1, idSede: null, anio: ahora.getFullYear(),
-      ciudad: 'Celaya, Guanajuato',
-      direccion: 'Calle Montes Balcanes # 125 Col. Arboledas 1era Sección CP. 38050',
+      ciudad: '',
+      direccion: '',
       fechaInicio: local, idUsuarioCapturista: null,
       participantes: [
         { nombre: 'C. Juan Carlos Zuno Muñiz', cargo: 'Jefe de Recursos Materiales' },
@@ -4619,6 +4801,20 @@ export class AppComponent {
       pregunta: { texto: '¿En qué estado está el bien?', opciones: ['Bueno', 'Regular', 'Malo', 'No funciona'] },
       nuevaOpcion: ''
     };
+  }
+
+  // Al elegir la sede, llena la dirección con la registrada en el catálogo de Sedes (se puede editar).
+  ponerDireccionSede(): void {
+    const n = this.levNuevo;
+    const s = (this.catalogs.sedes || []).find((x: any) => x.id_sede === n?.idSede);
+    if (!n || !s) return;
+    n.direccion = s.direccion_completa || '';
+    // Ciudad sugerida "Sede, Entidad" (solo si el usuario no la escribió a mano)
+    if (!String(n.ciudad || '').trim() || n.ciudad === n._ciudadAuto) {
+      const t = (v: string) => String(v || '').toLowerCase().replace(/(^|\s)\S/g, c => c.toUpperCase());
+      n.ciudad = n._ciudadAuto = [t(s.nombre_sede), s.nombre_entidad && s.nombre_entidad !== s.nombre_sede ? t(s.nombre_entidad) : '']
+        .filter(x => !!x).join(', ');
+    }
   }
 
   cargarCandidatos(): void {
@@ -4671,8 +4867,12 @@ export class AppComponent {
     });
   }
 
-  cerrarLevantamiento(l: any): void {
+  cerrarLevantamiento(l: any, yaRevisoPendientes = false): void {
     const faltan = l.totalBienes - l.capturados;
+    if (faltan > 0 && !yaRevisoPendientes) {
+      this.abrirAvance(l, { filtro: 'pendientes', antesDeCerrar: true });
+      return;
+    }
     this.abrirDialogo({
       tipo: 'peligro', icono: '✓',
       titulo: '¿Cerrar el levantamiento?',
@@ -4692,6 +4892,248 @@ export class AppComponent {
         });
       }
     });
+  }
+
+  eliminarLevantamiento(l: any): void {
+    const fotos = l.fotosNuevas || 0;
+    this.abrirDialogo({
+      tipo: 'peligro', icono: '🗑',
+      titulo: '¿Eliminar este inventario?',
+      mensaje: 'Se borrará el inventario de ' + (l.sede || 'la sede') + ' ' + (l.anio || '') +
+        ' con sus ' + (l.capturados || 0) + ' bienes revisados, sus actas' +
+        (fotos > 0 ? ' y las ' + fotos + ' fotos que se tomaron en él (también de Cloudinary). Esos bienes volverán a pedir foto.' : '.') +
+        ' Esta acción no se puede deshacer.',
+      textoConfirmar: 'Sí, eliminar todo',
+      accion: terminar => {
+        this.http.delete<any>(this.api + '/levantamientos/' + l.idLevantamiento).subscribe({
+          next: r => {
+            terminar();
+            if (this.levAbierto === l.idLevantamiento) this.levAbierto = null;
+            // Los bienes que perdieron su foto deben volver a pedirla en Inventario
+            if ((r?.fotosBorradas || 0) + (r?.fotosNoBorradas || 0) > 0) this.loadBienes();
+            this.loadLevantamientos();
+            this.notificar('exito', 'Inventario eliminado',
+              'Se borraron ' + (r?.registros || 0) + ' registros y ' + (r?.fotosBorradas || 0) + ' fotos.' +
+              (r?.fotosNoBorradas ? ' ' + r.fotosNoBorradas + ' fotos no se pudieron borrar de Cloudinary; puedes quitarlas desde su página.' : ''));
+          },
+          error: e => terminar(this.mensajeError(e, 'No fue posible eliminar el inventario.'))
+        });
+      }
+    });
+  }
+
+  // ----- Avance (monitoreo) -----
+
+  abrirAvance(l: any, opciones: { filtro?: string; antesDeCerrar?: boolean } = {}): void {
+    this.detenerTimerAvance();
+    this.anualVista = 'avance';
+    this.av = this.nuevoAvance(l, false, opciones.filtro);
+    this.av.antesDeCerrar = !!opciones.antesDeCerrar;
+    this.av.cargando = true;
+    this.avCargar();
+    if (l.estado === 'EN_CURSO') {
+      // Para los observadores: se refresca solo cada 30 s mientras la vista siga abierta
+      this.avTimer = setInterval(() => {
+        if (!this.av || this.av.enCaptura || this.section !== 'anual') { this.detenerTimerAvance(); return; }
+        this.avCargar();
+      }, 30000);
+    }
+    window.scrollTo({ top: 0 });
+  }
+
+  abrirAvanceCaptura(filtro = 'todos'): void {
+    if (!this.cap) return;
+    this.detenerEscaner();
+    this.av = this.nuevoAvance(this.cap.lev, true, filtro);
+    this.av.bienes = this.cap.bienes;
+    if (filtro === 'pendientes' && this.cap.area) this.av.areaAbierta = this.cap.area.id ?? 'sin';
+    this.avRecalcular();
+    window.scrollTo({ top: 0 });
+  }
+
+  private nuevoAvance(l: any, enCaptura: boolean, filtro = 'todos'): any {
+    return {
+      lev: l, enCaptura, bienes: [], cargando: false, error: '', filtro, busqueda: '',
+      areaAbierta: null, limites: {}, detalle: null, antesDeCerrar: false, actualizado: null,
+      vista: { total: 0, revisados: 0, pct: 0, cuentas: {}, areas: [], resultados: [] }
+    };
+  }
+
+  private avCargar(): void {
+    const av = this.av;
+    this.http.get<any[]>(this.api + '/levantamientos/' + av.lev.idLevantamiento + '/bienes').subscribe({
+      next: rows => {
+        if (this.av !== av) return;
+        av.bienes = rows || [];
+        av.cargando = false;
+        av.error = '';
+        av.actualizado = new Date();
+        this.avRecalcular();
+      },
+      error: e => {
+        if (this.av !== av) return;
+        av.cargando = false;
+        av.error = this.mensajeError(e, 'No se pudo cargar el avance.');
+      }
+    });
+  }
+
+  cerrarAvance(): void {
+    this.detenerTimerAvance();
+    const enCaptura = this.av?.enCaptura;
+    this.av = null;
+    if (!enCaptura) {
+      this.anualVista = 'lista';
+      this.loadLevantamientos();
+    }
+    window.scrollTo({ top: 0 });
+  }
+
+  cerrarDesdeAvance(): void {
+    const l = this.av.lev;
+    l.capturados = this.av.vista.revisados;
+    this.cerrarAvance();
+    this.cerrarLevantamiento(l, true);
+  }
+
+  private detenerTimerAvance(): void {
+    if (this.avTimer) { clearInterval(this.avTimer); this.avTimer = null; }
+  }
+
+  avEstado(b: any): 'ok' | 'fuera' | 'pendiente' {
+    return !b.respuesta ? 'pendiente' : b.fuera_de_lugar ? 'fuera' : 'ok';
+  }
+
+  private avCoincide(b: any, filtro: string): boolean {
+    switch (filtro) {
+      case 'pendientes': return !b.respuesta;
+      case 'revisados': return !!b.respuesta;
+      case 'fuera': return !!b.respuesta && !!b.fuera_de_lugar;
+      case 'sinfoto': return !b.tiene_foto;
+      default: return true;
+    }
+  }
+
+  avFiltrar(filtro: string): void {
+    this.av.filtro = filtro;
+    this.av.limites = {};
+    this.avRecalcular();
+  }
+
+  avLimite(key: any): number {
+    return this.av?.limites[key] || 40;
+  }
+
+  trackArea(_: number, a: any): any {
+    return a.key;
+  }
+
+  // Agrupa por el area donde esta registrado cada bien; se calcula solo cuando cambian datos o filtros
+  avRecalcular(): void {
+    const av = this.av;
+    if (!av) return;
+    const cuentas: any = { todos: 0, pendientes: 0, revisados: 0, fuera: 0, sinfoto: 0 };
+    const mapa = new Map<any, any>();
+    for (const b of av.bienes) {
+      for (const f of Object.keys(cuentas)) if (this.avCoincide(b, f)) cuentas[f]++;
+      const key = b.id_ubicacion ?? 'sin';
+      let a = mapa.get(key);
+      if (!a) { a = { key, nombre: b.ubicacion || 'Sin ubicación', total: 0, revisados: 0, fuera: 0, items: [] }; mapa.set(key, a); }
+      a.total++;
+      if (b.respuesta) a.revisados++;
+      if (b.respuesta && b.fuera_de_lugar) a.fuera++;
+      if (this.avCoincide(b, av.filtro)) a.items.push(b);
+    }
+    const orden: any = { pendiente: 0, fuera: 1, ok: 2 };
+    const areas = Array.from(mapa.values())
+      .filter(a => av.filtro === 'todos' || a.items.length)
+      .sort((x, y) => x.nombre.localeCompare(y.nombre, 'es'));
+    for (const a of areas) {
+      a.pct = a.total ? Math.round((a.revisados / a.total) * 100) : 0;
+      a.items.sort((x: any, y: any) => orden[this.avEstado(x)] - orden[this.avEstado(y)]
+        || String(x.clave || '').localeCompare(String(y.clave || ''), 'es', { numeric: true }));
+    }
+    const q = String(av.busqueda || '').toLowerCase().trim();
+    const resultados = q
+      ? av.bienes.filter((b: any) => this.avCoincide(b, av.filtro)
+          && [b.clave, b.articulo, b.numero_serie, b.marca, b.modelo].some(x => String(x || '').toLowerCase().includes(q))).slice(0, 60)
+      : [];
+    const total = av.bienes.length, revisados = cuentas.revisados;
+    av.vista = { total, revisados, pct: total ? Math.round((revisados / total) * 100) : 0, cuentas, areas, resultados };
+  }
+
+  avTocarBien(b: any): void {
+    if (this.av.enCaptura) {
+      if (this.cap?.lev?.estado !== 'EN_CURSO') return;
+      this.av = null;
+      this.abrirBienCaptura(b);
+      return;
+    }
+    this.av.detalle = this.av.detalle === b.id_bien ? null : b.id_bien;
+  }
+
+  // Hoja para recorrer las areas con los bienes que faltan (no es el acta)
+  avPdfPendientes(): void {
+    const av = this.av;
+    const grupos = new Map<string, any[]>();
+    for (const b of av.bienes) {
+      if (b.respuesta) continue;
+      const k = b.ubicacion || 'Sin ubicación';
+      if (!grupos.has(k)) grupos.set(k, []);
+      grupos.get(k)!.push(b);
+    }
+    const areas = Array.from(grupos.keys()).sort((x, y) => x.localeCompare(y, 'es'));
+    const total = areas.reduce((n, k) => n + grupos.get(k)!.length, 0);
+    const doc = new jsPDF({ unit: 'mm', format: 'letter', compress: true });
+    const W = 215.9, M = 14, ABAJO = 262;
+    const col = { chk: M, clave: M + 7, art: M + 33, marca: M + 103, serie: M + 150 };
+    let y = 0;
+    const encabezado = () => {
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.setTextColor(20, 36, 58);
+      doc.text('Lista de pendientes por área', M, 18);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(95, 110, 130);
+      doc.text('Inventario ' + av.lev.anio + ' · ' + av.lev.sede + ' · ' + total + ' bienes pendientes · generado ' +
+        new Date().toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' }), M, 24);
+      doc.setDrawColor(45, 93, 147); doc.setLineWidth(0.6); doc.line(M, 27, W - M, 27);
+      y = 34;
+    };
+    const titulos = () => {
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(100, 130, 166);
+      doc.text('CLAVE', col.clave, y); doc.text('ARTÍCULO', col.art, y); doc.text('MARCA / MODELO', col.marca, y); doc.text('SERIE', col.serie, y);
+      y += 4;
+    };
+    encabezado();
+    for (const area of areas) {
+      const lista = grupos.get(area)!.slice().sort((x, z) => String(x.clave || '').localeCompare(String(z.clave || ''), 'es', { numeric: true }));
+      if (y > ABAJO - 20) { doc.addPage(); encabezado(); }
+      doc.setFillColor(238, 243, 249); doc.rect(M, y - 4.5, W - 2 * M, 7, 'F');
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.setTextColor(20, 36, 58);
+      doc.text(this.ajustarTexto(doc, area, 150), M + 2, y);
+      doc.text(lista.length + (lista.length === 1 ? ' pendiente' : ' pendientes'), W - M - 2, y, { align: 'right' });
+      y += 7;
+      titulos();
+      for (const b of lista) {
+        if (y > ABAJO) { doc.addPage(); encabezado(); doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(20, 36, 58); doc.text(area + ' (continúa)', M, y); y += 6; titulos(); }
+        doc.setDrawColor(150, 160, 175); doc.setLineWidth(0.3); doc.rect(col.chk, y - 3, 3.6, 3.6);
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(20, 36, 58);
+        doc.text(this.ajustarTexto(doc, b.clave, 24), col.clave, y);
+        doc.setFont('helvetica', 'normal'); doc.setTextColor(45, 55, 70);
+        doc.text(this.ajustarTexto(doc, b.articulo, 67), col.art, y);
+        doc.text(this.ajustarTexto(doc, [b.marca, b.modelo].filter(x => this.esTexto(x)).join(' / ') || '—', 44), col.marca, y);
+        doc.text(this.ajustarTexto(doc, b.numero_serie || '—', W - M - col.serie), col.serie, y);
+        doc.setDrawColor(232, 236, 241); doc.line(M, y + 1.8, W - M, y + 1.8);
+        y += 6;
+      }
+      y += 4;
+    }
+    const paginas = doc.getNumberOfPages();
+    for (let i = 1; i <= paginas; i++) {
+      doc.setPage(i);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(140, 150, 165);
+      doc.text('DOZZER · Página ' + i + ' de ' + paginas, W / 2, 272, { align: 'center' });
+    }
+    const nombre = ('pendientes-' + av.lev.sede + '-' + av.lev.anio).toLowerCase().replace(/[^a-z0-9-]+/g, '-');
+    doc.save(nombre + '.pdf');
   }
 
   // ----- Captura -----
@@ -4915,6 +5357,29 @@ export class AppComponent {
     if (this.cap) { this.cap.foto = null; this.cap.fotoUrl = ''; }
   }
 
+  // La lista de bienes se descarga una vez; la foto pudo tomarse después (Inventario anual), así que se consulta al abrir.
+  private refrescarFotoBien(b: any): void {
+    if (!b?.id_bien) return;
+    this.http.get<any>(this.api + '/bienes/' + b.id_bien).subscribe({
+      next: f => {
+        if (!f) return;
+        b.tiene_foto = f.tiene_foto; b.foto_mini = f.foto_mini; b.foto_url = f.foto_url;
+      },
+      error: () => { /* sin conexión: se queda con lo que ya tenía */ }
+    });
+  }
+
+  // Al tomar una foto en el Inventario anual, actualiza también el bien en la lista de Inventario.
+  private actualizarFotoEnInventario(idBien: number, mini: string, url: string): void {
+    const enLista = this.bienes.find(x => x.id_bien === idBien);
+    if (enLista) { enLista.tiene_foto = true; enLista.foto_mini = mini; enLista.foto_url = url; }
+  }
+
+  ampliarFoto(b: any): void {
+    const url = b?.foto_url || b?.foto_mini;
+    if (url) this.fotoAmpliada = { url, titulo: [b.clave, b.articulo].filter((x: any) => !!x).join(' · ') };
+  }
+
   guardarCaptura(): void {
     const c = this.cap, b = c.bien;
     if (!b || c.guardando) return;
@@ -4929,7 +5394,13 @@ export class AppComponent {
       next: r => {
         c.guardando = false;
         b.respuesta = c.respuesta;
-        if (r?.fotoNueva) b.tiene_foto = true;
+        b.fuera_de_lugar = !!r?.fueraDeLugar;
+        b.ubicacion_encontrada = r?.fueraDeLugar ? (c.area?.nombre || null) : null;
+        b.fecha_registro = new Date().toISOString();
+        if (r?.fotoNueva) {
+          b.tiene_foto = true; b.foto_mini = r.foto_mini; b.foto_url = r.foto_url;
+          this.actualizarFotoEnInventario(b.id_bien, r.foto_mini, r.foto_url);
+        }
         c.ultimo = b.clave + ' · ' + c.respuesta + (r?.fueraDeLugar ? ' · fuera de lugar' : '') + ' — listo, escanea el siguiente';
         this.limpiarFotoCaptura();
         c.bien = null;
