@@ -9,6 +9,7 @@ import { API_URL, QR_FICHA_URL } from './config';
 import { jsPDF } from 'jspdf';
 import jsQR from 'jsqr';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
+import { firstValueFrom } from 'rxjs';
 
 // Ventana de confirmación con diseño propio
 interface DialogoConfirmacion {
@@ -28,7 +29,7 @@ interface DialogoConfirmacion {
 
 // Datos para llenar los formatos oficiales FA-04-02-03 (Alta) y FA-04-02-04 (Baja)
 interface FormatoDoc {
-  tipo: 'ALTA' | 'BAJA' | 'ACTA_INICIO' | 'ACTA_CIERRE';
+  tipo: 'ALTA' | 'BAJA' | 'ACTA_INICIO' | 'ACTA_CIERRE' | 'RESGUARDO';
   folio: string;
   sede: string;
   fecha: string;
@@ -40,6 +41,11 @@ interface FormatoDoc {
   correoSugerido?: string;
   contactos?: { nombre: string; correo: string; rol: string }[];
   anulado?: boolean;
+  borrador?: boolean;
+  historico?: boolean;
+  // Resguardo individual
+  persona?: { nombre?: string; numeroEmpleado?: string; area?: string; puesto?: string };
+  totalBienes?: number;
 }
 
 @Component({
@@ -70,12 +76,12 @@ interface FormatoDoc {
 
       <button class="nav-item" [class.active]="section==='bienes'" (click)="menuCollapsed=true; section='bienes'; vistaInv='menu'; editing=false">
         <span class="nav-icon">▦</span>
-        <span>Inventario</span>
+        <span>Bienes</span>
       </button>
 
       <button class="nav-item" *ngIf="verInventarioAnual" [class.active]="section==='anual'" (click)="menuCollapsed=true; section='anual'; anualVista='lista'; loadLevantamientos()">
         <span class="nav-icon">✓</span>
-        <span>Inventario anual</span>
+        <span>Levantamiento</span>
       </button>
 
       <button class="nav-item" [class.active]="section==='solicitudes'" (click)="menuCollapsed=true; section='solicitudes'; loadSolicitudes()">
@@ -254,10 +260,10 @@ interface FormatoDoc {
           <ng-container *ngIf="documento as d">
             <div class="modal-header">
               <div class="doc-title">
-                <span class="doc-badge" [class.baja]="d.datos.tipo==='BAJA'" [class.acta]="esActa(d.datos)">{{ etiquetaTipoDoc(d.datos) }}</span>
+                <span class="doc-badge" [class.baja]="d.datos.tipo==='BAJA'" [class.acta]="esActa(d.datos)" [class.resg]="d.datos.tipo==='RESGUARDO'">{{ etiquetaTipoDoc(d.datos) }}</span>
                 <div>
-                  <h2>{{ tituloDoc(d.datos) }} <span class="doc-anulado" *ngIf="d.datos.anulado">ANULADO</span></h2>
-                  <p>Folio {{ d.datos.folio }}<ng-container *ngIf="!esActa(d.datos)"> · {{ d.datos.tipo==='ALTA' ? 'FA-04-02-03' : 'FA-04-02-04' }}</ng-container> · {{ d.datos.sede || 'Sin sede' }}</p>
+                  <h2>{{ tituloDoc(d.datos) }} <span class="doc-anulado" *ngIf="d.datos.anulado">ANULADO</span><span class="doc-estado borrador" *ngIf="d.datos.borrador">BORRADOR</span><span class="doc-estado" *ngIf="d.datos.historico">HISTÓRICO</span></h2>
+                  <p>Folio {{ d.datos.folio }}<ng-container *ngIf="!esActa(d.datos)"> · {{ d.datos.tipo==='ALTA' ? 'FA-04-02-03' : d.datos.tipo==='BAJA' ? 'FA-04-02-04' : 'FA-04-02-02' }}</ng-container> · {{ d.datos.tipo==='RESGUARDO' ? d.datos.persona?.nombre : (d.datos.sede || 'Sin sede') }}</p>
                 </div>
               </div>
               <button class="close-button" (click)="cerrarFormato()">×</button>
@@ -477,6 +483,14 @@ interface FormatoDoc {
                   <span class="more-ico">⇩</span>
                   <div><strong>Contraseñas temporales</strong><small>Una distinta por empleado (Excel)</small></div>
                 </button>
+                <button *ngIf="instalarPrompt" (click)="menuUsuario=false; instalarApp()">
+                  <span class="more-ico">📲</span>
+                  <div><strong>Instalar DOZZER</strong><small>Como app en este dispositivo</small></div>
+                </button>
+                <button [disabled]="pushProcesando" (click)="menuUsuario=false; pushEstado==='activo' ? desactivarPush() : activarPush()">
+                  <span class="more-ico">{{ pushEstado==='activo' ? '🔔' : '🔕' }}</span>
+                  <div><strong>{{ pushEstado==='activo' ? 'Avisos activados' : 'Activar avisos' }}</strong><small>{{ textoPushEstado }}</small></div>
+                </button>
                 <button (click)="menuUsuario=false; abrirCambioPassword()">
                   <span class="more-ico">✎</span>
                   <div><strong>Cambiar mi contraseña</strong><small>Actualiza tu acceso</small></div>
@@ -501,6 +515,16 @@ interface FormatoDoc {
               <span class="welcome-chip">{{ saludoHora }} · {{ fechaHoy }}</span>
               <h1>Hola, {{ primerNombre }}</h1>
               <p>Bienvenido al sistema oficial de inventarios.<br>Selecciona una opción del menú lateral para comenzar.</p>
+              <div class="push-invita" *ngIf="(pushEstado==='inactivo' || pushEstado==='instalar-ios') && !avisoPushOculto">
+                <span class="push-ico">🔔</span>
+                <div class="push-txt">
+                  <strong>Recibe avisos en este celular</strong>
+                  <small>{{ isAdmin || canAuthorize ? 'Que te suene cuando haya autorizaciones pendientes.' : 'Te avisamos cuando aprueben o rechacen tus solicitudes.' }}</small>
+                </div>
+                <button class="btn-primary btn-small" [disabled]="pushProcesando" (click)="activarPush()">Activar</button>
+                <button class="push-x" title="Ahora no" (click)="ocultarAvisoPush()">×</button>
+              </div>
+              <button class="push-instalar" *ngIf="instalarPrompt" (click)="instalarApp()">📲 Instalar DOZZER como app</button>
             </div>
             <footer class="welcome-foot">DOZZER INVENTORY CONTROL SYSTEM V1.0 • © {{ anioActual }}</footer>
           </section>
@@ -1565,8 +1589,8 @@ interface FormatoDoc {
             <ng-container *ngIf="anualVista==='lista'">
               <div class="inv-head">
                 <div>
-                  <h1>Inventario anual</h1>
-                  <p class="inv-resumen">Levantamiento físico por sede: acta de inicio, revisión de cada bien con el celular y acta de cierre.</p>
+                  <h1>Levantamiento de inventario</h1>
+                  <p class="inv-resumen">Por sede y por persona: escanea cada bien y se arman solos los resguardos y el acta de cierre.</p>
                 </div>
                 <div class="heading-actions">
                   <button class="btn-outline" [disabled]="levCargando" (click)="loadLevantamientos()">⟳ Actualizar</button>
@@ -1597,18 +1621,26 @@ interface FormatoDoc {
                   <div class="lev-body" *ngIf="levAbierto===l.idLevantamiento">
                     <div class="lev-stats">
                       <div><b>{{ l.capturados | number }}</b><small>Revisados</small></div>
-                      <div><b>{{ (l.totalBienes - l.capturados) | number }}</b><small>{{ l.estado==='CERRADO' ? 'No localizados' : 'Pendientes' }}</small></div>
-                      <div><b>{{ l.fueraDeLugar | number }}</b><small>Fuera de lugar</small></div>
-                      <div><b>{{ l.fotosNuevas | number }}</b><small>Fotos tomadas</small></div>
+                      <div><b>{{ pendientesLev(l) | number }}</b><small>{{ l.estado==='CERRADO' ? 'No localizados' : 'Pendientes' }}</small></div>
+                      <div><b>{{ (l.noEncontrados || 0) | number }}</b><small>Marcados no encontrados</small></div>
+                      <div><b>{{ ((l.nuevos || 0) + (l.transferidos || 0)) | number }}</b><small>Nuevos o traídos</small></div>
                     </div>
 
                     <div class="lev-actions">
                       <button class="btn-primary" *ngIf="l.estado==='EN_CURSO' && (l.soyCapturista || l.puedoAdministrar)" (click)="iniciarCaptura(l)">📷 Capturar bienes</button>
                       <button class="btn-outline" (click)="abrirAvance(l)">📊 Ver avance</button>
-                      <button class="btn-outline" *ngIf="l.idDocumentoInicio" (click)="abrirDocumentoGuardado(l.idDocumentoInicio)">📄 Acta de inicio</button>
-                      <button class="btn-outline" *ngIf="l.idDocumentoCierre" (click)="abrirDocumentoGuardado(l.idDocumentoCierre)">📄 Acta de cierre</button>
-                      <button class="btn-danger" *ngIf="l.estado==='EN_CURSO' && l.puedoAdministrar" (click)="cerrarLevantamiento(l)">Cerrar levantamiento</button>
-                      <button class="btn-eliminar-lev" *ngIf="l.puedoAdministrar" (click)="eliminarLevantamiento(l)">🗑 Eliminar inventario</button>
+                    </div>
+
+                    <div class="lev-docs">
+                      <span class="lev-docs-label">Documentos</span>
+                      <button *ngIf="l.idDocumentoInicio" (click)="abrirDocumentoGuardado(l.idDocumentoInicio)">📄 Acta de inicio</button>
+                      <button *ngIf="l.idDocumentoCierre" (click)="abrirDocumentoGuardado(l.idDocumentoCierre)">📄 Acta de cierre <em *ngIf="l.estado==='EN_CURSO'">borrador</em></button>
+                      <button *ngIf="l.resguardos" (click)="verResguardosLev(l)">👤 Resguardos <em>{{ l.resguardos }}</em></button>
+                    </div>
+
+                    <div class="lev-actions" *ngIf="l.puedoAdministrar">
+                      <button class="btn-danger" *ngIf="l.estado==='EN_CURSO'" (click)="cerrarLevantamiento(l)">Cerrar levantamiento</button>
+                      <button class="btn-eliminar-lev" (click)="eliminarLevantamiento(l)">🗑 Eliminar inventario</button>
                     </div>
 
                     <button class="lev-more" (click)="levDetalle = levDetalle===l.idLevantamiento ? null : l.idLevantamiento">
@@ -1622,7 +1654,7 @@ interface FormatoDoc {
                         <div><dt>Lugar</dt><dd>{{ l.ciudad || '—' }}<br><small>{{ l.direccion }}</small></dd></div>
                         <div><dt>Pregunta</dt><dd>{{ l.pregunta?.texto }}<br><small>{{ (l.pregunta?.opciones || []).join(' · ') }}</small></dd></div>
                         <div><dt>Participantes</dt><dd><span class="lev-person" *ngFor="let p of l.participantes">{{ p.nombre }} <small>{{ p.cargo }}</small></span></dd></div>
-                        <div><dt>Fotos</dt><dd>Se guardan en {{ l.almacenFotos }}</dd></div>
+                        <div><dt>Revisión</dt><dd>{{ l.fueraDeLugar | number }} fuera de lugar · {{ l.fotosNuevas | number }} fotos tomadas<br><small>Fotos en {{ l.almacenFotos }}</small></dd></div>
                       </dl>
                     </div>
                   </div>
@@ -1647,8 +1679,13 @@ interface FormatoDoc {
               <ng-container *ngIf="!av.cargando">
                 <div class="av-aviso" *ngIf="av.antesDeCerrar">
                   <b>Antes de cerrar: faltan {{ av.vista.cuentas.pendientes | number }} bienes por revisar.</b>
-                  <span>Revisa los pendientes por área. Si cierras así, quedarán como "no localizados" en el acta.</span>
+                  <span>Revísalos por persona o por área. Si cierras así, quedarán como "no localizados" en el acta.</span>
                   <button class="btn-danger" (click)="cerrarDesdeAvance()">Cerrar de todos modos</button>
+                </div>
+
+                <div class="seg">
+                  <button [class.on]="av.agrupar==='persona'" (click)="avAgrupar('persona')">👤 Por persona</button>
+                  <button [class.on]="av.agrupar==='area'" (click)="avAgrupar('area')">📍 Por área</button>
                 </div>
 
                 <!-- Nivel 1: resumen (cada numero es un filtro) -->
@@ -1678,7 +1715,8 @@ interface FormatoDoc {
                       </span>
                       <span class="av-area-count">{{ a.revisados }} / {{ a.total }}</span>
                       <span class="av-tag ok" *ngIf="a.revisados===a.total">✓ Completa</span>
-                      <span class="av-tag" *ngIf="!a.revisados">Sin iniciar</span>
+                      <span class="av-tag" *ngIf="!a.revisados && !a.no">Sin iniciar</span>
+                      <span class="av-tag warn" *ngIf="a.no">✗ {{ a.no }}</span>
                       <span class="av-tag warn" *ngIf="a.fuera">⚠ {{ a.fuera }}</span>
                       <span class="lev-chev">⌄</span>
                     </button>
@@ -1690,22 +1728,26 @@ interface FormatoDoc {
                       <button class="lev-more" *ngIf="a.items.length > avLimite(a.key)" (click)="av.limites[a.key] = avLimite(a.key) + 50">
                         ▾ Ver {{ a.items.length - avLimite(a.key) }} más
                       </button>
+                      <button class="lev-more av-resg" *ngIf="av.agrupar==='persona' && a.key!=='sin' && a.revisados" (click)="abrirResguardo(av.lev, a.key)">
+                        📄 Resguardo de {{ a.nombre }}{{ av.lev.estado==='EN_CURSO' ? ' (borrador)' : '' }}
+                      </button>
                     </div>
                   </div>
                   <p class="cap-hint" *ngIf="!av.vista.areas.length">No hay bienes en este filtro. 🎉</p>
                 </div>
 
-                <button class="lev-more av-pdf" *ngIf="av.vista.cuentas.pendientes" (click)="avPdfPendientes()">🖨 Descargar lista de pendientes por área (PDF)</button>
+                <button class="lev-more av-pdf" *ngIf="av.vista.cuentas.pendientes" (click)="avPdfPendientes()">🖨 Descargar lista de pendientes por {{ av.agrupar==='persona' ? 'persona' : 'área' }} (PDF)</button>
               </ng-container>
 
               <ng-template #avItemTpl let-b let-conArea="conArea">
                 <div class="av-item" [ngClass]="'st-' + avEstado(b)">
                   <button class="av-item-row" (click)="avTocarBien(b)">
-                    <span class="av-ico">{{ avEstado(b)==='ok' ? '✓' : avEstado(b)==='fuera' ? '⚠' : '⏳' }}</span>
+                    <span class="av-ico">{{ avEstado(b)==='ok' ? '✓' : avEstado(b)==='fuera' ? '⚠' : avEstado(b)==='no' ? '✗' : '⏳' }}</span>
                     <span class="av-txt">
-                      <span><b class="chip-key">{{ b.clave }}</b> {{ b.articulo }}</span>
+                      <span><b class="chip-key">{{ b.clave }}</b> {{ b.articulo }} <em class="av-orig" *ngIf="b.origen">{{ b.origen==='NUEVO' ? 'Nuevo' : 'De ' + (b.sede_anterior || 'otra sede') }}</em></span>
                       <small>
-                        <ng-container *ngIf="conArea">📍 {{ b.ubicacion || 'Sin ubicación' }} · </ng-container>
+                        <ng-container *ngIf="conArea || av.agrupar==='persona'">📍 {{ b.ubicacion || 'Sin ubicación' }} · </ng-container>
+                        <ng-container *ngIf="avEstado(b)==='no'">No encontrado</ng-container>
                         <ng-container *ngIf="avEstado(b)==='ok'">{{ b.respuesta }}</ng-container>
                         <ng-container *ngIf="avEstado(b)==='fuera'">{{ b.respuesta }} · encontrado en {{ b.ubicacion_encontrada || 'otra área' }}</ng-container>
                         <ng-container *ngIf="avEstado(b)==='pendiente'">Pendiente{{ b.tiene_foto ? '' : ' · 📷 sin foto' }}</ng-container>
@@ -1718,6 +1760,7 @@ interface FormatoDoc {
                     <dl>
                       <div *ngIf="esTexto(b.marca) || esTexto(b.modelo)"><dt>Marca / modelo</dt><dd>{{ [b.marca, b.modelo].filter(esTexto).join(' · ') }}</dd></div>
                       <div *ngIf="esTexto(b.numero_serie)"><dt>Serie</dt><dd>{{ b.numero_serie }}</dd></div>
+                      <div><dt>Persona</dt><dd>{{ b.persona || 'Sin resguardante' }}</dd></div>
                       <div><dt>Responsable</dt><dd>{{ b.responsable || 'Sin asignar' }}</dd></div>
                       <div *ngIf="b.fecha_registro"><dt>Revisado</dt><dd>{{ b.fecha_registro | date:'dd/MM/yyyy HH:mm' }}</dd></div>
                     </dl>
@@ -1738,25 +1781,42 @@ interface FormatoDoc {
 
               <div class="cap-loading" *ngIf="cap.cargando"><div class="loader-ring"></div><strong>Cargando bienes de la sede…</strong></div>
 
-              <!-- Paso 1: área -->
+              <!-- Paso 1: persona o área -->
               <ng-container *ngIf="!cap.cargando && cap.paso==='area'">
-                <h2 class="cap-q">¿En qué área estás?</h2>
-                <p class="cap-hint">Así sabremos si algún bien está fuera de su lugar.</p>
-                <input class="cap-search" [(ngModel)]="cap.busquedaArea" placeholder="Buscar área...">
-                <div class="cap-areas">
-                  <button *ngFor="let a of areasFiltradas" (click)="elegirArea(a)">
-                    <span>{{ a.nombre }}</span>
-                    <small>{{ a.revisados }} / {{ a.total }}</small>
-                  </button>
+                <h2 class="cap-q">{{ cap.modo==='persona' ? '¿De quién son los bienes que vas a revisar?' : '¿En qué área estás?' }}</h2>
+                <div class="seg">
+                  <button [class.on]="cap.modo==='persona'" (click)="cap.modo='persona'; cap.busquedaArea=''">👤 Por persona</button>
+                  <button [class.on]="cap.modo==='area'" (click)="cap.modo='area'; cap.busquedaArea=''">📍 Por área</button>
                 </div>
-                <button class="lev-more" (click)="elegirArea(null)">Prefiero no elegir área</button>
+                <p class="cap-hint" *ngIf="cap.modo==='area'">Así sabremos si algún bien está fuera de su lugar.</p>
+                <input class="cap-search" [(ngModel)]="cap.busquedaArea" [placeholder]="cap.modo==='persona' ? 'Buscar persona...' : 'Buscar área...'">
+                <div class="cap-areas">
+                  <button *ngFor="let g of gruposCaptura" [class.done]="g.hechos===g.total" (click)="elegirGrupo(g)">
+                    <span>{{ g.nombre }}</span>
+                    <small>{{ g.hechos }} / {{ g.total }}</small>
+                  </button>
+                  <p class="cap-hint" *ngIf="!gruposCaptura.length">Sin resultados.</p>
+                </div>
+                <button class="lev-more" (click)="elegirGrupo(null)">Ver todos los bienes de la sede</button>
               </ng-container>
 
               <!-- Paso 2: escanear -->
               <ng-container *ngIf="!cap.cargando && cap.paso==='escanear'">
-                <button class="cap-area-chip" (click)="cap.paso='area'">📍 {{ cap.area?.nombre || 'Sin área' }} · cambiar</button>
+                <button class="cap-area-chip" (click)="cap.paso='area'">{{ cap.modo==='persona' ? '👤' : '📍' }} {{ grupoActualNombre }} · cambiar</button>
                 <div class="cap-ok" *ngIf="cap.ultimo">✓ {{ cap.ultimo }}</div>
                 <div class="inline-error" *ngIf="cap.error">{{ cap.error }}</div>
+                <button class="lev-more" *ngIf="cap.ofrecerNuevo" (click)="abrirNuevoBienCap()">＋ Registrarlo como bien nuevo</button>
+
+                <!-- Recién agregado (nuevo o traído): etiqueta y seguir -->
+                <div class="cap-agregado" *ngIf="cap.agregado as ag">
+                  <b>{{ ag.tipo==='nuevo' ? '✓ Bien nuevo registrado' : '✓ Bien traído a ' + cap.lev.sede }}</b>
+                  <span><b class="chip-key">{{ ag.bien.clave }}</b> {{ ag.bien.articulo }}</span>
+                  <small>Imprime su etiqueta, pégala y escanéala; o continúa directo con la foto y el estado.</small>
+                  <div class="cap-agregado-btns">
+                    <button class="btn-outline" [disabled]="generandoEtiquetas" (click)="imprimirEtiquetas([ag.bien])">🖨 Imprimir etiqueta</button>
+                    <button class="btn-primary" (click)="abrirBienCaptura(ag.bien)">Continuar →</button>
+                  </div>
+                </div>
 
                 <div class="cap-scanner" *ngIf="cap.escaneando">
                   <video #camQr playsinline muted></video>
@@ -1780,7 +1840,12 @@ interface FormatoDoc {
                     <button class="btn-primary" (click)="buscarPorClave()">Buscar</button>
                   </div>
 
-                  <button class="lev-more" (click)="abrirAvanceCaptura('pendientes')">📋 Pendientes de esta área ({{ pendientesArea.length }})</button>
+                  <div class="cap-tools">
+                    <button (click)="abrirAvanceCaptura('pendientes')"><span>📋</span><b>{{ pendientesGrupo.length | number }}</b><small>Pendientes</small></button>
+                    <button [disabled]="!bienesGrupo.length || generandoEtiquetas" (click)="imprimirEtiquetas(bienesGrupo)"><span>🖨</span><b>{{ bienesGrupo.length | number }}</b><small>Etiquetas</small></button>
+                    <button (click)="abrirNuevoBienCap()"><span>＋</span><b>Nuevo</b><small>Bien que no está</small></button>
+                    <button (click)="abrirBuscarGeneral()"><span>🔍</span><b>Buscar</b><small>En todas las sedes</small></button>
+                  </div>
                 </ng-container>
               </ng-container>
 
@@ -1791,8 +1856,10 @@ interface FormatoDoc {
                   <h2>{{ b.articulo }}</h2>
                   <small>{{ [b.marca, b.modelo].filter(esTexto).join(' · ') }}</small>
                   <small>📍 Registrado en: {{ b.ubicacion || 'Sin ubicación' }}</small>
+                  <small>👤 {{ b.persona || 'Sin resguardante' }}</small>
                   <div class="cap-warn" *ngIf="cap.area && b.id_ubicacion !== cap.area.id">⚠ Está registrado en otra área: se marcará como fuera de lugar.</div>
-                  <div class="cap-info" *ngIf="b.respuesta">Ya se revisó antes ({{ b.respuesta }}). Si guardas, se actualiza.</div>
+                  <div class="cap-info" *ngIf="b.estatus==='REVISADO'">Ya se revisó antes ({{ b.respuesta }}). Si guardas, se actualiza.</div>
+                  <div class="cap-info" *ngIf="b.estatus==='NO_ENCONTRADO'">Estaba marcado como no encontrado. Si lo guardas, queda revisado.</div>
                 </div>
 
                 <div class="cap-step" *ngIf="!b.tiene_foto">
@@ -1826,7 +1893,125 @@ interface FormatoDoc {
                     {{ cap.guardando ? 'Guardando…' : 'Guardar y siguiente' }}
                   </button>
                 </div>
+                <button class="cap-noenc" *ngIf="cap.desdeLista && b.estatus!=='NO_ENCONTRADO'" [disabled]="cap.guardando" (click)="marcarNoEncontradoCap()">
+                  ✗ No lo encuentro · marcar como no encontrado
+                </button>
               </ng-container>
+            </div>
+
+            <!-- ===== Bien nuevo (durante la captura) ===== -->
+            <div class="modal-backdrop" *ngIf="capNuevo">
+              <div class="modal-card wizard">
+                <div class="modal-header">
+                  <div>
+                    <h2>＋ Bien nuevo</h2>
+                    <p>Entra directo al inventario de {{ cap?.lev?.sede }}, sin autorización.</p>
+                  </div>
+                  <button class="close-button" [disabled]="capNuevo.guardando" (click)="capNuevo=null">×</button>
+                </div>
+                <div class="form-section">
+                  <label>¿Qué es? *</label>
+                  <input [(ngModel)]="capNuevo.articulo" maxlength="200" placeholder="Ej. Silla ejecutiva">
+                  <label>Área *</label>
+                  <select [(ngModel)]="capNuevo.idUbicacion">
+                    <option [ngValue]="null">Selecciona el área</option>
+                    <option *ngFor="let a of capOpciones.areas" [ngValue]="a.id">{{ a.nombre }}</option>
+                  </select>
+                  <label>Persona <span class="muted">(de quién es el resguardo)</span></label>
+                  <select [(ngModel)]="capNuevo.idPersona">
+                    <option [ngValue]="null">Sin resguardante</option>
+                    <option *ngFor="let x of capOpciones.personas" [ngValue]="x.id">{{ x.nombre }}</option>
+                  </select>
+                  <button class="lev-more" (click)="capNuevo.mas = !capNuevo.mas">{{ capNuevo.mas ? '▴ Menos datos' : '▾ Más datos (marca, modelo, serie…)' }}</button>
+                  <ng-container *ngIf="capNuevo.mas">
+                    <label>Clasificación</label>
+                    <select [(ngModel)]="capNuevo.idClasificacion">
+                      <option [ngValue]="null">Sin clasificación</option>
+                      <option *ngFor="let c of capOpciones.clasificaciones" [ngValue]="c.id">{{ c.nombre }}</option>
+                    </select>
+                    <label>Marca</label>
+                    <select [(ngModel)]="capNuevo.idMarca">
+                      <option [ngValue]="null">Sin marca</option>
+                      <option *ngFor="let m of capOpciones.marcas" [ngValue]="m.id">{{ m.nombre }}</option>
+                    </select>
+                    <label>Modelo</label>
+                    <input [(ngModel)]="capNuevo.modelo" maxlength="150">
+                    <label>Número de serie</label>
+                    <input [(ngModel)]="capNuevo.numeroSerie" maxlength="150">
+                    <label>Características</label>
+                    <textarea rows="2" [(ngModel)]="capNuevo.caracteristicas" maxlength="500" placeholder="Color, tamaño, material…"></textarea>
+                    <label>Clave <span class="muted">(vacía = se asigna sola)</span></label>
+                    <input [(ngModel)]="capNuevo.clave" maxlength="50" placeholder="Ej. CE1850">
+                  </ng-container>
+                </div>
+                <div class="inline-error" *ngIf="capNuevo.error" style="margin:0 24px 12px">{{ capNuevo.error }}</div>
+                <div class="modal-footer">
+                  <button class="btn-outline" [disabled]="capNuevo.guardando" (click)="capNuevo=null">Cancelar</button>
+                  <button class="btn-primary" [disabled]="capNuevo.guardando" (click)="guardarNuevoBienCap()">
+                    <span class="mini-ring light" *ngIf="capNuevo.guardando"></span>
+                    {{ capNuevo.guardando ? 'Registrando…' : 'Registrar bien' }}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- ===== Buscar en todo el inventario (todas las sedes) ===== -->
+            <div class="modal-backdrop" *ngIf="capBuscar">
+              <div class="modal-card wizard">
+                <div class="modal-header">
+                  <div>
+                    <h2>🔍 Buscar en todo el inventario</h2>
+                    <p>Para un bien que está aquí pero el sistema tiene en otra sede.</p>
+                  </div>
+                  <button class="close-button" [disabled]="capBuscar.guardando" (click)="capBuscar=null">×</button>
+                </div>
+                <div class="form-section">
+                  <div class="cap-clave">
+                    <input [(ngModel)]="capBuscar.q" placeholder="Clave, serie o nombre del bien" (keyup.enter)="buscarGeneralCap()">
+                    <button class="btn-primary" [disabled]="capBuscar.cargando" (click)="buscarGeneralCap()">Buscar</button>
+                  </div>
+                  <p class="cap-hint" *ngIf="capBuscar.cargando">Buscando en todas las sedes…</p>
+                  <div class="busq-list" *ngIf="!capBuscar.cargando">
+                    <div class="busq-item" *ngFor="let r of capBuscar.resultados" [class.open]="capBuscar.elegido===r">
+                      <div class="busq-row">
+                        <span class="av-txt">
+                          <span><b class="chip-key">{{ r.clave }}</b> {{ r.articulo }}</span>
+                          <small>📍 {{ r.sede || 'Sin sede' }} · {{ r.ubicacion || 'Sin área' }}{{ r.persona ? ' · 👤 ' + r.persona : '' }}</small>
+                        </span>
+                        <button class="btn-outline btn-small" *ngIf="r.en_esta_sede" (click)="abrirDesdeBusqueda(r)">Abrir</button>
+                        <button class="btn-primary btn-small" *ngIf="!r.en_esta_sede && capBuscar.elegido!==r" (click)="elegirTraer(r)">Traer aquí</button>
+                      </div>
+                      <div class="busq-traer" *ngIf="capBuscar.elegido===r">
+                        <label>Área en {{ cap?.lev?.sede }} *</label>
+                        <select [(ngModel)]="capBuscar.idUbicacion">
+                          <option [ngValue]="null">Selecciona el área</option>
+                          <option *ngFor="let a of capOpciones.areas" [ngValue]="a.id">{{ a.nombre }}</option>
+                        </select>
+                        <label>Persona <span class="muted">(de quién es el resguardo)</span></label>
+                        <select [(ngModel)]="capBuscar.idPersona">
+                          <option [ngValue]="null">Sin cambiar ({{ r.persona || 'sin resguardante' }})</option>
+                          <option *ngFor="let x of capOpciones.personas" [ngValue]="x.id">{{ x.nombre }}</option>
+                        </select>
+                        <div class="busq-btns">
+                          <button class="btn-outline" [disabled]="capBuscar.guardando" (click)="capBuscar.elegido=null">Cancelar</button>
+                          <button class="btn-primary" [disabled]="capBuscar.guardando" (click)="confirmarTraer(r)">
+                            <span class="mini-ring light" *ngIf="capBuscar.guardando"></span>
+                            Mover a {{ cap?.lev?.sede }}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="busq-vacio" *ngIf="capBuscar.buscado && !capBuscar.cargando && !capBuscar.resultados.length">
+                    <p>No está en ninguna sede.</p>
+                    <button class="btn-outline" (click)="nuevoDesdeBusqueda()">＋ Registrarlo como bien nuevo</button>
+                  </div>
+                </div>
+                <div class="inline-error" *ngIf="capBuscar.error" style="margin:0 24px 12px">{{ capBuscar.error }}</div>
+                <div class="modal-footer">
+                  <button class="btn-outline" [disabled]="capBuscar.guardando" (click)="capBuscar=null">Cerrar</button>
+                </div>
+              </div>
             </div>
 
             <!-- ===== Asistente: nuevo levantamiento ===== -->
@@ -1911,7 +2096,7 @@ interface FormatoDoc {
             <div class="inv-head">
               <div>
                 <button class="inv-back" *ngIf="docsVista!=='menu'" (click)="docsVista='menu'; docsBusqueda=''">← Documentos</button>
-                <h1>{{ docsVista==='menu' ? 'Documentos' : (docsVista==='ALTA' ? 'Formatos de alta' : docsVista==='BAJA' ? 'Formatos de baja' : 'Actas de inventario') }}</h1>
+                <h1>{{ docsVista==='menu' ? 'Documentos' : (docsVista==='ALTA' ? 'Formatos de alta' : docsVista==='BAJA' ? 'Formatos de baja' : docsVista==='RESGUARDO' ? 'Resguardos individuales' : 'Actas de inventario') }}</h1>
                 <p class="inv-resumen">
                   {{ isAdmin || canAuthorize ? 'Formatos autorizados de tu sede.' : 'Tus formatos autorizados.' }}
                   Se generan solos al autorizar y se abren aquí mismo.
@@ -1957,11 +2142,13 @@ interface FormatoDoc {
                 <span class="tile-text"><strong>Transferencia</strong><small>Cambio de ubicación o responsable</small></span>
                 <span class="tile-soon">Próximamente</span>
               </div>
-              <div class="inv-tile t-resguardo disabled">
+              <button class="inv-tile t-resguardo" (click)="docsVista='RESGUARDO'">
+                <svg class="tile-bg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/><path d="M9 12l2 2 4-4"/></svg>
                 <span class="tile-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/><path d="M9 12l2 2 4-4"/></svg></span>
-                <span class="tile-text"><strong>Resguardo individual</strong><small>Bienes a cargo de cada persona</small></span>
-                <span class="tile-soon">Próximamente</span>
-              </div>
+                <span class="tile-text"><strong>Resguardo individual</strong><small>Formato FA-04-02-02 · bienes de cada persona</small></span>
+                <span class="tile-num">{{ docsCargando && !documentosLista.length ? '…' : conteoDocs('RESGUARDO') }}<em>resguardos</em></span>
+                <span class="tile-go">Ver resguardos →</span>
+              </button>
             </div>
 
             <!-- Lista de documentos -->
@@ -1977,16 +2164,25 @@ interface FormatoDoc {
               <div class="doc-list">
                 <button class="doc-row" *ngFor="let d of documentosFiltrados" [class.anulado]="d.estado==='ANULADO'"
                         [disabled]="abriendoDocumento" (click)="abrirDocumentoGuardado(d.idDocumento)">
-                  <span class="doc-row-ico" [class.baja]="d.tipo==='BAJA'" [class.acta]="d.tipo && d.tipo.startsWith('ACTA')">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/></svg>
+                  <span class="doc-row-ico" [class.baja]="d.tipo==='BAJA'" [class.acta]="d.tipo && d.tipo.startsWith('ACTA')" [class.resg]="d.tipo==='RESGUARDO'">
+                    <svg *ngIf="d.tipo!=='RESGUARDO'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/></svg>
+                    <svg *ngIf="d.tipo==='RESGUARDO'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/><path d="M9 12l2 2 4-4"/></svg>
                   </span>
                   <span class="doc-row-main">
                     <span class="doc-row-top">
                       <b class="chip-key">{{ d.folio }}</b>
                       <span class="doc-anulado" *ngIf="d.estado==='ANULADO'">ANULADO</span>
+                      <span class="doc-estado borrador" *ngIf="d.estado==='BORRADOR'">BORRADOR</span>
+                      <span class="doc-estado" *ngIf="d.estado==='HISTORICO'">HISTÓRICO</span>
                     </span>
-                    <strong>{{ d.clave }} · {{ d.descripcion }}</strong>
-                    <small>{{ d.sede || 'Sin sede' }} · Solicitó {{ d.solicito || '—' }} · Autorizó {{ d.autorizo || '—' }}</small>
+                    <ng-container *ngIf="d.tipo==='RESGUARDO'">
+                      <strong>{{ d.persona }}</strong>
+                      <small>{{ d.totalBienes | number }} {{ d.totalBienes === 1 ? 'bien' : 'bienes' }} · {{ d.levantamiento }}</small>
+                    </ng-container>
+                    <ng-container *ngIf="d.tipo!=='RESGUARDO'">
+                      <strong>{{ d.clave }} · {{ d.descripcion }}</strong>
+                      <small>{{ d.sede || 'Sin sede' }} · Solicitó {{ d.solicito || '—' }} · Autorizó {{ d.autorizo || '—' }}</small>
+                    </ng-container>
                   </span>
                   <span class="doc-row-date">
                     {{ d.fechaCreacion | date:'dd/MM/yyyy' }}
@@ -1998,7 +2194,7 @@ interface FormatoDoc {
                   </span>
                 </button>
                 <div class="inv-empty" *ngIf="!documentosFiltrados.length && !docsCargando">
-                  {{ docsBusqueda ? 'Ningún documento coincide con la búsqueda.' : (docsVista==='ACTAS' ? 'Aún no hay actas. Se generan al iniciar y al cerrar un inventario anual.' : 'Aún no hay formatos de ' + (docsVista==='ALTA' ? 'alta' : 'baja') + '. Se generan solos cuando se autoriza un movimiento.') }}
+                  {{ docsBusqueda ? 'Ningún documento coincide con la búsqueda.' : docsVista==='RESGUARDO' ? 'Aún no hay resguardos. Se arman solos durante el levantamiento de inventario con los bienes revisados de cada persona.' : (docsVista==='ACTAS' ? 'Aún no hay actas. Se generan al iniciar y al cerrar un inventario anual.' : 'Aún no hay formatos de ' + (docsVista==='ALTA' ? 'alta' : 'baja') + '. Se generan solos cuando se autoriza un movimiento.') }}
                 </div>
               </div>
             </div>
@@ -2161,7 +2357,7 @@ interface FormatoDoc {
     .app-shell{min-height:100vh;background:#f4f6fa;display:flex}
     .sidebar{position:fixed;top:0;left:0;bottom:0;z-index:95;width:270px;max-width:86vw;overflow-y:auto;background:#17263d;color:#fff;display:flex;flex-direction:column;padding:25px 17px;transform:translateX(0);box-shadow:12px 0 40px #0b172840;transition:transform .28s cubic-bezier(.4,0,.2,1),box-shadow .28s}
     .sidebar.collapsed{transform:translateX(-100%);box-shadow:none}
-    .sidebar-backdrop{position:fixed;inset:0;z-index:94;background:#0f1c2e66;backdrop-filter:blur(2px);animation:fadeIn .2s ease both}
+    .sidebar-backdrop{position:fixed;top:0;right:0;bottom:0;left:0;inset:0;z-index:94;background:#0f1c2e66;backdrop-filter:blur(2px);animation:fadeIn .2s ease both}
     .sidebar-close{margin-left:auto;align-self:flex-start;width:32px;height:32px;border:0;border-radius:8px;background:transparent;color:#a9b8cc;font-size:24px;line-height:1;cursor:pointer;flex-shrink:0}
     .sidebar-close:hover{background:#2b405e;color:#fff}
     .menu-toggle{position:relative;width:40px;height:40px;border-radius:10px;display:grid;place-items:center}
@@ -2262,7 +2458,7 @@ interface FormatoDoc {
     .empty-state{text-align:center!important;padding:42px!important;color:#8491a2!important}
     .empty-state p{font-size:13px}
     .empty-icon{font-size:30px;color:#a8b6c7;margin-bottom:10px}
-    .modal-backdrop{position:fixed;inset:0;background:#15243b88;z-index:100;display:flex;align-items:center;justify-content:center;padding:20px}
+    .modal-backdrop{position:fixed;top:0;right:0;bottom:0;left:0;inset:0;background:#15243b88;z-index:100;display:flex;align-items:center;justify-content:center;padding:20px}
     .modal-card{width:100%;max-width:590px;max-height:90vh;overflow:auto;background:#fff;border-radius:14px;box-shadow:0 20px 70px #15243b35}
     .large-modal{max-width:850px}
     .excel-modal{max-width:760px}
@@ -2417,7 +2613,7 @@ interface FormatoDoc {
     .revoked-tag{display:inline-block;margin-left:6px;font-size:12px;font-weight:800;color:#a56a00;background:#fff1d6;border-radius:20px;padding:3px 8px;vertical-align:middle}
 
     /* ---------- AVISO DE RESULTADO ---------- */
-    .aviso-backdrop{position:fixed;inset:0;z-index:220;background:#0f1c2e55;backdrop-filter:blur(3px);display:grid;place-items:center;padding:16px;animation:fadeIn .2s ease both}
+    .aviso-backdrop{position:fixed;top:0;right:0;bottom:0;left:0;inset:0;z-index:220;background:#0f1c2e55;backdrop-filter:blur(3px);display:grid;place-items:center;padding:16px;animation:fadeIn .2s ease both}
     .aviso-card{--av:#21835a;--av-bg:#e8f6ee;position:relative;overflow:hidden;width:min(380px,100%);background:#fff;border-radius:22px;padding:34px 28px 26px;text-align:center;box-shadow:0 30px 80px #0b172855;animation:avisoEntra .45s cubic-bezier(.2,1.3,.4,1) both}
     .av-pendiente{--av:#c77700;--av-bg:#fff4dc}
     .av-baja{--av:#c2414b;--av-bg:#fdeced}
@@ -2560,7 +2756,44 @@ interface FormatoDoc {
     .av-aviso{display:flex;flex-direction:column;gap:8px;background:#fff7ec;border:1px solid #f3d6a8;border-radius:14px;padding:14px 16px;color:#7a4b0c;font-size:14px}
     .av-aviso b{font-size:15px}
     .av-aviso .btn-danger{align-self:flex-start}
-    .av-chips{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+    .av-chips{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}
+    .av-chips .f-noenc b{color:#bd4b52}
+    .seg{display:inline-flex;align-self:flex-start;background:#e9eef5;border-radius:999px;padding:4px;gap:4px}
+    .seg button{border:0;background:transparent;font-family:inherit;font-size:14px;font-weight:700;color:#55667c;border-radius:999px;padding:8px 14px;cursor:pointer}
+    .seg button.on{background:#fff;color:#17304f;box-shadow:0 2px 8px rgba(20,36,58,.12)}
+    .st-no .av-ico{background:#fdecee;color:#bd4b52}
+    .st-no .av-txt small{color:#bd4b52}
+    .av-orig{font-style:normal;font-size:11.5px;font-weight:800;color:#6a4fb3;background:#f1edfb;border-radius:999px;padding:2px 8px;margin-left:4px}
+    .av-resg{margin:2px 4px 0}
+    .lev-docs{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:12px 14px;background:#f6f8fb;border-radius:12px}
+    .lev-docs-label{font-size:12px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:#8d99a9;margin-right:4px}
+    .lev-docs button{border:1px solid #dbe3ee;background:#fff;color:#244c78;font-family:inherit;font-size:14px;font-weight:700;border-radius:999px;padding:7px 13px;cursor:pointer}
+    .lev-docs button:hover{border-color:#9fb6d2}
+    .lev-docs em{font-style:normal;font-size:11.5px;font-weight:800;color:#a56a00;background:#fff4dc;border-radius:999px;padding:2px 7px;margin-left:4px}
+    .cap-areas button.done{background:#f3faf6;border-color:#cfe9da}
+    .cap-areas button.done small{color:#21835a}
+    .cap-tools{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+    .cap-tools button{display:flex;flex-direction:column;align-items:center;gap:2px;border:1px solid #e3e9f1;background:#fff;border-radius:14px;padding:12px 6px;font-family:inherit;cursor:pointer;color:#25364c;min-width:0}
+    .cap-tools button:disabled{opacity:.5;cursor:default}
+    .cap-tools span{font-size:20px;line-height:1.2}
+    .cap-tools b{font-size:15px;color:#14243a}
+    .cap-tools small{font-size:11.5px;color:#7d8a9b;text-align:center;line-height:1.2}
+    .cap-agregado{display:flex;flex-direction:column;gap:6px;background:#f4f1fc;border:1px solid #ddd3f5;border-radius:14px;padding:14px;animation:fadeUp .25s ease both}
+    .cap-agregado > b{color:#4b3590;font-size:15px}
+    .cap-agregado span{font-size:15px;color:#25364c}
+    .cap-agregado small{font-size:13px;color:#6d7b8e}
+    .cap-agregado-btns{display:flex;gap:8px;margin-top:4px}
+    .cap-agregado-btns button{flex:1}
+    .cap-noenc{align-self:center;border:0;background:transparent;color:#bd4b52;font-family:inherit;font-size:14.5px;font-weight:700;padding:6px 10px;cursor:pointer}
+    .busq-list{display:flex;flex-direction:column;gap:8px;max-height:46vh;overflow:auto;margin-top:6px}
+    .busq-item{border:1px solid #e3e9f1;border-radius:12px;background:#fff}
+    .busq-item.open{border-color:#c9d7e8;box-shadow:0 6px 16px rgba(20,36,58,.06)}
+    .busq-row{display:flex;align-items:center;gap:10px;padding:10px 12px}
+    .busq-row .av-txt > span{white-space:normal}
+    .busq-traer{display:flex;flex-direction:column;gap:6px;padding:0 12px 12px}
+    .busq-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:6px}
+    .busq-vacio{display:flex;flex-direction:column;align-items:flex-start;gap:8px;margin-top:8px;color:#55667c;font-size:14px}
+    .busq-vacio p{margin:0}
     .av-chips button{display:flex;flex-direction:column;align-items:flex-start;gap:2px;border:1px solid #e3e9f1;background:#fff;border-radius:12px;padding:10px 12px;font-family:inherit;cursor:pointer;text-align:left;min-width:0}
     .av-chips b{font-size:20px;color:#14243a;line-height:1.1}
     .av-chips small{font-size:12.5px;color:#6d7b8e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
@@ -2601,6 +2834,7 @@ interface FormatoDoc {
     .av-pdf{margin-top:4px}
     @media (max-width:640px){
       .av-chips{grid-template-columns:repeat(3,minmax(0,1fr))}
+      .cap-tools{grid-template-columns:repeat(2,minmax(0,1fr))}
       .av-chips button:first-child{grid-column:span 3;flex-direction:row;align-items:baseline;gap:8px}
       .av-area-head{flex-wrap:wrap}
       .av-area-main{flex-basis:100%}
@@ -2659,7 +2893,7 @@ interface FormatoDoc {
     .foto-mini{display:block;position:relative;width:100%;padding:0;border:0;border-radius:14px;overflow:hidden;cursor:zoom-in;background:#eef2f7}
     .foto-mini img{display:block;width:100%;height:220px;object-fit:cover}
     .foto-mini span{position:absolute;right:10px;bottom:10px;background:rgba(15,30,50,.72);color:#fff;font-size:13px;font-weight:700;padding:6px 10px;border-radius:999px}
-    .foto-visor{position:fixed;inset:0;z-index:3000;background:rgba(8,15,28,.88);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:20px}
+    .foto-visor{position:fixed;top:0;right:0;bottom:0;left:0;inset:0;z-index:3000;background:rgba(8,15,28,.88);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:20px}
     .foto-visor img{max-width:100%;max-height:calc(100vh - 110px);border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.5);background:#fff}
     .foto-visor-pie{display:flex;align-items:center;gap:16px;color:#fff;font-size:15px;flex-wrap:wrap;justify-content:center}
     .foto-visor-pie button{background:#fff;color:#1c2d43;border:0;border-radius:999px;padding:8px 16px;font-weight:700;font-size:14px;cursor:pointer}
@@ -2692,6 +2926,10 @@ interface FormatoDoc {
     .doc-row.anulado{opacity:.6}
     .doc-row-ico{width:44px;height:44px;border-radius:12px;background:#e8f6ee;color:#21835a;display:grid;place-items:center;flex-shrink:0}
     .doc-row-ico.baja{background:#fdeced;color:#c2414b}
+    .doc-row-ico.resg{background:#f1edfb;color:#6a4fb3}
+    .doc-badge.resg{background:#6a4fb3}
+    .doc-estado{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.5px;color:#55667c;background:#eef1f5;border-radius:999px;padding:3px 9px;margin-left:6px;vertical-align:middle}
+    .doc-estado.borrador{color:#a56a00;background:#fff4dc}
     .doc-row-ico svg{width:22px;height:22px}
     .doc-row-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
     .doc-row-top{display:flex;align-items:center;gap:8px}
@@ -2707,6 +2945,13 @@ interface FormatoDoc {
     .welcome{min-height:calc(100vh - 150px);background:#fff;border:1px solid #e7ecf2;border-radius:16px;display:flex;flex-direction:column;align-items:center;padding:32px 20px 22px;box-shadow:0 3px 12px #233c5708}
     .welcome-inner{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;max-width:520px;width:100%}
     .welcome-logo{width:min(300px,78%);height:auto;margin-bottom:34px;animation:fadeUp .6s ease both}
+    .push-invita{display:flex;align-items:center;gap:12px;margin:22px auto 0;max-width:460px;text-align:left;background:#fff;border:1px solid #dfe7f1;border-radius:16px;padding:14px 14px 14px 16px;box-shadow:0 8px 24px #17263d12;animation:fadeUp .5s .2s ease both}
+    .push-ico{font-size:24px}
+    .push-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+    .push-txt strong{font-size:15px;color:#14243a}
+    .push-txt small{font-size:13px;color:#6d7b8e}
+    .push-x{border:0;background:transparent;color:#9aa6b6;font-size:20px;cursor:pointer;padding:0 4px}
+    .push-instalar{margin-top:12px;border:1px solid #d6e0ec;background:#fff;color:#244c78;font-family:inherit;font-size:14px;font-weight:700;border-radius:999px;padding:9px 16px;cursor:pointer}
     .welcome-chip{font-size:13.5px;font-weight:700;color:#4f6f95;background:#eef3f9;padding:6px 14px;border-radius:20px;margin-bottom:18px;animation:fadeUp .6s .1s ease both}
     .welcome h1{margin:0 0 14px;font-size:36px;font-weight:800;letter-spacing:-.6px;color:#111827;animation:fadeUp .6s .18s ease both}
     .welcome-inner p{margin:0;font-size:16.5px;line-height:1.7;color:#4b5563;animation:fadeUp .6s .26s ease both}
@@ -2826,7 +3071,7 @@ interface FormatoDoc {
     .row-selected{background:#f1f6fc!important}
     .page-size{width:auto;height:30px;padding:4px 8px;font-size:13px}
     .column-picker{position:relative}
-    .picker-backdrop{position:fixed;inset:0;z-index:40}
+    .picker-backdrop{position:fixed;top:0;right:0;bottom:0;left:0;inset:0;z-index:40}
     .picker-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:41;width:270px;background:#fff;border:1px solid #e1e7ef;border-radius:12px;box-shadow:0 14px 40px #15243b2e;animation:fadeUp .18s ease both}
     .picker-head{padding:14px 16px 10px;border-bottom:1px solid #eef1f5}
     .picker-head strong{display:block;font-size:14px;color:#25364c}
@@ -2856,8 +3101,8 @@ interface FormatoDoc {
     .filter-chip button:hover{background:#244c78;color:#fff}
 
     /* ===== INVENTARIO: PANEL LATERAL ===== */
-    .drawer-backdrop{position:fixed;inset:0;background:#15243b55;z-index:90;animation:fadeIn .2s ease both}
-    .drawer{position:fixed;inset:0;margin:auto;width:min(780px,calc(100% - 32px));height:fit-content;max-height:calc(100vh - 48px);background:#fff;z-index:91;display:flex;flex-direction:column;border-radius:16px;overflow:hidden;box-shadow:0 24px 80px #15243b40;animation:zoomIn .22s ease both}
+    .drawer-backdrop{position:fixed;top:0;right:0;bottom:0;left:0;inset:0;background:#15243b55;z-index:90;animation:fadeIn .2s ease both}
+    .drawer{position:fixed;top:0;right:0;bottom:0;left:0;inset:0;margin:auto;width:min(780px,calc(100% - 32px));height:fit-content;max-height:calc(100vh - 48px);max-height:calc(100dvh - 48px);background:#fff;z-index:91;display:flex;flex-direction:column;border-radius:16px;overflow:hidden;box-shadow:0 24px 80px #15243b40;animation:zoomIn .22s ease both}
     .drawer-section dl{grid-template-columns:repeat(3,minmax(0,1fr))!important}
     .drawer-header{display:flex;justify-content:space-between;gap:12px;padding:24px 24px 18px;border-bottom:1px solid #edf0f4}
     .drawer-header h2{margin:6px 0 10px;font-size:21px;color:#1c2d43;line-height:1.3}
@@ -2872,10 +3117,10 @@ interface FormatoDoc {
     .drawer-section dd{margin:0;font-size:14px;font-weight:600;color:#2f4359;overflow-wrap:anywhere}
     .drawer-footer{display:flex;gap:10px;justify-content:flex-end;padding:16px 24px;border-top:1px solid #edf0f4;background:#fafbfd}
     .drawer .info-box{margin-top:14px}
-    @media(max-width:700px){.overview-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.inventory-filters select{flex:1;min-width:0}.picker-menu{right:auto;left:0}.drawer{width:calc(100% - 20px);max-height:calc(100vh - 20px)}.drawer-section dl{grid-template-columns:1fr 1fr!important}.drawer-footer button{flex:1}.sk-row span:nth-child(n+4){display:none}}
+    @media(max-width:700px){.overview-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.inventory-filters select{flex:1;min-width:0}.picker-menu{right:auto;left:0}.drawer{width:calc(100% - 20px);max-height:calc(100vh - 20px);max-height:calc(100dvh - 20px)}.drawer-section dl{grid-template-columns:1fr 1fr!important}.drawer-footer button{flex:1}.sk-row span:nth-child(n+4){display:none}}
 
     /* ===== DIÁLOGO DE CONFIRMACIÓN ===== */
-    .confirm-backdrop{position:fixed;inset:0;background:#15243b80;z-index:200;display:flex;align-items:center;justify-content:center;padding:16px;animation:fadeIn .15s ease both;backdrop-filter:blur(2px)}
+    .confirm-backdrop{position:fixed;top:0;right:0;bottom:0;left:0;inset:0;background:#15243b80;z-index:200;display:flex;align-items:center;justify-content:center;padding:16px;animation:fadeIn .15s ease both;backdrop-filter:blur(2px)}
     .confirm-card{width:min(460px,100%);max-height:calc(100vh - 32px);overflow:auto;background:#fff;border-radius:18px;padding:28px 26px 22px;text-align:center;box-shadow:0 30px 90px #0b172845;animation:zoomIn .2s ease both}
     .confirm-icon{width:58px;height:58px;margin:0 auto 16px;border-radius:50%;display:grid;place-items:center;font-size:28px}
     .confirm-peligro .confirm-icon{background:#fdeced;color:#c0474e;box-shadow:0 0 0 8px #fdeced80}
@@ -3134,11 +3379,16 @@ export class AppComponent {
   levAbierto: any = null;
   levDetalle: any = null;
   anualVista: 'lista' | 'captura' | 'avance' = 'lista';
+  // Captura: "bien nuevo", "buscar en todas las sedes" y opciones de la sede (áreas, personas, catálogos)
+  capNuevo: any = null;
+  capBuscar: any = null;
+  capOpciones: any = { areas: [], personas: [], clasificaciones: [], marcas: [] };
   av: any = null;
   private avTimer: any = null;
   readonly avFiltros = [
     { key: 'todos', label: 'Todos', ico: '' },
     { key: 'pendientes', label: 'Pendientes', ico: '⏳' },
+    { key: 'noenc', label: 'No encontrados', ico: '✗' },
     { key: 'revisados', label: 'Revisados', ico: '✓' },
     { key: 'fuera', label: 'Fuera de lugar', ico: '⚠' },
     { key: 'sinfoto', label: 'Sin foto', ico: '📷' }
@@ -3153,7 +3403,7 @@ export class AppComponent {
   private camTimer: any = null;
 
   // Pantalla de Documentos
-  docsVista: 'menu' | 'ALTA' | 'BAJA' | 'ACTAS' = 'menu';
+  docsVista: 'menu' | 'ALTA' | 'BAJA' | 'ACTAS' | 'RESGUARDO' = 'menu';
   documentosLista: any[] = [];
   docsCargando = false;
   docsError = '';
@@ -3248,6 +3498,12 @@ export class AppComponent {
   temporalCopiada = false;
   menuMasInventario = false;
   menuUsuario = false;
+  // App instalable y avisos al celular (Web Push)
+  pushEstado: 'cargando' | 'no-soportado' | 'sin-https' | 'instalar-ios' | 'bloqueado' | 'inactivo' | 'activo' = 'cargando';
+  pushProcesando = false;
+  instalarPrompt: any = null;
+  avisoPushOculto = this.leerLocal('dozzer_push_oculto') === '1';
+  private swRegistro: Promise<ServiceWorkerRegistration | null> = Promise.resolve(null);
   vistaInv: 'menu' | 'sedes' | 'bienes' | 'personas' | 'completo' = 'menu';
   origenVistaInv: 'menu' | 'sedes' | 'personas' = 'menu';
   filtroPersona: any = null;
@@ -3430,9 +3686,180 @@ export class AppComponent {
   ];
 
   constructor(private http: HttpClient, private sanitizer: DomSanitizer) {
+    this.prepararApp();
     if (this.logged && !this.mustChangePassword) {
       this.loadAll();
     }
+  }
+
+  // =========================
+  // APP INSTALABLE Y AVISOS AL CELULAR
+  // =========================
+
+  private leerLocal(k: string): string | null {
+    try { return localStorage.getItem(k); } catch { return null; }
+  }
+
+  private prepararApp(): void {
+    // Un aviso abrió la app con ?ir=autorizaciones|solicitudes
+    try {
+      const ir = new URLSearchParams(window.location.search).get('ir');
+      if (ir) {
+        history.replaceState(null, '', window.location.pathname);
+        setTimeout(() => this.irDesdeAviso(ir));
+      }
+    } catch { /* sin parámetros */ }
+    window.addEventListener('beforeinstallprompt', (e: any) => { e.preventDefault(); this.instalarPrompt = e; });
+    window.addEventListener('appinstalled', () => this.instalarPrompt = null);
+    if ('serviceWorker' in navigator && window.isSecureContext) {
+      this.swRegistro = navigator.serviceWorker.register('sw-dozzer.js').catch(() => null);
+      // Con la app abierta, tocar un aviso la lleva a la pantalla que corresponde
+      navigator.serviceWorker.addEventListener('message', (ev: any) => {
+        if (ev.data?.tipo !== 'dozzer-ir') return;
+        try { const ir = new URL(ev.data.url).searchParams.get('ir'); if (ir) this.irDesdeAviso(ir); } catch { /* */ }
+      });
+    }
+  }
+
+  private irDesdeAviso(ir: string): void {
+    if (!this.logged || this.mustChangePassword) return;
+    if (ir === 'autorizaciones' || ir === 'solicitudes') {
+      this.section = 'solicitudes';
+      this.menuCollapsed = true;
+      this.loadSolicitudes();
+    }
+  }
+
+  get textoPushEstado(): string {
+    switch (this.pushEstado) {
+      case 'activo': return 'En este dispositivo · toca para apagarlos';
+      case 'inactivo': return this.isAdmin || this.canAuthorize ? 'Que suene con autorizaciones pendientes' : 'Cuando respondan tus solicitudes';
+      case 'instalar-ios': return 'Primero agrégala a la pantalla de inicio';
+      case 'bloqueado': return 'Bloqueados en este navegador';
+      case 'sin-https': return 'Solo en la versión de internet';
+      case 'no-soportado': return 'Este navegador no los permite';
+      default: return 'Revisando…';
+    }
+  }
+
+  // Al entrar: ¿este dispositivo ya tiene avisos? Si sí, se liga al usuario que inició sesión
+  async revisarPush(): Promise<void> {
+    const ios = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const instalada = window.matchMedia?.('(display-mode: standalone)').matches || (navigator as any).standalone === true;
+    if (!window.isSecureContext) { this.pushEstado = 'sin-https'; return; }
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+      this.pushEstado = ios && !instalada ? 'instalar-ios' : 'no-soportado';
+      return;
+    }
+    if (Notification.permission === 'denied') { this.pushEstado = 'bloqueado'; return; }
+    try {
+      const reg = await this.swRegistro;
+      if (!reg) { this.pushEstado = 'no-soportado'; return; }
+      const sub = await reg.pushManager.getSubscription();
+      if (sub && Notification.permission === 'granted') {
+        await firstValueFrom(this.http.post(this.api + '/push/suscripciones', sub.toJSON()));
+        this.pushEstado = 'activo';
+      } else {
+        this.pushEstado = 'inactivo';
+      }
+    } catch {
+      this.pushEstado = 'inactivo';
+    }
+  }
+
+  async activarPush(): Promise<void> {
+    if (this.pushProcesando) return;
+    const avisos: any = {
+      'instalar-ios': ['Primero instala DOZZER', 'En el iPhone toca Compartir ⬆ y luego "Agregar a pantalla de inicio". Abre DOZZER desde ese ícono y activa los avisos ahí.'],
+      'sin-https': ['Solo en la versión de internet', 'Los avisos funcionan al abrir DOZZER desde su dirección de internet (https), no desde la red de la oficina.'],
+      'no-soportado': ['Este navegador no permite avisos', 'Usa Chrome en Android, o en iPhone (iOS 16.4 o más reciente) instala DOZZER en la pantalla de inicio.'],
+      'bloqueado': ['Avisos bloqueados', 'Este navegador tiene bloqueadas las notificaciones de DOZZER. Permítelas en los ajustes del sitio (el candado junto a la dirección) y vuelve a intentar.']
+    };
+    if (avisos[this.pushEstado]) { this.notificar('info', avisos[this.pushEstado][0], avisos[this.pushEstado][1], 0); return; }
+    this.pushProcesando = true;
+    try {
+      const permiso = await Notification.requestPermission();
+      if (permiso !== 'granted') {
+        this.pushEstado = permiso === 'denied' ? 'bloqueado' : 'inactivo';
+        this.notificar('info', 'Avisos no activados', 'No se dio permiso para mostrar notificaciones.');
+        return;
+      }
+      const reg = await this.swRegistro;
+      if (!reg) throw new Error('sin service worker');
+      const r: any = await firstValueFrom(this.http.get<any>(this.api + '/push/clave-publica'));
+      const clave = this.b64aBytes(r.publicKey);
+      let sub = await reg.pushManager.getSubscription();
+      // Si el dispositivo estaba suscrito con otras llaves (otro servidor), se rehace
+      if (sub && !this.mismaClave(sub, clave)) { await sub.unsubscribe(); sub = null; }
+      if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: clave as BufferSource });
+      await firstValueFrom(this.http.post(this.api + '/push/suscripciones', sub.toJSON()));
+      this.pushEstado = 'activo';
+      const prueba: any = await firstValueFrom(this.http.post<any>(this.api + '/push/prueba', {}));
+      this.notificar('exito', 'Avisos activados', prueba?.enviados
+        ? 'Te mandamos un aviso de prueba a este dispositivo.'
+        : 'Quedaron activados. Si no llega el aviso de prueba, revisa que el celular permita notificaciones de DOZZER.');
+    } catch (e) {
+      this.notificar('error', 'No se activaron los avisos', this.mensajeError(e, 'Inténtalo de nuevo en unos segundos.'), 0);
+    } finally {
+      this.pushProcesando = false;
+    }
+  }
+
+  async desactivarPush(): Promise<void> {
+    if (this.pushProcesando) return;
+    this.pushProcesando = true;
+    try {
+      const reg = await this.swRegistro;
+      const sub = await reg?.pushManager.getSubscription();
+      if (sub) {
+        await firstValueFrom(this.http.post(this.api + '/push/suscripciones/quitar', { endpoint: sub.endpoint })).catch(() => null);
+        await sub.unsubscribe();
+      }
+      this.pushEstado = 'inactivo';
+      this.notificar('info', 'Avisos apagados', 'Este dispositivo ya no recibirá avisos de DOZZER.');
+    } catch {
+      this.notificar('error', 'No se apagaron los avisos', 'Inténtalo de nuevo.', 0);
+    } finally {
+      this.pushProcesando = false;
+    }
+  }
+
+  // Al cerrar sesión, este dispositivo deja de recibir los avisos de esa persona
+  private quitarPushAlSalir(): void {
+    const token = this.leerLocal('dozzer_token');
+    if (!token || this.pushEstado !== 'activo') return;
+    this.swRegistro.then(reg => reg?.pushManager.getSubscription()).then(sub => {
+      if (!sub) return;
+      this.http.post(this.api + '/push/suscripciones/quitar', { endpoint: sub.endpoint },
+        { headers: new HttpHeaders({ Authorization: 'Bearer ' + token }) }).subscribe({ error: () => {} });
+    }).catch(() => {});
+  }
+
+  ocultarAvisoPush(): void {
+    this.avisoPushOculto = true;
+    try { localStorage.setItem('dozzer_push_oculto', '1'); } catch { /* opcional */ }
+  }
+
+  async instalarApp(): Promise<void> {
+    const p = this.instalarPrompt;
+    if (!p) return;
+    this.instalarPrompt = null;
+    try { await p.prompt(); } catch { /* cancelado */ }
+  }
+
+  private b64aBytes(b64: string): Uint8Array {
+    const s = (b64 + '='.repeat((4 - b64.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/');
+    const bin = atob(s);
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+
+  private mismaClave(sub: PushSubscription, clave: Uint8Array): boolean {
+    const actual = sub.options?.applicationServerKey;
+    if (!actual) return true;
+    const a = new Uint8Array(actual);
+    return a.length === clave.length && a.every((x, i) => x === clave[i]);
   }
 
   // =========================
@@ -3516,8 +3943,8 @@ export class AppComponent {
   get sectionTitle(): string {
     return ({
       inicio: 'Inicio',
-      anual: 'Inventario anual',
-      bienes: 'Inventario',
+      anual: 'Levantamiento de inventario',
+      bienes: 'Bienes',
       documentos: 'Documentos',
       solicitudes: 'Solicitudes',
       catalogos: 'Configuración'
@@ -3527,8 +3954,8 @@ export class AppComponent {
   get sectionLabel(): string {
     return ({
       inicio: 'INICIO',
-      anual: 'INVENTARIO ANUAL',
-      bienes: 'INVENTARIO',
+      anual: 'LEVANTAMIENTO',
+      bienes: 'BIENES',
       documentos: 'DOCUMENTOS',
       solicitudes: 'SOLICITUDES',
       catalogos: 'CONFIGURACIÓN'
@@ -3665,6 +4092,8 @@ export class AppComponent {
   }
 
   logout(): void {
+    this.quitarPushAlSalir();
+    this.pushEstado = 'cargando';
     localStorage.removeItem('dozzer_token');
     localStorage.removeItem('dozzer_email');
     localStorage.removeItem('dozzer_roles');
@@ -3709,6 +4138,7 @@ export class AppComponent {
   }
 
   loadAll(): void {
+    this.revisarPush();
     this.loadLevantamientos();
     this.loadBienes();
     Object.keys(this.catalogs).forEach(k => this.loadCatalog(k));
@@ -4274,7 +4704,7 @@ export class AppComponent {
   get textoVolverInv(): string {
     if (this.vistaInv === 'bienes' && this.origenVistaInv === 'sedes') return 'Sedes';
     if (this.vistaInv === 'bienes' && this.origenVistaInv === 'personas') return 'Personas';
-    return 'Inventario';
+    return 'Bienes';
   }
 
   get tituloVistaInv(): string {
@@ -4287,7 +4717,7 @@ export class AppComponent {
         if (this.filtroSede && this.origenVistaInv === 'sedes') return this.resumenSedes.find(s => s.id === this.filtroSede)?.nombre || 'Bienes';
         return 'Bienes';
       }
-      default: return 'Inventario';
+      default: return 'Bienes';
     }
   }
 
@@ -4915,8 +5345,36 @@ export class AppComponent {
     });
   }
 
+  // Pendientes: sin revisar ni marcar (cerrado: todo lo no revisado queda "no localizado")
+  pendientesLev(l: any): number {
+    const t = l.totalBienes || 0, rev = l.capturados || 0;
+    return Math.max(0, l.estado === 'CERRADO' ? t - rev : t - rev - (l.noEncontrados || 0));
+  }
+
+  // Lleva a Documentos > Resguardos, filtrado por este levantamiento
+  verResguardosLev(l: any): void {
+    this.section = 'documentos';
+    this.docsVista = 'RESGUARDO';
+    this.docsBusqueda = 'Inventario ' + l.anio + ' ' + l.sede;
+    this.loadDocumentos();
+    window.scrollTo({ top: 0 });
+  }
+
+  // Abre el resguardo (borrador o vigente) de una persona en un levantamiento
+  abrirResguardo(lev: any, idPersona: any): void {
+    this.http.get<any[]>(this.api + '/documentos?tipo=RESGUARDO').subscribe({
+      next: rows => {
+        const d = (rows || []).find(x => x.idLevantamiento === lev.idLevantamiento && x.idPersona === idPersona);
+        if (d) this.abrirDocumentoGuardado(d.idDocumento);
+        else this.notificar('info', 'Sin resguardo', 'Esta persona todavía no tiene bienes revisados en este levantamiento.');
+      },
+      error: e => this.notificar('error', 'No se abrió el resguardo', this.mensajeError(e, 'Inténtalo de nuevo.'), 0)
+    });
+  }
+
   cerrarLevantamiento(l: any, yaRevisoPendientes = false): void {
-    const faltan = l.totalBienes - l.capturados;
+    const faltan = this.pendientesLev(l);
+    const marcados = l.noEncontrados || 0;
     if (faltan > 0 && !yaRevisoPendientes) {
       this.abrirAvance(l, { filtro: 'pendientes', antesDeCerrar: true });
       return;
@@ -4925,15 +5383,15 @@ export class AppComponent {
       tipo: 'peligro', icono: '✓',
       titulo: '¿Cerrar el levantamiento?',
       mensaje: 'Se revisaron ' + l.capturados + ' de ' + l.totalBienes + ' bienes.' +
-        (faltan > 0 ? ' Los ' + faltan + ' restantes quedarán como "no localizados" en el acta.' : '') +
-        ' Ya no se podrá capturar y se generará el Acta de cierre.',
+        (faltan + marcados > 0 ? ' Los ' + (faltan + marcados) + ' restantes (' + marcados + ' marcados como no encontrados) quedarán como "no localizados" en el acta.' : '') +
+        ' Ya no se podrá capturar; se emitirán el Acta de cierre y el resguardo de cada persona.',
       textoConfirmar: 'Sí, cerrar y generar acta',
       accion: terminar => {
         this.http.post<any>(this.api + '/levantamientos/' + l.idLevantamiento + '/cerrar', {}).subscribe({
           next: r => {
             terminar();
             this.loadLevantamientos();
-            this.notificar('exito', 'Levantamiento cerrado', 'El acta de cierre quedó guardada en Documentos.', 3500,
+            this.notificar('exito', 'Levantamiento cerrado', 'El acta de cierre y los resguardos quedaron emitidos en Documentos.', 3500,
               { texto: '📄 Ver acta de cierre', fn: () => this.abrirDocumentoGuardado(r.idDocumentoCierre) });
           },
           error: e => terminar(this.mensajeError(e, 'No fue posible cerrar el levantamiento.'))
@@ -4994,14 +5452,17 @@ export class AppComponent {
     this.detenerEscaner();
     this.av = this.nuevoAvance(this.cap.lev, true, filtro);
     this.av.bienes = this.cap.bienes;
-    if (filtro === 'pendientes' && this.cap.area) this.av.areaAbierta = this.cap.area.id ?? 'sin';
+    if (this.cap.grupo) {
+      this.av.agrupar = this.cap.grupo.modo;
+      if (filtro === 'pendientes') this.av.areaAbierta = this.cap.grupo.key;
+    }
     this.avRecalcular();
     window.scrollTo({ top: 0 });
   }
 
   private nuevoAvance(l: any, enCaptura: boolean, filtro = 'todos'): any {
     return {
-      lev: l, enCaptura, bienes: [], cargando: false, error: '', filtro, busqueda: '',
+      lev: l, enCaptura, bienes: [], cargando: false, error: '', filtro, busqueda: '', agrupar: 'persona',
       areaAbierta: null, limites: {}, detalle: null, antesDeCerrar: false, actualizado: null,
       vista: { total: 0, revisados: 0, pct: 0, cuentas: {}, areas: [], resultados: [] }
     };
@@ -5040,6 +5501,7 @@ export class AppComponent {
   cerrarDesdeAvance(): void {
     const l = this.av.lev;
     l.capturados = this.av.vista.revisados;
+    l.noEncontrados = this.av.vista.cuentas.noenc || 0;
     this.cerrarAvance();
     this.cerrarLevantamiento(l, true);
   }
@@ -5048,18 +5510,28 @@ export class AppComponent {
     if (this.avTimer) { clearInterval(this.avTimer); this.avTimer = null; }
   }
 
-  avEstado(b: any): 'ok' | 'fuera' | 'pendiente' {
-    return !b.respuesta ? 'pendiente' : b.fuera_de_lugar ? 'fuera' : 'ok';
+  avEstado(b: any): 'ok' | 'fuera' | 'pendiente' | 'no' {
+    if (b.estatus === 'NO_ENCONTRADO') return 'no';
+    if (b.estatus !== 'REVISADO') return 'pendiente';
+    return b.fuera_de_lugar ? 'fuera' : 'ok';
   }
 
   private avCoincide(b: any, filtro: string): boolean {
     switch (filtro) {
-      case 'pendientes': return !b.respuesta;
-      case 'revisados': return !!b.respuesta;
-      case 'fuera': return !!b.respuesta && !!b.fuera_de_lugar;
+      case 'pendientes': return !b.estatus;
+      case 'revisados': return b.estatus === 'REVISADO';
+      case 'noenc': return b.estatus === 'NO_ENCONTRADO';
+      case 'fuera': return b.estatus === 'REVISADO' && !!b.fuera_de_lugar;
       case 'sinfoto': return !b.tiene_foto;
       default: return true;
     }
+  }
+
+  avAgrupar(modo: 'persona' | 'area'): void {
+    this.av.agrupar = modo;
+    this.av.areaAbierta = null;
+    this.av.limites = {};
+    this.avRecalcular();
   }
 
   avFiltrar(filtro: string): void {
@@ -5076,26 +5548,31 @@ export class AppComponent {
     return a.key;
   }
 
-  // Agrupa por el area donde esta registrado cada bien; se calcula solo cuando cambian datos o filtros
+  // Agrupa por persona (resguardo) o por área registrada; se calcula solo cuando cambian datos o filtros
   avRecalcular(): void {
     const av = this.av;
     if (!av) return;
-    const cuentas: any = { todos: 0, pendientes: 0, revisados: 0, fuera: 0, sinfoto: 0 };
+    const porPersona = av.agrupar === 'persona';
+    const cuentas: any = { todos: 0, pendientes: 0, revisados: 0, noenc: 0, fuera: 0, sinfoto: 0 };
     const mapa = new Map<any, any>();
     for (const b of av.bienes) {
       for (const f of Object.keys(cuentas)) if (this.avCoincide(b, f)) cuentas[f]++;
-      const key = b.id_ubicacion ?? 'sin';
+      const key = (porPersona ? b.id_persona : b.id_ubicacion) ?? 'sin';
       let a = mapa.get(key);
-      if (!a) { a = { key, nombre: b.ubicacion || 'Sin ubicación', total: 0, revisados: 0, fuera: 0, items: [] }; mapa.set(key, a); }
+      if (!a) {
+        a = { key, nombre: porPersona ? (b.persona || 'Sin resguardante') : (b.ubicacion || 'Sin ubicación'), total: 0, revisados: 0, no: 0, fuera: 0, items: [] };
+        mapa.set(key, a);
+      }
       a.total++;
-      if (b.respuesta) a.revisados++;
-      if (b.respuesta && b.fuera_de_lugar) a.fuera++;
+      if (b.estatus === 'REVISADO') a.revisados++;
+      if (b.estatus === 'NO_ENCONTRADO') a.no++;
+      if (b.estatus === 'REVISADO' && b.fuera_de_lugar) a.fuera++;
       if (this.avCoincide(b, av.filtro)) a.items.push(b);
     }
-    const orden: any = { pendiente: 0, fuera: 1, ok: 2 };
+    const orden: any = { pendiente: 0, no: 1, fuera: 2, ok: 3 };
     const areas = Array.from(mapa.values())
       .filter(a => av.filtro === 'todos' || a.items.length)
-      .sort((x, y) => x.nombre.localeCompare(y.nombre, 'es'));
+      .sort((x, y) => Number(x.key === 'sin') - Number(y.key === 'sin') || x.nombre.localeCompare(y.nombre, 'es'));
     for (const a of areas) {
       a.pct = a.total ? Math.round((a.revisados / a.total) * 100) : 0;
       a.items.sort((x: any, y: any) => orden[this.avEstado(x)] - orden[this.avEstado(y)]
@@ -5104,7 +5581,7 @@ export class AppComponent {
     const q = String(av.busqueda || '').toLowerCase().trim();
     const resultados = q
       ? av.bienes.filter((b: any) => this.avCoincide(b, av.filtro)
-          && [b.clave, b.articulo, b.numero_serie, b.marca, b.modelo].some(x => String(x || '').toLowerCase().includes(q))).slice(0, 60)
+          && [b.clave, b.articulo, b.numero_serie, b.marca, b.modelo, b.persona].some(x => String(x || '').toLowerCase().includes(q))).slice(0, 60)
       : [];
     const total = av.bienes.length, revisados = cuentas.revisados;
     av.vista = { total, revisados, pct: total ? Math.round((revisados / total) * 100) : 0, cuentas, areas, resultados };
@@ -5115,6 +5592,7 @@ export class AppComponent {
       if (this.cap?.lev?.estado !== 'EN_CURSO') return;
       this.av = null;
       this.abrirBienCaptura(b);
+      this.cap.desdeLista = true;
       return;
     }
     this.av.detalle = this.av.detalle === b.id_bien ? null : b.id_bien;
@@ -5123,10 +5601,11 @@ export class AppComponent {
   // Hoja para recorrer las areas con los bienes que faltan (no es el acta)
   avPdfPendientes(): void {
     const av = this.av;
+    const porPersona = av.agrupar === 'persona';
     const grupos = new Map<string, any[]>();
     for (const b of av.bienes) {
-      if (b.respuesta) continue;
-      const k = b.ubicacion || 'Sin ubicación';
+      if (b.estatus) continue;
+      const k = porPersona ? (b.persona || 'Sin resguardante') : (b.ubicacion || 'Sin ubicación');
       if (!grupos.has(k)) grupos.set(k, []);
       grupos.get(k)!.push(b);
     }
@@ -5138,7 +5617,7 @@ export class AppComponent {
     let y = 0;
     const encabezado = () => {
       doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.setTextColor(20, 36, 58);
-      doc.text('Lista de pendientes por área', M, 18);
+      doc.text('Lista de pendientes por ' + (porPersona ? 'persona' : 'área'), M, 18);
       doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(95, 110, 130);
       doc.text('Inventario ' + av.lev.anio + ' · ' + av.lev.sede + ' · ' + total + ' bienes pendientes · generado ' +
         new Date().toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' }), M, 24);
@@ -5147,7 +5626,7 @@ export class AppComponent {
     };
     const titulos = () => {
       doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(100, 130, 166);
-      doc.text('CLAVE', col.clave, y); doc.text('ARTÍCULO', col.art, y); doc.text('MARCA / MODELO', col.marca, y); doc.text('SERIE', col.serie, y);
+      doc.text('CLAVE', col.clave, y); doc.text('ARTÍCULO', col.art, y); doc.text(porPersona ? 'ÁREA' : 'MARCA / MODELO', col.marca, y); doc.text('SERIE', col.serie, y);
       y += 4;
     };
     encabezado();
@@ -5167,7 +5646,7 @@ export class AppComponent {
         doc.text(this.ajustarTexto(doc, b.clave, 24), col.clave, y);
         doc.setFont('helvetica', 'normal'); doc.setTextColor(45, 55, 70);
         doc.text(this.ajustarTexto(doc, b.articulo, 67), col.art, y);
-        doc.text(this.ajustarTexto(doc, [b.marca, b.modelo].filter(x => this.esTexto(x)).join(' / ') || '—', 44), col.marca, y);
+        doc.text(this.ajustarTexto(doc, (porPersona ? b.ubicacion : [b.marca, b.modelo].filter(x => this.esTexto(x)).join(' / ')) || '—', 44), col.marca, y);
         doc.text(this.ajustarTexto(doc, b.numero_serie || '—', W - M - col.serie), col.serie, y);
         doc.setDrawColor(232, 236, 241); doc.line(M, y + 1.8, W - M, y + 1.8);
         y += 6;
@@ -5194,7 +5673,13 @@ export class AppComponent {
     this.anualVista = 'captura';
     this.cap = { lev: l, bienes: [], cargando: true, paso: 'area', area: null, busquedaArea: '', bien: null,
                  foto: null, fotoUrl: '', respuesta: '', guardando: false, error: '', ultimo: '', clave: '',
-                 verClave: false, verLista: false, escaneando: false };
+                 verClave: false, verLista: false, escaneando: false,
+                 modo: 'persona', grupo: null, agregado: null, ofrecerNuevo: false, claveSugerida: '', desdeLista: false, cambios: false };
+    this.capOpciones = { areas: [], personas: [], clasificaciones: [], marcas: [] };
+    this.http.get<any>(this.api + '/levantamientos/' + l.idLevantamiento + '/opciones').subscribe({
+      next: o => this.capOpciones = { areas: [], personas: [], clasificaciones: [], marcas: [], ...(o || {}) },
+      error: () => { /* sin opciones: el formulario de bien nuevo avisará */ }
+    });
     this.http.get<any[]>(this.api + '/levantamientos/' + l.idLevantamiento + '/bienes').subscribe({
       next: rows => { this.cap.bienes = rows || []; this.cap.cargando = false; },
       error: e => { this.cap.cargando = false; this.cap.error = this.mensajeError(e, 'No se pudieron cargar los bienes.'); }
@@ -5205,44 +5690,65 @@ export class AppComponent {
   salirCaptura(): void {
     this.detenerEscaner();
     this.limpiarFotoCaptura();
+    // Hubo bienes nuevos o traídos: la lista de Bienes debe reflejarlos
+    if (this.cap?.cambios) this.loadBienes();
     this.cap = null;
     this.anualVista = 'lista';
     this.loadLevantamientos();
   }
 
   get capRevisados(): number {
-    return this.cap ? this.cap.bienes.filter((b: any) => b.respuesta).length : 0;
+    return this.cap ? this.cap.bienes.filter((b: any) => b.estatus === 'REVISADO').length : 0;
   }
 
   get capPct(): number {
     return this.cap?.bienes.length ? Math.round((this.capRevisados / this.cap.bienes.length) * 100) : 0;
   }
 
-  get areasFiltradas(): any[] {
+  // Personas o áreas de la sede con su avance (hechos = revisados + no encontrados)
+  get gruposCaptura(): any[] {
     if (!this.cap) return [];
+    const porPersona = this.cap.modo === 'persona';
     const mapa = new Map<any, any>();
     for (const b of this.cap.bienes) {
-      const id = b.id_ubicacion ?? 'sin';
-      const a = mapa.get(id) || { id: b.id_ubicacion ?? null, nombre: b.ubicacion || 'Sin ubicación', total: 0, revisados: 0 };
-      a.total++;
-      if (b.respuesta) a.revisados++;
-      mapa.set(id, a);
+      const id = (porPersona ? b.id_persona : b.id_ubicacion) ?? null;
+      const key = id ?? 'sin';
+      const g = mapa.get(key) || { key, id, nombre: porPersona ? (b.persona || 'Sin resguardante') : (b.ubicacion || 'Sin ubicación'), total: 0, hechos: 0 };
+      g.total++;
+      if (b.estatus) g.hechos++;
+      mapa.set(key, g);
     }
     const q = String(this.cap.busquedaArea || '').toLowerCase().trim();
     return Array.from(mapa.values())
-      .filter(a => !q || a.nombre.toLowerCase().includes(q))
-      .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+      .filter(g => !q || g.nombre.toLowerCase().includes(q))
+      .sort((a, b) => Number(a.key === 'sin') - Number(b.key === 'sin') || a.nombre.localeCompare(b.nombre, 'es'));
   }
 
-  get pendientesArea(): any[] {
-    if (!this.cap) return [];
-    return this.cap.bienes.filter((b: any) => !b.respuesta && (!this.cap.area || b.id_ubicacion === this.cap.area.id));
-  }
-
-  elegirArea(a: any): void {
-    this.cap.area = a;
+  // g = persona o área elegida; null = toda la sede
+  elegirGrupo(g: any): void {
+    this.cap.grupo = g ? { ...g, modo: this.cap.modo } : null;
+    this.cap.area = g && this.cap.modo === 'area' ? { id: g.id, nombre: g.nombre } : null;
     this.cap.paso = 'escanear';
     this.cap.error = '';
+  }
+
+  private enGrupo(b: any): boolean {
+    const g = this.cap?.grupo;
+    if (!g) return true;
+    return ((g.modo === 'persona' ? b.id_persona : b.id_ubicacion) ?? 'sin') === g.key;
+  }
+
+  get bienesGrupo(): any[] {
+    return this.cap ? this.cap.bienes.filter((b: any) => this.enGrupo(b)) : [];
+  }
+
+  get pendientesGrupo(): any[] {
+    return this.bienesGrupo.filter((b: any) => !b.estatus);
+  }
+
+  get grupoActualNombre(): string {
+    if (this.cap?.grupo) return this.cap.grupo.nombre;
+    return this.cap?.modo === 'area' ? 'Todas las áreas' : 'Todas las personas';
   }
 
   esTexto(x: any): boolean {
@@ -5251,6 +5757,14 @@ export class AppComponent {
 
   // Identifica el bien con lo que traiga el QR (enlace de la ficha, texto o la clave)
   private identificarBien(texto: string): any {
+    const { id, clave } = this.datosQr(texto);
+    const lista = this.cap.bienes;
+    return (id && lista.find((b: any) => String(b.codigo_qr || '').replace(/-/g, '').substring(0, 8).toUpperCase() === id))
+      || (clave && lista.find((b: any) => String(b.clave || '').toUpperCase() === clave.toUpperCase()))
+      || null;
+  }
+
+  private datosQr(texto: string): { id: string; clave: string } {
     const t = String(texto || '').trim();
     let id = '', clave = '';
     const hash = t.includes('#') ? t.split('#')[1] : t.includes('?') ? t.split('?')[1] : '';
@@ -5262,19 +5776,33 @@ export class AppComponent {
       if (m) clave = m[1].trim();
     }
     if (!id && !clave) clave = t;
-    const lista = this.cap.bienes;
-    return (id && lista.find((b: any) => String(b.codigo_qr || '').replace(/-/g, '').substring(0, 8).toUpperCase() === id))
-      || (clave && lista.find((b: any) => String(b.clave || '').toUpperCase() === clave.toUpperCase()))
-      || null;
+    return { id, clave };
   }
 
   private alLeerQr(texto: string): void {
     const b = this.identificarBien(texto);
-    if (!b) {
-      this.cap.error = 'Ese QR no corresponde a un bien activo de ' + this.cap.lev.sede + '.';
-      return;
-    }
-    this.abrirBienCaptura(b);
+    if (b) { this.abrirBienCaptura(b); return; }
+    this.buscarFueraDeSede(texto);
+  }
+
+  // No está en esta sede: se busca en todas; si aparece en otra se ofrece traerlo, si no, registrarlo como nuevo
+  private buscarFueraDeSede(texto: string): void {
+    const c = this.cap;
+    const { id, clave } = this.datosQr(texto);
+    const q = (id || clave || '').trim();
+    c.error = '';
+    c.ultimo = '';
+    c.ofrecerNuevo = false;
+    if (q.length < 2) { c.error = 'No se reconoció el código.'; return; }
+    this.http.get<any[]>(this.api + '/levantamientos/' + c.lev.idLevantamiento + '/buscar', { params: { q } }).subscribe({
+      next: rows => {
+        if ((rows || []).some(r => !r.en_esta_sede)) { this.abrirBuscarGeneral(q, rows || []); return; }
+        c.error = '"' + (clave || q) + '" no está registrado en ninguna sede.';
+        c.ofrecerNuevo = true;
+        c.claveSugerida = !id && clave ? clave : '';
+      },
+      error: e => c.error = this.mensajeError(e, 'No se pudo buscar el bien.')
+    });
   }
 
   abrirBienCaptura(b: any): void {
@@ -5284,6 +5812,9 @@ export class AppComponent {
     this.cap.respuesta = '';
     this.cap.error = '';
     this.cap.ultimo = '';
+    this.cap.agregado = null;
+    this.cap.ofrecerNuevo = false;
+    this.cap.desdeLista = false;
     this.cap.paso = 'bien';
     window.scrollTo({ top: 0 });
   }
@@ -5296,7 +5827,7 @@ export class AppComponent {
 
   buscarPorClave(): void {
     const b = this.identificarBien(this.cap.clave);
-    if (!b) { this.cap.error = 'No hay un bien con la clave "' + this.cap.clave + '" en esta sede.'; return; }
+    if (!b) { this.buscarFueraDeSede(this.cap.clave); return; }
     this.cap.clave = '';
     this.abrirBienCaptura(b);
   }
@@ -5442,6 +5973,7 @@ export class AppComponent {
       next: r => {
         c.guardando = false;
         b.respuesta = c.respuesta;
+        b.estatus = 'REVISADO';
         b.fuera_de_lugar = !!r?.fueraDeLugar;
         b.ubicacion_encontrada = r?.fueraDeLugar ? (c.area?.nombre || null) : null;
         b.fecha_registro = new Date().toISOString();
@@ -5459,6 +5991,135 @@ export class AppComponent {
     });
   }
 
+  // ----- No encontrado / bien nuevo / traer de otra sede -----
+
+  marcarNoEncontradoCap(): void {
+    const c = this.cap, b = c?.bien;
+    if (!b || c.guardando) return;
+    c.guardando = true;
+    c.error = '';
+    this.http.post<any>(this.api + '/levantamientos/' + c.lev.idLevantamiento + '/no-encontrados', { idBien: b.id_bien }).subscribe({
+      next: () => {
+        c.guardando = false;
+        b.estatus = 'NO_ENCONTRADO';
+        b.respuesta = null;
+        b.fuera_de_lugar = false;
+        b.fecha_registro = new Date().toISOString();
+        this.limpiarFotoCaptura();
+        c.bien = null;
+        c.paso = 'escanear';
+        c.ultimo = b.clave + ' · marcado como no encontrado';
+        this.abrirAvanceCaptura('pendientes');
+      },
+      error: e => { c.guardando = false; c.error = this.mensajeError(e, 'No se pudo marcar. Inténtalo de nuevo.'); }
+    });
+  }
+
+  abrirNuevoBienCap(): void {
+    const c = this.cap;
+    if (!c) return;
+    this.detenerEscaner();
+    const g = c.grupo;
+    this.capNuevo = {
+      articulo: '', idUbicacion: g?.modo === 'area' ? g.id : null, idPersona: g?.modo === 'persona' ? g.id : null,
+      idClasificacion: null, idMarca: null, modelo: '', numeroSerie: '', caracteristicas: '',
+      clave: c.claveSugerida || '', mas: !!c.claveSugerida, guardando: false, error: ''
+    };
+  }
+
+  guardarNuevoBienCap(): void {
+    const n = this.capNuevo, c = this.cap;
+    if (!n || !c || n.guardando) return;
+    if (!String(n.articulo || '').trim()) { n.error = 'Escribe qué es el bien.'; return; }
+    if (!n.idUbicacion) { n.error = 'Elige el área donde queda el bien.'; return; }
+    n.guardando = true;
+    n.error = '';
+    const datos = {
+      articulo: n.articulo, idUbicacion: n.idUbicacion, idPersona: n.idPersona, idClasificacion: n.idClasificacion,
+      idMarca: n.idMarca, modelo: n.modelo, numeroSerie: n.numeroSerie, caracteristicas: n.caracteristicas, clave: n.clave
+    };
+    this.http.post<any>(this.api + '/levantamientos/' + c.lev.idLevantamiento + '/bienes-nuevos', datos).subscribe({
+      next: r => {
+        this.capNuevo = null;
+        c.bienes.unshift(r);
+        this.despuesDeAgregar(r, 'nuevo');
+      },
+      error: e => { n.guardando = false; n.error = this.mensajeError(e, 'No se pudo registrar el bien.'); }
+    });
+  }
+
+  private despuesDeAgregar(b: any, tipo: 'nuevo' | 'traido'): void {
+    const c = this.cap;
+    c.agregado = { bien: b, tipo };
+    c.cambios = true;
+    c.error = '';
+    c.ultimo = '';
+    c.ofrecerNuevo = false;
+    c.claveSugerida = '';
+    c.paso = 'escanear';
+    window.scrollTo({ top: 0 });
+  }
+
+  abrirBuscarGeneral(q = '', resultados?: any[]): void {
+    this.detenerEscaner();
+    this.capBuscar = { q, resultados: resultados || [], buscado: !!resultados, cargando: false, elegido: null,
+                       idUbicacion: null, idPersona: null, guardando: false, error: '' };
+    if (q && !resultados) this.buscarGeneralCap();
+  }
+
+  buscarGeneralCap(): void {
+    const s = this.capBuscar;
+    const q = String(s?.q || '').trim();
+    if (!s || s.cargando) return;
+    if (q.length < 2) { s.error = 'Escribe al menos 2 letras o números.'; return; }
+    s.cargando = true;
+    s.error = '';
+    s.elegido = null;
+    this.http.get<any[]>(this.api + '/levantamientos/' + this.cap.lev.idLevantamiento + '/buscar', { params: { q } }).subscribe({
+      next: rows => { s.cargando = false; s.buscado = true; s.resultados = rows || []; },
+      error: e => { s.cargando = false; s.error = this.mensajeError(e, 'No se pudo buscar.'); }
+    });
+  }
+
+  abrirDesdeBusqueda(r: any): void {
+    const b = this.cap.bienes.find((x: any) => x.id_bien === r.id_bien) || r;
+    this.capBuscar = null;
+    this.abrirBienCaptura(b);
+  }
+
+  elegirTraer(r: any): void {
+    const g = this.cap.grupo;
+    this.capBuscar.elegido = r;
+    this.capBuscar.idUbicacion = g?.modo === 'area' ? g.id : null;
+    this.capBuscar.idPersona = g?.modo === 'persona' ? g.id : null;
+    this.capBuscar.error = '';
+  }
+
+  confirmarTraer(r: any): void {
+    const s = this.capBuscar, c = this.cap;
+    if (!s || s.guardando) return;
+    if (!s.idUbicacion) { s.error = 'Elige el área donde queda el bien.'; return; }
+    s.guardando = true;
+    s.error = '';
+    this.http.post<any>(this.api + '/levantamientos/' + c.lev.idLevantamiento + '/traer',
+      { idBien: r.id_bien, idUbicacion: s.idUbicacion, idPersona: s.idPersona }).subscribe({
+      next: b => {
+        this.capBuscar = null;
+        c.bienes = [b, ...c.bienes.filter((x: any) => x.id_bien !== b.id_bien)];
+        this.despuesDeAgregar(b, 'traido');
+      },
+      error: e => { s.guardando = false; s.error = this.mensajeError(e, 'No se pudo mover el bien.'); }
+    });
+  }
+
+  nuevoDesdeBusqueda(): void {
+    const q = String(this.capBuscar?.q || '').trim();
+    this.capBuscar = null;
+    this.abrirNuevoBienCap();
+    if (/^[A-Za-z]{1,4}[0-9]{2,}$/.test(q)) { this.capNuevo.clave = q.toUpperCase(); this.capNuevo.mas = true; }
+    else this.capNuevo.articulo = q;
+  }
+
   // ----- Actas (PDF) -----
 
   esActa(d: any): boolean {
@@ -5470,6 +6131,7 @@ export class AppComponent {
       case 'ACTA_INICIO': return 'Acta de inicio';
       case 'ACTA_CIERRE': return 'Acta de cierre';
       case 'BAJA': return 'Formato de Baja';
+      case 'RESGUARDO': return 'Resguardo individual';
       default: return 'Formato de Alta';
     }
   }
@@ -5500,12 +6162,8 @@ export class AppComponent {
       doc.setFont('helvetica', 'normal'); doc.text('DE NUESTRO PAÍS', X - 4, 271);
       doc.setFontSize(7); doc.setTextColor(130, 130, 130);
       doc.text('Folio ' + (d.folio || '') + ' · DOZZER', R + 4, 271, { align: 'right' });
-      if (d.anulado) {
-        try { (doc as any).setGState(new (doc as any).GState({ opacity: 0.18 })); } catch { /* */ }
-        doc.setFont('helvetica', 'bold'); doc.setFontSize(72); doc.setTextColor(194, 65, 75);
-        doc.text('ANULADO', 108, 150, { align: 'center', angle: 32 });
-        try { (doc as any).setGState(new (doc as any).GState({ opacity: 1 })); } catch { /* */ }
-      }
+      if (d.anulado) this.marcaAgua(doc, 'ANULADO', [194, 65, 75], 150);
+      if (d.borrador) this.marcaAgua(doc, 'BORRADOR', [110, 125, 145], 150);
       doc.setTextColor(0, 0, 0);
       y = 42;
     };
@@ -5598,7 +6256,13 @@ export class AppComponent {
       const respuestas = Object.entries(t.respuestas || {}).map(([k, v]) => k + ': ' + v).join(' · ');
       parrafo('Bienes registrados en la sede: ' + (t.bienes ?? 0) + '. Localizados: ' + (t.encontrados ?? 0) + '. No localizados: ' + (t.noLocalizados ?? 0) +
         '. Fuera de su ubicación registrada: ' + (t.fueraDeLugar ?? 0) + '.', { tam: 10, espacio: 2 });
-      if (respuestas) parrafo((d.pregunta || 'Estado') + ' — ' + respuestas + '.', { tam: 10 });
+      if (respuestas) parrafo((d.pregunta || 'Estado') + ' — ' + respuestas + '.', { tam: 10, espacio: 2 });
+      const extras: string[] = [];
+      if (t.nuevos) extras.push('bienes nuevos registrados durante el levantamiento: ' + t.nuevos);
+      if (t.transferidos) extras.push('bienes traídos de otra sede: ' + t.transferidos);
+      if (t.marcadosNoEncontrados) extras.push('marcados como no encontrados: ' + t.marcadosNoEncontrados);
+      if (extras.length) parrafo(this.capitalizarPrimera(extras.join('; ')) + '.', { tam: 10 });
+      if (d.borrador) parrafo('Borrador generado con la información capturada hasta este momento.', { tam: 9 });
       parrafo('Se adjunta listado de bienes.', { negrita: true });
       nuevaPagina();
       parrafo('No habiendo más asuntos que tratar, se procede a la formalización de la presente Acta de Cierre, la cual se firma en 2 tantos, destinándose un ejemplar al área responsable del control patrimonial para los efectos administrativos y normativos correspondientes.');
@@ -5642,6 +6306,18 @@ export class AppComponent {
     return doc.output('blob');
   }
 
+  private marcaAgua(doc: jsPDF, texto: string, color: [number, number, number], y: number): void {
+    try { (doc as any).setGState(new (doc as any).GState({ opacity: 0.16 })); } catch { /* sin transparencia */ }
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(texto.length > 8 ? 62 : 72); doc.setTextColor(...color);
+    doc.text(texto, 108, y, { align: 'center', angle: 32 });
+    try { (doc as any).setGState(new (doc as any).GState({ opacity: 1 })); } catch { /* sin transparencia */ }
+    doc.setTextColor(0, 0, 0);
+  }
+
+  private capitalizarPrimera(t: string): string {
+    return t ? t.charAt(0).toUpperCase() + t.slice(1) : t;
+  }
+
   private ajustarTexto(doc: jsPDF, t: string, ancho: number): string {
     t = String(t || '');
     if (doc.getTextWidth(t) <= ancho) return t;
@@ -5675,7 +6351,7 @@ export class AppComponent {
       .filter(d => this.docsVista === 'ACTAS' ? String(d.tipo).startsWith('ACTA') : d.tipo === this.docsVista)
       .filter(d => {
         if (!palabras.length) return true;
-        const t = [d.folio, d.clave, d.descripcion, d.sede, d.solicito, d.autorizo].join(' ').toLowerCase();
+        const t = [d.folio, d.clave, d.descripcion, d.sede, d.solicito, d.autorizo, d.persona, d.levantamiento].join(' ').toLowerCase();
         return palabras.every(p => t.includes(p));
       });
   }
@@ -5688,7 +6364,8 @@ export class AppComponent {
       next: r => {
         this.abriendoDocumento = null;
         this.docGenerando = false;
-        this.abrirFormato({ ...(r.datos || {}), anulado: r.estado === 'ANULADO' } as FormatoDoc);
+        this.abrirFormato({ ...(r.datos || {}), anulado: r.estado === 'ANULADO', borrador: r.estado === 'BORRADOR',
+                            historico: r.estado === 'HISTORICO' } as FormatoDoc);
       },
       error: e => {
         this.abriendoDocumento = null;
@@ -5785,7 +6462,8 @@ export class AppComponent {
       return;
     }
     if (numero.length === 10) numero = '52' + numero; // México
-    const bien = (d.datos.filas || [])[0];
+    const resg = d.datos.tipo === 'RESGUARDO';
+    const bien: any = resg ? { inventario: (d.datos as any).persona?.nombre, descripcion: (d.datos as any).totalBienes + ' bienes' } : (d.datos.filas || [])[0];
     const texto = this.tituloDoc(d.datos) + ' · Folio ' + d.datos.folio +
       (bien ? '\n' + [bien.inventario, bien.descripcion].filter(x => x).join(' · ') : '') +
       (d.datos.sede ? '\nSede: ' + d.datos.sede : '') +
@@ -5839,6 +6517,7 @@ export class AppComponent {
   // Las firmas quedan como espacio vacío: ahí irá la imagen de la firma de cada persona.
   private async crearPdfFormato(d: FormatoDoc): Promise<Blob> {
     if (this.esActa(d)) return this.crearPdfActa(d as any);
+    if (d.tipo === 'RESGUARDO') return this.crearPdfResguardo(d as any);
     type RGB = [number, number, number];
     const NAVY: RGB = [23, 38, 61], AZUL: RGB = [36, 76, 120], GRIS: RGB = [110, 120, 135];
     const CLARO: RGB = [244, 246, 250], LINEA: RGB = [214, 220, 229];
@@ -5973,6 +6652,133 @@ export class AppComponent {
       ahora.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false });
     doc.text('Folio ' + d.folio + ' · Generado en DOZZER el ' + sello, R, 269, { align: 'right' });
 
+    return doc.output('blob');
+  }
+
+  // Resguardo individual FA-04-02-02 (mismo estilo que el Alta). Lista los bienes REVISADOS de la persona.
+  private async crearPdfResguardo(d: any): Promise<Blob> {
+    type RGB = [number, number, number];
+    const NAVY: RGB = [23, 38, 61], AZUL: RGB = [36, 76, 120], GRIS: RGB = [110, 120, 135];
+    const CLARO: RGB = [244, 246, 250], LINEA: RGB = [214, 220, 229], ACENTO: RGB = [106, 79, 179];
+    const doc = new jsPDF({ unit: 'mm', format: 'letter', compress: true });
+    const X = 20, W = 176, R = X + W, LIMITE = 252;
+    const per = d.persona || {};
+    const filas: any[] = d.filas || [];
+    const ajustar = (t: any, ancho: number) => this.ajustarTexto(doc, String(t ?? ''), ancho);
+    const seccion = (titulo: string, y: number) => {
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(...AZUL);
+      doc.text(titulo, X, y);
+    };
+    const logo = await this.cargarLogo();
+
+    const encabezado = (completo: boolean) => {
+      if (logo) { try { doc.addImage(logo, 'PNG', X, 15, completo ? 52 : 40, (completo ? 52 : 40) * 227 / 879, 'logo', 'FAST'); } catch { /* sin logo */ } }
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(completo ? 16 : 12.5); doc.setTextColor(...NAVY);
+      doc.text('RESGUARDO DE INVENTARIOS', R, 21, { align: 'right' });
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...GRIS);
+      doc.text('Clave ' + (d.formato || 'FA-04-02-02') + '   ·   Revisión ' + (d.revision || '2') + (completo ? '' : '   ·   ' + (per.nombre || '')), R, 27, { align: 'right' });
+      doc.setDrawColor(...NAVY); doc.setLineWidth(0.8); doc.line(X, 34, R, 34);
+      doc.setDrawColor(...ACENTO); doc.setLineWidth(0.8); doc.line(R - 30, 34, R, 34);
+    };
+
+    // Columnas de la tabla (suman W)
+    const cols = [7, 36, 34, 19, 29, 24, 10, 17];
+    const titulos = ['#', 'Nombre', 'Descripción', 'Clave', 'Modelo / Serie', 'Área', 'Pzas', 'Estado'];
+    const cabeceraTabla = (y: number) => {
+      doc.setFillColor(...NAVY); doc.rect(X, y, W, 7.5, 'F');
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(255, 255, 255);
+      let x = X;
+      titulos.forEach((t, i) => { doc.text(t, x + 1.8, y + 5); x += cols[i]; });
+      return y + 7.5;
+    };
+
+    // Página 1: datos generales y del usuario
+    encabezado(true);
+    const cajas: [string, string][] = [['SEDE', d.sede || '—'], ['FOLIO', d.folio || '—'], ['FECHA DEL RESGUARDO', d.fecha || '—']];
+    const anchosCaja = [62, 46, 64];
+    let x = X;
+    cajas.forEach(([l, v], i) => {
+      doc.setFillColor(...CLARO); doc.roundedRect(x, 40, anchosCaja[i], 15, 2, 2, 'F');
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(...GRIS); doc.text(l, x + 4, 45.5);
+      doc.setFontSize(11); doc.setTextColor(...NAVY); doc.text(ajustar(v, anchosCaja[i] - 8), x + 4, 51.5);
+      x += anchosCaja[i] + 2;
+    });
+
+    seccion('DATOS DEL USUARIO', 64);
+    const datos: [string, string][] = [
+      ['Número del empleado', per.numeroEmpleado || '—'], ['Nombre del empleado', per.nombre || '—'],
+      ['Área', per.area || '—'], ['Cargo o puesto', per.puesto || '—']
+    ];
+    datos.forEach(([l, v], i) => {
+      const cx = X + (i % 2) * 89, cy = 71 + Math.floor(i / 2) * 12;
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(6.8); doc.setTextColor(...GRIS); doc.text(l.toUpperCase(), cx, cy);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(...NAVY); doc.text(ajustar(v, 86), cx, cy + 5);
+    });
+
+    seccion('BIENES BAJO RESGUARDO (' + filas.length + ')' + (d.levantamiento ? '  ·  ' + d.levantamiento : ''), 100);
+    let y = cabeceraTabla(103);
+    const marca = (f: any) => f.origen === 'NUEVO' ? ' *' : f.origen === 'TRANSFERIDO' ? ' **' : '';
+    filas.forEach((f, n) => {
+      if (y + 7 > LIMITE) {
+        doc.addPage();
+        encabezado(false);
+        y = cabeceraTabla(40);
+      }
+      if (n % 2 === 0) { doc.setFillColor(...CLARO); doc.rect(X, y, W, 7, 'F'); }
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7.4); doc.setTextColor(...NAVY);
+      const celdas = [String(n + 1), f.nombre, f.descripcion || '—', String(f.clave || '') + marca(f), f.modeloSerie, f.area, String(f.piezas ?? 1), f.estado || '—'];
+      x = X;
+      celdas.forEach((t, i) => {
+        if (i === 3) doc.setFont('helvetica', 'bold');
+        doc.text(ajustar(t, cols[i] - 3), x + 1.8, y + 4.8);
+        if (i === 3) doc.setFont('helvetica', 'normal');
+        x += cols[i];
+      });
+      y += 7;
+    });
+    doc.setDrawColor(...LINEA); doc.setLineWidth(0.3); doc.line(X, y, R, y);
+    y += 5;
+    if (filas.some(f => f.origen)) {
+      doc.setFont('helvetica', 'italic'); doc.setFontSize(7.2); doc.setTextColor(...GRIS);
+      doc.text('*  Bien nuevo registrado en el levantamiento.    **  Bien traído de otra sede durante el levantamiento.', X, y);
+      y += 5;
+    }
+
+    // Firmas (si no caben, van en una hoja nueva)
+    if (y + 50 > LIMITE + 8) { doc.addPage(); encabezado(false); y = 44; }
+    y += 4;
+    seccion('FIRMAS', y);
+    const espacioFirma = (fx: number, fy: number, w: number, nombre: string, rol: string) => {
+      doc.setDrawColor(...LINEA); doc.setLineWidth(0.3);
+      (doc as any).setLineDashPattern([1.2, 1.2], 0);
+      doc.roundedRect(fx + 4, fy, w - 8, 22, 2, 2);
+      (doc as any).setLineDashPattern([], 0);
+      doc.setFont('helvetica', 'italic'); doc.setFontSize(7); doc.setTextColor(170, 178, 190);
+      doc.text('Espacio para firma', fx + w / 2, fy + 12, { align: 'center' });
+      doc.setDrawColor(...NAVY); doc.setLineWidth(0.35);
+      doc.line(fx + 4, fy + 26, fx + w - 4, fy + 26);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...NAVY);
+      doc.text(ajustar(String(nombre || '').toUpperCase(), w - 6), fx + w / 2, fy + 30.5, { align: 'center' });
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...GRIS);
+      doc.text(rol, fx + w / 2, fy + 34.5, { align: 'center' });
+    };
+    espacioFirma(X + 4, y + 5, 80, per.nombre || '', 'Nombre y firma del resguardante');
+    espacioFirma(X + 92, y + 5, 80, 'Ing. ' + (d.recursosNombre || 'Juan Carlos Zuno Muñiz'), 'Nombre y firma del ' + String(d.recursosCargo || 'Jefe de recursos materiales').toLowerCase());
+
+    // Marca de agua y pie en todas las hojas
+    const paginas = doc.getNumberOfPages();
+    const ahora = new Date();
+    const sello = ahora.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' +
+      ahora.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false });
+    for (let i = 1; i <= paginas; i++) {
+      doc.setPage(i);
+      if (d.borrador) this.marcaAgua(doc, 'BORRADOR', [110, 125, 145], 165);
+      if (d.historico) this.marcaAgua(doc, 'HISTÓRICO', [110, 125, 145], 165);
+      doc.setDrawColor(...LINEA); doc.setLineWidth(0.3); doc.line(X, 264, R, 264);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(...GRIS);
+      doc.text('DOZZER Construcción y Asesoría S.A. de C.V.', X, 269);
+      doc.text('Folio ' + (d.folio || '') + ' · Página ' + i + ' de ' + paginas + ' · Generado el ' + sello, R, 269, { align: 'right' });
+    }
     return doc.output('blob');
   }
 
