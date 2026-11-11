@@ -153,7 +153,11 @@ export class IcoComponent { @Input() n = ''; }
           <span class="switch" *ngIf="pushCambiable" [class.on]="pushEstado==='activo'"><i></i></span>
         </button>
         <button class="side-op" *ngIf="instalarPrompt" (click)="instalarApp()"><span><ico n="download"></ico></span><span class="side-op-txt">Instalar app</span></button>
-        <button class="side-op" (click)="menuCollapsed=true; abrirCambioPassword()"><span><ico n="key"></ico></span><span class="side-op-txt">Cambiar contraseña</span></button>
+        <button class="side-op" (click)="menuCollapsed=true; abrirCambioPassword()"><span><ico n="key"></ico></span><span class="side-op-txt">Cambiar mi contraseña</span></button>
+        <ng-container *ngIf="isAdmin">
+          <button class="side-op" (click)="menuCollapsed=true; abrirRestablecerManual()"><span><ico n="shield"></ico></span><span class="side-op-txt">Restablecer contraseña<small>A un usuario</small></span></button>
+          <button class="side-op" (click)="menuCollapsed=true; generarTemporalesPendientes()"><span><ico n="users"></ico></span><span class="side-op-txt">Contraseñas temporales<small>Una por empleado (Excel)</small></span></button>
+        </ng-container>
         <button class="side-op" (click)="menuCollapsed=true; manualAbierto=true"><span><ico n="book"></ico></span><span class="side-op-txt">Manual de usuario</span></button>
         <button class="side-op salir" (click)="logout()"><span><ico n="logout"></ico></span><span class="side-op-txt">Cerrar sesión</span></button>
       </div>
@@ -303,6 +307,9 @@ export class IcoComponent { @Input() n = ''; }
         </div>
       </div>
 
+      <!-- AVISO: ETIQUETA ESCANEADA -->
+      <div class="escaneo-ok" *ngIf="escaneoOk"><span class="escaneo-ok-ico"><ico n="check"></ico></span><span><b>Escaneada</b><small>{{ escaneoOk }}</small></span></div>
+
       <!-- BIENVENIDA (al iniciar sesión) -->
       <div class="bv" *ngIf="logged && bienvenida && !mustChangePassword" (click)="bienvenida=false">
         <div class="bv-in">
@@ -405,8 +412,13 @@ export class IcoComponent { @Input() n = ''; }
 
             <!-- Vista principal: vista previa + acciones -->
             <div class="doc-body" *ngIf="vistaDoc==='inicio'">
-              <div class="doc-preview">
-                <iframe [src]="d.vista" title="Vista previa del formato"></iframe>
+              <div class="doc-preview" [class.paginas]="vistaPaginas">
+                <iframe *ngIf="!vistaPaginas" [src]="d.vista" title="Vista previa del formato"></iframe>
+                <div class="doc-paginas" *ngIf="vistaPaginas">
+                  <div class="cap-loading" *ngIf="!paginasPdf.length && !paginasError"><div class="loader-ring"></div><strong>Preparando la vista…</strong></div>
+                  <p class="cap-hint" *ngIf="paginasError">{{ paginasError }}</p>
+                  <img *ngFor="let p of paginasPdf; let i = index" [src]="p" [alt]="'Página ' + (i + 1)">
+                </div>
               </div>
 
               <div class="doc-side">
@@ -992,11 +1004,11 @@ export class IcoComponent { @Input() n = ''; }
             <ng-template #accionesBienTpl let-b>
               <div class="ba">
                 <button (click)="editarDesdePanel(b)" [title]="isAdmin ? 'Editar el bien' : 'Solicitar un cambio'"><ico n="edit"></ico><span>{{ isAdmin ? 'Editar' : 'Cambiar' }}</span></button>
-                <label *ngIf="isAdmin" [class.off]="fotoSubiendo" [title]="b.foto_mini ? 'Cambiar la foto' : 'Tomar foto'">
+                <label *ngIf="isAdmin && !b.foto_mini" [class.off]="fotoSubiendo" title="Tomar foto">
                   <ico n="camera"></ico><span>{{ fotoSubiendo ? 'Subiendo' : 'Foto' }}</span>
                   <input type="file" accept="image/*" capture="environment" (change)="cambiarFotoBien($event, b)" [disabled]="fotoSubiendo" hidden>
                 </label>
-                <button *ngIf="isAdmin" (click)="abrirAsignarEtiqueta(b)" [title]="b.etiqueta ? 'Cambiar etiqueta QR' : 'Asignar etiqueta QR'"><ico n="qr"></ico><span>Etiqueta</span></button>
+                <button *ngIf="isAdmin && !b.etiqueta" (click)="abrirAsignarEtiqueta(b)" title="Asignar etiqueta QR"><ico n="qr"></ico><span>Etiqueta</span></button>
                 <button *ngIf="b.etiqueta" (click)="imprimirCodigos([b.etiqueta])" title="Reimprimir su etiqueta"><ico n="printer"></ico><span>Imprimir</span></button>
                 <button *ngIf="isAdmin" (click)="formatoAltaDeBien(b)" title="Formato de alta (PDF)"><ico n="file"></ico><span>Formato</span></button>
                 <button class="peligro" (click)="deleteBien(b.id_bien)" [title]="isAdmin ? 'Dar de baja' : 'Solicitar la baja'"><ico n="trash"></ico><span>Baja</span></button>
@@ -1617,7 +1629,7 @@ export class IcoComponent { @Input() n = ''; }
 
                   <div class="lv-pie">
                     <div class="lv-ics">
-                      <button *ngIf="l.idDocumentoInicio" (click)="abrirDocumentoGuardado(l.idDocumentoInicio)" title="Acta de inicio"><ico n="flag"></ico><span>Inicio</span></button>
+                      <button *ngIf="l.idDocumentoInicio" (click)="abrirActaInicio(l)" [title]="l.inicioFirmado || !l.puedoAdministrar ? 'Acta de inicio' : 'Acta de inicio: falta firmarla'" [class.pendiente]="l.puedoAdministrar && !l.inicioFirmado"><ico n="flag"></ico><span>Inicio</span></button>
                       <button *ngIf="l.idDocumentoCierre" (click)="abrirDocumentoGuardado(l.idDocumentoCierre)" title="Acta de cierre (borrador)"><ico n="file"></ico><span>Cierre</span></button>
                       <button *ngIf="l.resguardos" (click)="verResguardosLev(l)" [title]="l.resguardos + ' resguardos'"><ico n="idcard"></ico><span>Resguardos</span></button>
                       <button [class.on]="levDetalle===l.idLevantamiento" (click)="levDetalle = levDetalle===l.idLevantamiento ? null : l.idLevantamiento" title="Detalles"><ico n="info"></ico><span>Detalles</span></button>
@@ -2181,6 +2193,39 @@ export class IcoComponent { @Input() n = ''; }
               </div>
             </div>
 
+            <!-- ===== Firmas del acta de inicio ===== -->
+            <div class="modal-backdrop" *ngIf="firmaIni as fi">
+              <div class="modal-card wizard">
+                <div class="modal-header">
+                  <div>
+                    <h2>Firmas del acta de inicio</h2>
+                    <p>{{ fi.lev.sede | titlecase }} · Inventario {{ fi.lev.anio }} · {{ semestre(fi.lev) }}. Cada participante firma con el dedo; después verás el acta en PDF.</p>
+                  </div>
+                  <button class="close-button" [disabled]="fi.guardando" (click)="firmaIni=null">×</button>
+                </div>
+                <div class="form-section">
+                  <div class="cierre-firma" *ngFor="let p of fi.ps; let i = index">
+                    <label class="firma-lbl">{{ p.nombre }} <span class="muted">· {{ p.cargo }}</span></label>
+                    <div class="firma-pad" [hidden]="fi.papel[i]">
+                      <canvas [id]="'firma-inicio-' + i" #fi_c width="600" height="220" (pointerdown)="firmaDown($event, fi_c, 'i' + i)" (pointermove)="firmaMove($event, fi_c, 'i' + i)"
+                              (pointerup)="firmaUp('i' + i)" (pointercancel)="firmaUp('i' + i)" (pointerleave)="firmaUp('i' + i)"></canvas>
+                      <span class="firma-guia" *ngIf="!fi.trazos['i' + i]">Firme aquí con el dedo</span>
+                      <button class="firma-borrar" *ngIf="fi.trazos['i' + i]" (click)="borrarFirma(fi_c, 'i' + i)">Borrar</button>
+                    </div>
+                    <label class="cm-check"><input type="checkbox" [(ngModel)]="fi.papel[i]"> Firmará en papel</label>
+                  </div>
+                </div>
+                <div class="inline-error" *ngIf="fi.error" style="margin:0 24px 12px">{{ fi.error }}</div>
+                <div class="modal-footer">
+                  <button class="btn-outline" [disabled]="fi.guardando" (click)="firmaIni=null">Firmar después</button>
+                  <button class="btn-primary" [disabled]="fi.guardando" (click)="guardarFirmasInicio()">
+                    <span class="mini-ring light" *ngIf="fi.guardando"></span>
+                    {{ fi.guardando ? 'Guardando…' : '✓ Guardar firmas y ver acta' }}
+                  </button>
+                </div>
+              </div>
+            </div>
+
             <!-- ===== Asistente: nuevo levantamiento ===== -->
             <div class="modal-backdrop" *ngIf="levNuevo">
               <div class="modal-card wizard">
@@ -2381,10 +2426,7 @@ export class IcoComponent { @Input() n = ''; }
                 <h1>Catálogos</h1>
                 <p>Administra la información base que se usa al registrar bienes, personas y ubicaciones.</p>
               </div>
-              <div class="heading-actions">
-                <button class="btn-outline" (click)="abrirRestablecerManual()">🔑 Restablecer contraseña</button>
-                <button class="btn-outline" (click)="generarTemporalesPendientes()">⇩ Contraseñas temporales</button>
-              </div>
+
             </div>
 
             <div class="catalog-layout">
@@ -2646,6 +2688,18 @@ export class IcoComponent { @Input() n = ''; }
     .column-picker>.btn-outline{display:inline-flex;align-items:center;gap:7px}
     .column-picker>.btn-outline>ico{width:17px;height:17px}
     .clasif-menu{width:300px}
+    .escaneo-ok{position:fixed;top:max(16px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);z-index:500;display:flex;align-items:center;gap:12px;background:#14804f;color:#fff;
+      border-radius:16px;padding:12px 20px 12px 14px;box-shadow:0 14px 40px #0f3d2a55;animation:escaneoEntra .25s ease both;pointer-events:none}
+    .escaneo-ok-ico{width:34px;height:34px;border-radius:50%;background:#ffffff2e;display:grid;place-items:center}
+    .escaneo-ok-ico ico{width:20px;height:20px}
+    .escaneo-ok b{display:block;font-size:16px}
+    .escaneo-ok small{font-size:13px;opacity:.9;font-family:"SFMono-Regular",Consolas,monospace}
+    @keyframes escaneoEntra{from{opacity:0;transform:translate(-50%,-12px) scale(.96)}to{opacity:1;transform:translate(-50%,0)}}
+    .doc-preview.paginas{max-height:70vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
+    .doc-paginas{display:flex;flex-direction:column;gap:12px}
+    .doc-paginas img{width:100%;height:auto;border-radius:6px;background:#fff;box-shadow:0 4px 18px #1b2c4422}
+    .lv-ics button.pendiente{color:#b26a00;position:relative}
+    .lv-ics button.pendiente::after{content:'';position:absolute;top:6px;right:14px;width:8px;height:8px;border-radius:50%;background:#e8a21a;box-shadow:0 0 0 2px #fff}
     .lg-instalar{margin-top:18px;padding-top:16px;border-top:1px solid #eef1f5;text-align:center}
     .lg-instalar button{display:inline-flex;align-items:center;gap:8px;border:1px solid #d6e0ec;background:#fff;color:#244c78;font-size:14px;font-weight:700;border-radius:999px;padding:10px 18px;cursor:pointer;transition:background .15s,border-color .15s}
     .lg-instalar button:hover{background:#f3f7fc;border-color:#b9cbe0}
@@ -4014,6 +4068,12 @@ export class AppComponent {
   manualAbierto = false;
   formMas = false;
   bienAbierto: any = null;
+  escaneoOk = '';
+  private escaneoTimer: any;
+  private audioCtx: any = null;
+  paginasPdf: string[] = [];
+  paginasError = '';
+  firmaIni: any = null;
   clasifAbierto = false;
   bienvenida = false;
   private bienvenidaTimer: any;
@@ -4638,7 +4698,11 @@ export class AppComponent {
         this.loading = false;
         clearTimeout(lento); this.loginLento = false;
         this.login.password = '';
-        if (!this.mustChangePassword) { this.loadAll(); this.mostrarBienvenida(true); }
+        if (!this.mustChangePassword) {
+          try { localStorage.removeItem('dozzer_ui_' + this.email); } catch { /* */ }
+          this.section = 'bienes'; this.vistaInv = 'bienes'; this.origenVistaInv = 'menu';
+          this.loadAll(); this.mostrarBienvenida(true);
+        }
       },
       error: e => {
         this.loading = false;
@@ -4651,6 +4715,8 @@ export class AppComponent {
   logout(): void {
     if (this.cola.total && !confirm('Hay ' + this.cola.total + ' cambios guardados en este celular que aún no se suben. Si cierras sesión se subirán la próxima vez que entres con tu cuenta. ¿Cerrar sesión?')) return;
     this.quitarPushAlSalir();
+    try { localStorage.removeItem('dozzer_ui_' + this.email); } catch { /* */ }
+    this.uiGuardado = '';
     this.pushEstado = 'cargando';
     localStorage.removeItem('dozzer_token');
     localStorage.removeItem('dozzer_email');
@@ -4702,7 +4768,7 @@ export class AppComponent {
   irA(s: string): void {
     this.menuCollapsed = true;
     this.editing = false;
-    if (s === 'bienes') { this.section = 'bienes'; this.abrirVistaInv('bienes'); return; }
+    if (s === 'bienes') { this.section = 'bienes'; this.abrirVistaInv('bienes'); this.loadBienes(); return; }
     if (s === 'anual') {
       this.section = 'anual';
       if (this.cap) { this.salirCaptura(); return; }
@@ -6243,6 +6309,14 @@ export class AppComponent {
   loadLevantamientos(): void {
     if (!this.logged) return;
     this.levCargando = true;
+    if (!this.levantamientos.length) {
+      this.idbGet('datos', 'levs-' + this.email).then(c => {
+        if (Array.isArray(c) && c.length && !this.levantamientos.length && this.levCargando) {
+          this.levantamientos = c;
+          if (this.levAbierto === null) this.levAbierto = (c.find((x: any) => x.estado === 'EN_CURSO') || c[0]).idLevantamiento;
+        }
+      });
+    }
     this.http.get<any[]>(this.api + '/levantamientos').subscribe({
       next: rows => {
         this.levantamientos = rows || [];
@@ -6343,10 +6417,41 @@ export class AppComponent {
         this.levNuevo = null;
         this.levAbierto = r.idLevantamiento;
         this.loadLevantamientos();
-        this.notificar('exito', 'Inventario iniciado', 'Inventario ' + r.anio + '-' + r.periodo + ' · ' + r.sede + '. El acta de inicio quedó guardada en Documentos.', 3500,
-          { texto: '📄 Ver acta de inicio', fn: () => this.abrirDocumentoGuardado(r.idDocumentoInicio) });
+        if ((r.participantes || []).length) this.abrirFirmasInicio(r);
+        else this.abrirDocumentoGuardado(r.idDocumentoInicio);
       },
       error: e => { this.levGuardando = false; this.levError = this.mensajeError(e, 'No fue posible crear el levantamiento.'); }
+    });
+  }
+
+  // Acta de inicio: si aún no tiene firmas, primero se firma en el celular y después se ve el PDF
+  abrirActaInicio(l: any): void {
+    if (l.estado === 'EN_CURSO' && l.puedoAdministrar && !l.inicioFirmado && (l.participantes || []).length) this.abrirFirmasInicio(l);
+    else this.abrirDocumentoGuardado(l.idDocumentoInicio);
+  }
+
+  abrirFirmasInicio(l: any): void {
+    this.firmaIni = { lev: l, ps: l.participantes || [], papel: {}, trazos: {}, guardando: false, error: '' };
+  }
+
+  guardarFirmasInicio(): void {
+    const z = this.firmaIni;
+    if (!z || z.guardando) return;
+    const falta = z.ps.findIndex((_: any, i: number) => !z.papel[i] && !z.trazos['i' + i]);
+    if (falta >= 0) { z.error = 'Falta la firma de ' + z.ps[falta].nombre + ' (o marca "Firmará en papel").'; return; }
+    const firmas = z.ps.map((_: any, i: number) => {
+      if (z.papel[i]) return null;
+      const c = document.getElementById('firma-inicio-' + i) as HTMLCanvasElement | null;
+      return c ? c.toDataURL('image/png') : null;
+    });
+    z.guardando = true; z.error = '';
+    this.http.post<any>(this.api + '/levantamientos/' + z.lev.idLevantamiento + '/firmas-inicio', { firmas }).subscribe({
+      next: r => {
+        this.firmaIni = null;
+        this.loadLevantamientos();
+        this.abrirDocumentoGuardado(r.idDocumentoInicio);
+      },
+      error: e => { z.guardando = false; z.error = this.mensajeError(e, 'No se pudieron guardar las firmas.'); }
     });
   }
 
@@ -6713,15 +6818,25 @@ export class AppComponent {
     this.capOpciones = { areas: [], personas: [], clasificaciones: [], marcas: [] };
     this.cargarEstadoPersonas();
     const c = this.cap, idLev = l.idLevantamiento;
+    // La copia guardada en el dispositivo se muestra al instante; la del servidor la actualiza al llegar
+    this.idbGet('datos', 'lev-' + idLev).then(async copia => {
+      if (this.cap !== c || !c.cargando || !copia?.bienes?.length) return;
+      c.bienes = copia.bienes;
+      await this.aplicarColaLocal(c.bienes, idLev);
+      c.cargando = false;
+    });
     this.http.get<any>(this.api + '/levantamientos/' + idLev + '/opciones').subscribe({
       next: o => { this.capOpciones = { areas: [], personas: [], clasificaciones: [], marcas: [], ...(o || {}) }; this.idbPut('datos', this.capOpciones, 'opc-' + idLev); },
       error: async () => { const o = await this.idbGet('datos', 'opc-' + idLev); if (o) this.capOpciones = o; }
     });
     this.http.get<any[]>(this.api + '/levantamientos/' + idLev + '/bienes').subscribe({
       next: async rows => {
-        c.bienes = rows || [];
+        // Se actualizan los mismos objetos (si ya estabas revisando uno, no se pierde la referencia)
+        const previos = new Map<any, any>((c.bienes || []).map((b: any) => [b.id_bien, b]));
+        c.bienes = (rows || []).map((r: any) => { const o = previos.get(r.id_bien); return o ? Object.assign(o, r) : r; });
         await this.aplicarColaLocal(c.bienes, idLev);   // lo capturado sin señal sigue viéndose como hecho
         c.cargando = false;
+        c.offlineDesde = null;
         this.idbPut('datos', { bienes: rows || [], fecha: new Date().toISOString() }, 'lev-' + idLev);
       },
       error: async e => {
@@ -6832,6 +6947,27 @@ export class AppComponent {
     }
     if (!id && !clave) clave = t;
     return { id, clave, etiqueta: '' };
+  }
+
+  // Confirmación inmediata de que la etiqueta se leyó: vibración, un tono corto y un aviso visible
+  private avisarEscaneo(texto: string): void {
+    const d = this.datosQr(texto);
+    this.escaneoOk = d.etiqueta || d.clave || 'Código QR';
+    clearTimeout(this.escaneoTimer);
+    this.escaneoTimer = setTimeout(() => this.escaneoOk = '', 2200);
+    try { navigator.vibrate?.(120); } catch { /* */ }
+    try {
+      const AC = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (AC) {
+        this.audioCtx = this.audioCtx || new AC();
+        const ctx = this.audioCtx, o = ctx.createOscillator(), g = ctx.createGain();
+        o.type = 'sine'; o.frequency.value = 1046;
+        g.gain.setValueAtTime(0.0001, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + 0.01);
+        g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.16);
+        o.connect(g); g.connect(ctx.destination); o.start(); o.stop(ctx.currentTime + 0.18);
+      }
+    } catch { /* sin sonido */ }
   }
 
   private alLeerQr(texto: string): void {
@@ -6983,7 +7119,7 @@ export class AppComponent {
         ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
         const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const qr = jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' });
-        if (qr?.data) { this.alLeerQr(qr.data); return; }
+        if (qr?.data) { this.detenerEscaner(); this.avisarEscaneo(qr.data); this.alLeerQr(qr.data); return; }
       } else if (Date.now() - inicio > 6000) {
         // La cámara nunca mandó imagen (se queda en negro): se cierra y se ofrece la otra opción
         this.detenerEscaner();
@@ -7020,7 +7156,7 @@ export class AppComponent {
       ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
       const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const qr = jsQR(img.data, img.width, img.height, { inversionAttempts: 'attemptBoth' });
-      if (qr?.data) this.alLeerQr(qr.data);
+      if (qr?.data) { this.avisarEscaneo(qr.data); this.alLeerQr(qr.data); }
       else this.cap.error = 'No se encontró un QR en la foto. Acércate más y que salga enfocado.';
     } catch {
       this.cap.error = 'No se pudo leer la foto.';
@@ -7371,6 +7507,7 @@ export class AppComponent {
     this.firmaPunto[k] = this.puntoFirma(ev, canvas);
     if (this.cap?.term) this.cap.term.trazos[k] = true;
     if (this.cierre) this.cierre.trazos[k] = true;
+    if (this.firmaIni) this.firmaIni.trazos[k] = true;
   }
 
   firmaMove(ev: PointerEvent, canvas: HTMLCanvasElement, k: string): void {
@@ -7392,6 +7529,7 @@ export class AppComponent {
     (canvas.getContext('2d') as CanvasRenderingContext2D).clearRect(0, 0, canvas.width, canvas.height);
     if (this.cap?.term) this.cap.term.trazos[k] = false;
     if (this.cierre) this.cierre.trazos[k] = false;
+    if (this.firmaIni) this.firmaIni.trazos[k] = false;
   }
 
   firmarYTerminar(canvasA: HTMLCanvasElement, canvasB: HTMLCanvasElement): void {
@@ -7846,6 +7984,36 @@ export class AppComponent {
       this.formatoDesdeSolicitud(s, s.idBien ? this.bienPorId(s.idBien) : null));
   }
 
+  // Celulares: el visor de PDF no funciona dentro de la página, así que cada hoja se dibuja como imagen (PDF.js, gratis)
+  get vistaPaginas(): boolean {
+    return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || window.matchMedia?.('(max-width: 860px)').matches;
+  }
+
+  private async pintarPaginas(blob: Blob): Promise<void> {
+    const actual = this.documento;
+    try {
+      const mod: any = await import('pdfjs-dist');
+      const pdfjs: any = mod?.GlobalWorkerOptions ? mod : (mod?.default || mod);
+      pdfjs.GlobalWorkerOptions.workerSrc = 'pdf.worker.min.js';
+      const pdf = await pdfjs.getDocument({ data: new Uint8Array(await blob.arrayBuffer()) }).promise;
+      const imgs: string[] = [];
+      for (let n = 1; n <= Math.min(pdf.numPages, 15); n++) {
+        const pag = await pdf.getPage(n);
+        const base = pag.getViewport({ scale: 1 });
+        const vp = pag.getViewport({ scale: Math.min(2.2, 1240 / base.width) });
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(vp.width); canvas.height = Math.round(vp.height);
+        await pag.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+        imgs.push(canvas.toDataURL('image/jpeg', 0.86));
+        if (this.documento !== actual && actual) return;
+        this.paginasPdf = imgs.slice();
+      }
+    } catch (e) {
+      console.warn('Vista del PDF', e);
+      this.paginasError = 'No se pudo mostrar la vista previa aquí. Usa "Abrir / imprimir" o "Descargar PDF".';
+    }
+  }
+
   async abrirFormato(datos: FormatoDoc): Promise<void> {
     this.cerrarFormato();
     this.docGenerando = true;
@@ -7856,6 +8024,8 @@ export class AppComponent {
     try {
       const blob = await this.crearPdfFormato(datos);
       const url = URL.createObjectURL(blob);
+      this.paginasPdf = []; this.paginasError = '';
+      if (this.vistaPaginas) this.pintarPaginas(blob);
       this.documento = {
         datos, url, blob,
         vista: this.sanitizer.bypassSecurityTrustResourceUrl(url),
