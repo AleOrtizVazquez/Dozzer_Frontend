@@ -1,5 +1,5 @@
 
-import { Component, ElementRef, ViewChild } from '@angular/core';
+import { Component, ElementRef, Input, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
@@ -48,10 +48,63 @@ interface FormatoDoc {
   totalBienes?: number;
 }
 
+// Iconos de DOZZER: un solo trazo fino y uniforme en todo el sistema
+@Component({
+  selector: 'ico',
+  standalone: true,
+  imports: [CommonModule],
+  template: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <ng-container [ngSwitch]="n">
+      <ng-container *ngSwitchCase="'box'"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></ng-container>
+      <ng-container *ngSwitchCase="'clipboard'"><rect x="5" y="4" width="14" height="17" rx="2.5"/><path d="M9 4V3h6v1"/><path d="M9 12.5l2 2 4-4.5"/></ng-container>
+      <ng-container *ngSwitchCase="'shield'"><path d="M12 3l7 3v6c0 4.5-3 7.6-7 9-4-1.4-7-4.5-7-9V6l7-3z"/><path d="M9 12l2 2 4-4"/></ng-container>
+      <ng-container *ngSwitchCase="'file'"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/></ng-container>
+      <ng-container *ngSwitchCase="'sliders'"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></ng-container>
+      <ng-container *ngSwitchCase="'bell'"><path d="M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15L6 16z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></ng-container>
+      <ng-container *ngSwitchCase="'download'"><path d="M12 4v11"/><path d="M7 10.5l5 5 5-5"/><path d="M5 20h14"/></ng-container>
+      <ng-container *ngSwitchCase="'key'"><circle cx="8" cy="15" r="4"/><path d="M11 12l8.5-8.5"/><path d="M16 7l2.5 2.5"/><path d="M13.5 9.5l2 2"/></ng-container>
+      <ng-container *ngSwitchCase="'book'"><path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5v-15z"/><path d="M5 19.5A1.5 1.5 0 0 0 6.5 21H19"/><path d="M9 7h6"/></ng-container>
+      <ng-container *ngSwitchCase="'logout'"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 16l-4-4 4-4"/><path d="M6 12h10"/></ng-container>
+      <ng-container *ngSwitchCase="'grid'"><rect x="4" y="4" width="7" height="7" rx="1.6"/><rect x="13" y="4" width="7" height="7" rx="1.6"/><rect x="4" y="13" width="7" height="7" rx="1.6"/><rect x="13" y="13" width="7" height="7" rx="1.6"/></ng-container>
+      <ng-container *ngSwitchCase="'users'"><circle cx="9" cy="8" r="3.4"/><path d="M2.8 20c.8-3.5 3.3-5.4 6.2-5.4s5.4 1.9 6.2 5.4"/><circle cx="17" cy="9" r="2.5"/><path d="M16.6 14.6c2.4.3 4 1.9 4.6 5.2"/></ng-container>
+      <ng-container *ngSwitchCase="'user'"><circle cx="12" cy="8" r="3.8"/><path d="M4.5 20.5c1.4-3.8 4.2-5.7 7.5-5.7s6.1 1.9 7.5 5.7"/></ng-container>
+      <ng-container *ngSwitchCase="'building'"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 9.5h1M14 9.5h1M9 13.5h1M14 13.5h1"/><path d="M10 21v-4h4v4"/></ng-container>
+      <ng-container *ngSwitchCase="'table'"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9.5h18M3 14.8h18M9 9.5V20"/></ng-container>
+      <ng-container *ngSwitchCase="'pin'"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></ng-container>
+      <ng-container *ngSwitchCase="'qr'"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><path d="M14 14h2.5v2.5H14zM17.5 17.5H20V20h-2.5zM14 20h1.5M20 14v1.5"/></ng-container>
+      <ng-container *ngSwitchCase="'camera'"><path d="M4 8.5h3l1.8-2.5h6.4L17 8.5h3V19H4z"/><circle cx="12" cy="13.3" r="3.3"/></ng-container>
+      <ng-container *ngSwitchCase="'edit'"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></ng-container>
+      <ng-container *ngSwitchCase="'trash'"><path d="M4 7h16"/><path d="M9.5 7V4.5h5V7"/><path d="M6.5 7l.9 13h9.2l.9-13"/><path d="M10 11v5.5M14 11v5.5"/></ng-container>
+      <ng-container *ngSwitchCase="'filter'"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5z"/></ng-container>
+      <ng-container *ngSwitchCase="'layers'"><path d="M12 3.5l8.5 4.7L12 13 3.5 8.2 12 3.5z"/><path d="M3.5 12.5L12 17.3l8.5-4.8"/><path d="M3.5 16.6L12 21.4l8.5-4.8"/></ng-container>
+      <ng-container *ngSwitchCase="'chev'"><path d="M6 9l6 6 6-6"/></ng-container>
+      <ng-container *ngSwitchCase="'x'"><path d="M6 6l12 12M18 6L6 18"/></ng-container>
+      <ng-container *ngSwitchCase="'plus'"><path d="M12 5v14M5 12h14"/></ng-container>
+      <ng-container *ngSwitchCase="'check'"><path d="M5 12.5l4.5 4.5L19 7.5"/></ng-container>
+      <ng-container *ngSwitchCase="'lock'"><rect x="5" y="11" width="14" height="10" rx="2.2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></ng-container>
+      <ng-container *ngSwitchCase="'info'"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.6v.4"/></ng-container>
+      <ng-container *ngSwitchCase="'play'"><path d="M8 5.5v13l10.5-6.5z"/></ng-container>
+      <ng-container *ngSwitchCase="'hash'"><path d="M5 9h15M4 15h15M10.5 3.5l-2 17M16 3.5l-2 17"/></ng-container>
+      <ng-container *ngSwitchCase="'stack'"><path d="M4 7.5l8-4 8 4-8 4z"/><path d="M4 12l8 4 8-4"/></ng-container>
+      <ng-container *ngSwitchCase="'calendar'"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></ng-container>
+      <ng-container *ngSwitchCase="'gauge'"><path d="M3.5 17.5a8.5 8.5 0 1 1 17 0"/><path d="M12 17.5l4.5-6"/><circle cx="12" cy="17.5" r="1"/></ng-container>
+      <ng-container *ngSwitchCase="'wrench'"><path d="M15 4.5a4.5 4.5 0 0 0 4.6 5.8L11 19a2.1 2.1 0 1 1-3-3l8.7-8.6A4.5 4.5 0 0 0 15 4.5z"/></ng-container>
+      <ng-container *ngSwitchCase="'idcard'"><rect x="3" y="5" width="18" height="14" rx="2.2"/><circle cx="9" cy="11" r="2.2"/><path d="M5.6 16.2c.6-1.6 1.9-2.4 3.4-2.4s2.8.8 3.4 2.4M14.5 10h4M14.5 13.5h3"/></ng-container>
+      <ng-container *ngSwitchCase="'flag'"><path d="M5.5 21V4"/><path d="M5.5 4.5h11l-2.2 4 2.2 4h-11"/></ng-container>
+      <ng-container *ngSwitchCase="'printer'"><path d="M7 9V3.5h10V9"/><rect x="3.5" y="9" width="17" height="8" rx="2"/><path d="M7 14h10v6.5H7z"/></ng-container>
+      <ng-container *ngSwitchCase="'chart'"><path d="M4 20h16"/><path d="M7 16v-5M12 16V7M17 16v-8"/></ng-container>
+      <ng-container *ngSwitchCase="'search'"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></ng-container>
+      <ng-container *ngSwitchCase="'image'"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.8"/><path d="M21 16l-5-5-8 8"/></ng-container>
+    </ng-container>
+  </svg>`,
+  styles: [':host{display:inline-flex;width:1.2em;height:1.2em;flex-shrink:0;vertical-align:-.22em}svg{width:100%;height:100%}']
+})
+export class IcoComponent { @Input() n = ''; }
+
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, IcoComponent],
   template: `
   <div class="app-shell">
 
@@ -69,20 +122,20 @@ interface FormatoDoc {
 
       <nav class="side-nav">
         <button class="nav-item" [class.active]="section==='bienes'" (click)="irA('bienes')">
-          <span class="nav-icon">▦</span><span>Bienes</span>
+          <span class="nav-icon"><ico n="box"></ico></span><span>Bienes</span>
         </button>
         <button class="nav-item" *ngIf="verInventarioAnual" [class.active]="section==='anual'" (click)="irA('anual')">
-          <span class="nav-icon">✓</span><span>Inventario</span>
+          <span class="nav-icon"><ico n="clipboard"></ico></span><span>Inventario</span>
         </button>
         <button class="nav-item" [class.active]="section==='solicitudes'" (click)="irA('solicitudes')">
-          <span class="nav-icon">▣</span><span>{{ isAdmin ? 'Autorizaciones' : 'Solicitudes' }}</span>
+          <span class="nav-icon"><ico n="shield"></ico></span><span>{{ isAdmin ? 'Autorizaciones' : 'Solicitudes' }}</span>
           <span class="nav-badge" *ngIf="pendientesBadge > 0">{{ pendientesBadge }}</span>
         </button>
         <button class="nav-item" [class.active]="section==='documentos'" (click)="irA('documentos')">
-          <span class="nav-icon">▤</span><span>Documentos</span>
+          <span class="nav-icon"><ico n="file"></ico></span><span>Documentos</span>
         </button>
         <button class="nav-item" *ngIf="isAdmin" [class.active]="section==='catalogos'" (click)="irA('catalogos')">
-          <span class="nav-icon">⚙</span><span>Catálogos</span>
+          <span class="nav-icon"><ico n="sliders"></ico></span><span>Catálogos</span>
         </button>
       </nav>
 
@@ -95,14 +148,14 @@ interface FormatoDoc {
           </div>
         </div>
         <button class="side-op" [disabled]="pushProcesando || !pushCambiable" (click)="pushEstado==='activo' ? desactivarPush() : activarPush()">
-          <span>🔔</span>
+          <span><ico n="bell"></ico></span>
           <span class="side-op-txt">Notificaciones<small *ngIf="!pushCambiable">{{ textoPushEstado }}</small></span>
           <span class="switch" *ngIf="pushCambiable" [class.on]="pushEstado==='activo'"><i></i></span>
         </button>
-        <button class="side-op" *ngIf="instalarPrompt" (click)="instalarApp()"><span>📲</span><span class="side-op-txt">Instalar app</span></button>
-        <button class="side-op" (click)="menuCollapsed=true; abrirCambioPassword()"><span>🔑</span><span class="side-op-txt">Cambiar contraseña</span></button>
-        <button class="side-op" (click)="menuCollapsed=true; manualAbierto=true"><span>📘</span><span class="side-op-txt">Manual de usuario</span></button>
-        <button class="side-op salir" (click)="logout()"><span>↪</span><span class="side-op-txt">Cerrar sesión</span></button>
+        <button class="side-op" *ngIf="instalarPrompt" (click)="instalarApp()"><span><ico n="download"></ico></span><span class="side-op-txt">Instalar app</span></button>
+        <button class="side-op" (click)="menuCollapsed=true; abrirCambioPassword()"><span><ico n="key"></ico></span><span class="side-op-txt">Cambiar contraseña</span></button>
+        <button class="side-op" (click)="menuCollapsed=true; manualAbierto=true"><span><ico n="book"></ico></span><span class="side-op-txt">Manual de usuario</span></button>
+        <button class="side-op salir" (click)="logout()"><span><ico n="logout"></ico></span><span class="side-op-txt">Cerrar sesión</span></button>
       </div>
     </aside>
 
@@ -243,6 +296,19 @@ interface FormatoDoc {
             </button>
           </div>
         </div>
+      </div>
+
+      <!-- BIENVENIDA (al iniciar sesión) -->
+      <div class="bv" *ngIf="logged && bienvenida && !mustChangePassword" (click)="bienvenida=false">
+        <div class="bv-in">
+          <img class="bv-logo" src="logo-dozzer.png" alt="DOZZER Construcción y Asesoría">
+          <span class="bv-chip">{{ saludoHora }} · {{ fechaHoy }}</span>
+          <h1>Hola, {{ primerNombre | titlecase }} <span class="saludo-mano">👋</span></h1>
+          <p>Bienvenido al sistema oficial de inventarios.</p>
+          <div class="bv-barra"><span></span></div>
+          <small class="bv-tip">Toca para continuar</small>
+        </div>
+        <footer class="bv-pie">DOZZER INVENTORY CONTROL SYSTEM · © {{ anioActual }}</footer>
       </div>
 
       <!-- MANUAL DE USUARIO -->
@@ -520,7 +586,7 @@ interface FormatoDoc {
         <!-- TOPBAR -->
         <header class="topbar">
           <button class="menu-toggle" title="Menú" (click)="menuCollapsed=!menuCollapsed">☰<span class="toggle-badge" *ngIf="pendientesBadge > 0">{{ pendientesBadge }}</span></button>
-          <div class="topbar-title"><strong>{{ sectionTitle }}</strong></div>
+          <img class="top-logo" src="logo-dozzer.png" alt="DOZZER">
           <button class="sync-chip top-sync" *ngIf="(cola.total || !enLinea) && !(section==='anual' && anualVista==='captura')" [ngClass]="'sync-' + estadoSync" (click)="tocarSync()">{{ textoSync }}</button>
         </header>
 
@@ -532,49 +598,29 @@ interface FormatoDoc {
           <!-- INVENTARIO -->
           <section *ngIf="section==='bienes'">
 
-            <!-- SALUDO (al entrar a Bienes) -->
-            <div class="saludo" *ngIf="vistaInv==='bienes' && origenVistaInv==='menu'">
-              <div class="saludo-txt">
-                <span class="saludo-chip">{{ saludoHora }} · {{ fechaHoy }}</span>
-                <h1>Hola, {{ primerNombre | titlecase }} <span class="saludo-mano">👋</span></h1>
-                <p>Bienvenido al sistema oficial de inventarios.</p>
-                <div class="saludo-datos" *ngIf="bienes.length; else saludoCargando">
-                  <span><b>{{ bienes.length | number }}</b> bienes</span>
-                  <span><b>{{ porcentaje(bienesBuenEstado) }}%</b> en buen estado</span>
-                  <span>{{ isAdmin ? 'Todas las sedes' : 'Tu sede' }}</span>
-                </div>
-                <ng-template #saludoCargando><div class="saludo-datos"><span>{{ bienesCargando ? 'Cargando tus bienes…' : 'Aún no hay bienes' }}</span></div></ng-template>
-              </div>
-              <div class="saludo-lado">
-                <img src="logo-dozzer.png" alt="DOZZER Construcción y Asesoría">
-                <button class="btn-primary" (click)="newBien()"><span>＋</span> Nuevo bien</button>
-              </div>
-            </div>
-
-            <div class="inv-head" *ngIf="!(vistaInv==='bienes' && origenVistaInv==='menu')">
+            <div class="inv-head">
               <div>
                 <button class="inv-back" *ngIf="vistaInv==='bienes' && origenVistaInv!=='menu'" (click)="volverInventario()">← {{ textoVolverInv }}</button>
                 <h1>{{ tituloVistaInv }}</h1>
                 <p class="inv-resumen" *ngIf="!(vistaInv==='bienes' && origenVistaInv==='menu')">{{ subtituloVistaInv }}</p>
-                <ng-container *ngIf="vistaInv==='bienes' && origenVistaInv==='menu'">
-                <p class="inv-resumen" *ngIf="bienes.length; else resumenVacio">
-                  <span><b>{{ bienes.length | number }}</b> bienes</span>
-                  <span><b>{{ porcentaje(bienesBuenEstado) }}%</b> en buen estado</span>
-                  <span class="inv-scope">{{ isAdmin ? 'Todas las sedes' : 'Tu sede' }}</span>
+                <p class="inv-resumen" *ngIf="vistaInv==='bienes' && origenVistaInv==='menu'">
+                  <ng-container *ngIf="bienes.length; else resumenVacio">
+                    <span><b>{{ bienes.length | number }}</b> bienes</span>
+                    <span *ngIf="bienesBuenEstado"><b>{{ porcentaje(bienesBuenEstado) }}%</b> en buen estado</span>
+                    <span class="inv-scope">{{ isAdmin ? 'Todas las sedes' : 'Tu sede' }}</span>
+                  </ng-container>
+                  <ng-template #resumenVacio>{{ bienesCargando ? 'Cargando…' : 'Bienes y equipo de la empresa' }}</ng-template>
                 </p>
-                <ng-template #resumenVacio><p class="inv-resumen">{{ bienesCargando ? 'Cargando…' : 'Bienes y equipo de la empresa' }}</p></ng-template>
-                </ng-container>
               </div>
               <div class="heading-actions">
-                <button class="btn-primary" (click)="newBien()"><span>＋</span> Nuevo bien</button>
+                <div class="vistas" *ngIf="!(vistaInv==='bienes' && origenVistaInv!=='menu')">
+                  <button [class.on]="vistaInv==='bienes'" (click)="abrirVistaInv('bienes')" title="Bienes en tarjetas" aria-label="Bienes en tarjetas"><ico n="grid"></ico><span>Bienes</span></button>
+                  <button [class.on]="vistaInv==='personas'" (click)="abrirVistaInv('personas')" title="Agrupar por persona" aria-label="Agrupar por persona"><ico n="users"></ico><span>Personas</span></button>
+                  <button *ngIf="isAdmin" [class.on]="vistaInv==='sedes'" (click)="abrirVistaInv('sedes')" title="Agrupar por sede" aria-label="Agrupar por sede"><ico n="building"></ico><span>Sedes</span></button>
+                  <button class="solo-pc" [class.on]="vistaInv==='completo'" (click)="abrirVistaInv('completo')" title="Tabla con columnas" aria-label="Tabla con columnas"><ico n="table"></ico><span>Tabla</span></button>
+                </div>
+                <button class="btn-primary btn-nuevo" (click)="newBien()" title="Dar de alta un bien"><ico n="plus"></ico><span>Nuevo bien</span></button>
               </div>
-            </div>
-
-            <div class="vista-seg" *ngIf="!(vistaInv==='bienes' && origenVistaInv!=='menu')">
-              <button [class.on]="vistaInv==='bienes'" (click)="abrirVistaInv('bienes')">▦ Bienes</button>
-              <button [class.on]="vistaInv==='personas'" (click)="abrirVistaInv('personas')">👤 Por persona</button>
-              <button *ngIf="isAdmin" [class.on]="vistaInv==='sedes'" (click)="abrirVistaInv('sedes')">🏢 Por sede</button>
-              <button class="solo-pc" [class.on]="vistaInv==='completo'" (click)="abrirVistaInv('completo')">☰ Tabla</button>
             </div>
 
             <button class="cm-banner" *ngIf="(isAdmin || canAuthorize) && (alertasCM.vencidas || alertasCM.proximas) && vistaInv!=='completo'" (click)="verAlertasCM('atencion')">
@@ -673,17 +719,6 @@ interface FormatoDoc {
                 <!-- BIENES EN TARJETAS / TABLA COMPLETA -->
                 <div class="inventory-panel" [class.cards-mode]="vistaInv==='bienes'" *ngIf="vistaInv==='bienes' || vistaInv==='completo'">
 
-                  <!-- Clasificaciones como pestañas -->
-                  <div class="class-tabs" *ngIf="resumenClasificaciones.length">
-                    <button [class.active]="!filtroClasificacion" (click)="setFiltroClasificacion(null)">
-                      Todas <span>{{ bienes.length | number }}</span>
-                    </button>
-                    <button *ngFor="let c of resumenClasificaciones; let i = index" [class.active]="filtroClasificacion===c.id"
-                            (click)="setFiltroClasificacion(filtroClasificacion===c.id ? null : c.id)" [title]="c.pct + '% del inventario'">
-                      <i [style.background]="colorClasificacion(i)"></i>{{ c.nombre | titlecase }} <span>{{ c.total | number }}</span>
-                    </button>
-                  </div>
-
                   <div class="inv-toolbar">
                     <div class="search-box">
                       <span>⌕</span>
@@ -691,14 +726,33 @@ interface FormatoDoc {
                       <button class="clear-search" *ngIf="filter" (click)="filter=''; aplicarFiltrosBienes()">×</button>
                     </div>
                     <div class="table-actions">
-                      <span class="refreshing" *ngIf="bienesCargando"><span class="mini-ring"></span> Actualizando…</span>
+                      <span class="refreshing" *ngIf="bienesCargando"><span class="mini-ring"></span><span class="tb-txt">Actualizando…</span></span>
+                      <div class="column-picker" *ngIf="resumenClasificaciones.length">
+                        <button class="btn-outline tb-btn" [class.filters-active]="filtroClasificacion" (click)="clasifAbierto=!clasifAbierto" title="Clasificación">
+                          <ico n="layers"></ico><span class="tb-txt">{{ nombreClasificacionActual }}</span><ico class="tb-chev" n="chev"></ico>
+                        </button>
+                        <div class="picker-backdrop" *ngIf="clasifAbierto" (click)="clasifAbierto=false"></div>
+                        <div class="picker-menu sheet clasif-menu" *ngIf="clasifAbierto">
+                          <div class="sheet-asa"></div>
+                          <div class="picker-head"><strong>Clasificación</strong><small>Toca una para ver solo esos bienes.</small></div>
+                          <div class="clasif-list">
+                            <button [class.on]="!filtroClasificacion" (click)="setFiltroClasificacion(null); clasifAbierto=false">
+                              <i style="background:#17263d"></i><span>Todas</span><b>{{ bienes.length | number }}</b>
+                            </button>
+                            <button *ngFor="let c of resumenClasificaciones; let i = index" [class.on]="filtroClasificacion===c.id" (click)="setFiltroClasificacion(c.id); clasifAbierto=false">
+                              <i [style.background]="colorClasificacion(i)"></i><span>{{ c.nombre | titlecase }}</span><b>{{ c.total | number }}</b>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
                       <div class="column-picker">
                         <button class="btn-outline" [class.filters-active]="filtrosActivos.length" (click)="columnPickerOpen=!columnPickerOpen">
-                          <span>⚲</span> Filtros
+                          <ico n="filter"></ico><span class="tb-txt">Filtros</span>
                           <span class="tab-count" *ngIf="filtrosActivos.length">{{ filtrosActivos.length }}</span>
                         </button>
                         <div class="picker-backdrop" *ngIf="columnPickerOpen" (click)="columnPickerOpen=false"></div>
                         <div class="picker-menu filters-menu" *ngIf="columnPickerOpen">
+                          <div class="sheet-asa"></div>
                           <div class="picker-head">
                             <strong>Filtrar bienes</strong>
                             <small>Los resultados se actualizan al instante.</small>
@@ -708,12 +762,6 @@ interface FormatoDoc {
                               <select [(ngModel)]="filtroSede" (ngModelChange)="aplicarFiltrosBienes()">
                                 <option [ngValue]="null">Todas las sedes</option>
                                 <option *ngFor="let s of activos(catalogs.sedes, filtroSede, 'id_sede')" [ngValue]="s.id_sede">{{ s.nombre_sede }}</option>
-                              </select>
-                            </label>
-                            <label>Clasificación
-                              <select [(ngModel)]="filtroClasificacion" (ngModelChange)="aplicarFiltrosBienes()">
-                                <option [ngValue]="null">Todas las clasificaciones</option>
-                                <option *ngFor="let c of catalogs.clasificaciones" [ngValue]="c.id_clasificacion">{{ c.nombre }}</option>
                               </select>
                             </label>
                             <label>Estatus
@@ -790,23 +838,30 @@ interface FormatoDoc {
 
                   <!-- Bienes como tarjetas -->
                   <ng-container *ngIf="vistaInv==='bienes'">
-                    <div class="asset-cards">
-                      <button class="asset-card" *ngFor="let b of bienesVista.slice(0, tarjetasVisibles); trackBy: trackBien"
-                              [style.border-left-color]="colorDeClasificacion(b.id_clasificacion)" (click)="abrirBien(b)">
-                        <span class="asset-chips">
-                          <span class="chip-key">{{ b.clave || 'SIN CLAVE' }}</span>
-                          <span class="chip-class" *ngIf="b.clasificacion">{{ b.clasificacion }}</span>
-                          <span class="status" [ngClass]="statusClass(b)">{{ displayStatus(b) }}</span>
-                        </span>
-                        <strong class="asset-title">{{ b.articulo || 'Bien sin nombre' }}</strong>
-                        <small class="asset-sub" *ngIf="marcaModelo(b)">{{ marcaModelo(b) }}</small>
-                        <span class="asset-line"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>{{ b.ubicacion || 'Sin ubicación' }}<ng-container *ngIf="isAdmin && b.sede"> · {{ b.sede }}</ng-container></span>
-                        <span class="asset-line" [class.muted]="!b.responsable"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>{{ b.responsable || 'Sin responsable' }}</span>
-                        <span class="asset-foot">
-                          <span>{{ b.cantidad_piezas || 1 }} {{ (b.cantidad_piezas || 1) == 1 ? 'pieza' : 'piezas' }}</span>
-                          <span class="asset-more">Ver detalle →</span>
-                        </span>
-                      </button>
+                    <div class="bcs">
+                      <div class="bc" *ngFor="let b of bienesVista.slice(0, tarjetasVisibles); trackBy: trackBien" [class.open]="bienAbierto===b.id_bien">
+                        <div class="bc-row" (click)="bienAbierto = bienAbierto===b.id_bien ? null : b.id_bien">
+                          <button type="button" class="bc-foto" [class.vacia]="!b.foto_mini" [title]="b.foto_mini ? 'Ver foto en grande' : 'Sin foto todavía'"
+                                  (click)="tocarFotoTarjeta($event, b)">
+                            <img *ngIf="b.foto_mini" [src]="b.foto_mini" alt="" loading="lazy">
+                            <img *ngIf="!b.foto_mini" class="bc-logo" src="logo-dozzer.png" alt="">
+                          </button>
+                          <div class="bc-main">
+                            <strong class="bc-nombre">{{ (b.articulo | titlecase) || 'Bien sin nombre' }}</strong>
+                            <small class="bc-desc">{{ descripcionBien(b) | titlecase }}</small>
+                            <span class="bc-meta">
+                              <span class="edot" [ngClass]="claseEstadoFisico(b.estado_fisico)" [title]="estadoCorto(b)"></span>
+                              <span class="bc-clave">{{ b.clave || 'Sin clave' }}</span>
+                              <span class="bc-mini" *ngIf="b.ubicacion" [title]="'Ubicación: ' + b.ubicacion"><ico n="pin"></ico>{{ b.ubicacion | titlecase }}</span>
+                            </span>
+                          </div>
+                          <ico class="bc-chev" n="chev"></ico>
+                        </div>
+                        <div class="bc-body" *ngIf="bienAbierto===b.id_bien">
+                          <ng-container *ngTemplateOutlet="infoBienTpl; context: { $implicit: b }"></ng-container>
+                          <ng-container *ngTemplateOutlet="accionesBienTpl; context: { $implicit: b }"></ng-container>
+                        </div>
+                      </div>
                     </div>
                     <div class="inv-empty" *ngIf="!bienesVista.length">
                       {{ hayFiltrosBienes ? 'Ningún bien coincide con los filtros.' : 'Aún no hay bienes registrados.' }}
@@ -911,108 +966,58 @@ interface FormatoDoc {
               </div>
             </div>
 
+            <ng-template #infoBienTpl let-b>
+              <ul class="bi">
+                <li title="Ubicación"><ico n="pin"></ico><span>{{ (b.ubicacion | titlecase) || 'Sin ubicación' }}<small *ngIf="b.sede">{{ b.sede | titlecase }}</small></span></li>
+                <li title="Responsable de área"><ico n="user"></ico><span>{{ (b.responsable | titlecase) || 'Sin responsable' }}<small>Responsable</small></span></li>
+                <li *ngIf="b.usuario_directo" title="Usuario directo"><ico n="users"></ico><span>{{ b.usuario_directo | titlecase }}<small>Usuario directo</small></span></li>
+                <li title="Clasificación"><ico n="layers"></ico><span>{{ (b.clasificacion | titlecase) || 'Sin clasificación' }}<small *ngIf="b.subcategoria">{{ b.subcategoria | titlecase }}</small></span></li>
+                <li *ngIf="esTexto(b.marca) || esTexto(b.modelo)" title="Marca y modelo"><ico n="box"></ico><span>{{ [b.marca, b.modelo].filter(esTexto).join(' · ') | titlecase }}<small>Marca y modelo</small></span></li>
+                <li *ngIf="esTexto(b.numero_serie)" title="Número de serie"><ico n="hash"></ico><span>{{ b.numero_serie }}<small>Serie</small></span></li>
+                <li title="Cantidad"><ico n="stack"></ico><span>{{ b.cantidad_piezas || 1 }} {{ (b.cantidad_piezas || 1) == 1 ? 'pieza' : 'piezas' }}<small *ngIf="b.color">{{ b.color | titlecase }}</small></span></li>
+                <li title="Estado"><span class="edot grande" [ngClass]="claseEstadoFisico(b.estado_fisico)"></span><span>{{ estadoCorto(b) }}<small>{{ b.estatus_asignacion === 'ASIGNADO' ? 'Asignado' : 'Sin asignar' }}</small></span></li>
+                <li title="Etiqueta QR"><ico n="qr"></ico><span>{{ b.etiqueta || 'Sin etiqueta' }}<small>Etiqueta QR</small></span></li>
+                <li *ngIf="b.requiere_calibracion" [ngClass]="'cm-' + estadoFechaCM(b.fecha_calibracion)" title="Calibración"><ico n="gauge"></ico><span>{{ textoFechaCM(b.fecha_calibracion) }}<small>Calibración</small></span></li>
+                <li *ngIf="b.requiere_mantenimiento" [ngClass]="'cm-' + estadoFechaCM(b.fecha_mantenimiento)" title="Mantenimiento"><ico n="wrench"></ico><span>{{ textoFechaCM(b.fecha_mantenimiento) }}<small>Mantenimiento</small></span></li>
+                <li *ngIf="b.fecha_alta" title="Fecha de alta"><ico n="calendar"></ico><span>{{ b.fecha_alta | date:'dd/MM/yyyy' }}<small>Alta</small></span></li>
+              </ul>
+              <p class="bi-carac" *ngIf="esTexto(b.caracteristicas) && b.caracteristicas.length > 40">{{ b.caracteristicas }}</p>
+            </ng-template>
+
+            <ng-template #accionesBienTpl let-b>
+              <div class="ba">
+                <button (click)="editarDesdePanel(b)" [title]="isAdmin ? 'Editar el bien' : 'Solicitar un cambio'"><ico n="edit"></ico><span>{{ isAdmin ? 'Editar' : 'Cambiar' }}</span></button>
+                <label *ngIf="isAdmin" [class.off]="fotoSubiendo" [title]="b.foto_mini ? 'Cambiar la foto' : 'Tomar foto'">
+                  <ico n="camera"></ico><span>{{ fotoSubiendo ? 'Subiendo' : 'Foto' }}</span>
+                  <input type="file" accept="image/*" capture="environment" (change)="cambiarFotoBien($event, b)" [disabled]="fotoSubiendo" hidden>
+                </label>
+                <button *ngIf="isAdmin" (click)="abrirAsignarEtiqueta(b)" [title]="b.etiqueta ? 'Cambiar etiqueta QR' : 'Asignar etiqueta QR'"><ico n="qr"></ico><span>Etiqueta</span></button>
+                <button *ngIf="b.etiqueta" (click)="imprimirCodigos([b.etiqueta])" title="Reimprimir su etiqueta"><ico n="printer"></ico><span>Imprimir</span></button>
+                <button *ngIf="isAdmin" (click)="formatoAltaDeBien(b)" title="Formato de alta (PDF)"><ico n="file"></ico><span>Formato</span></button>
+                <button class="peligro" (click)="deleteBien(b.id_bien)" [title]="isAdmin ? 'Dar de baja' : 'Solicitar la baja'"><ico n="trash"></ico><span>Baja</span></button>
+              </div>
+              <p class="ba-nota" *ngIf="!isAdmin">Los cambios y bajas se envían al administrador para su autorización.</p>
+            </ng-template>
+
             <!-- PANEL LATERAL: DETALLE Y ACCIONES DEL BIEN -->
             <div class="drawer-backdrop" *ngIf="bienSeleccionado" (click)="bienSeleccionado=null"></div>
-            <aside class="drawer" *ngIf="bienSeleccionado as b">
-              <div class="drawer-header">
-                <div>
-                  <span class="asset-key">{{ b.clave }}</span>
-                  <h2>{{ b.articulo }}</h2>
-                  <div class="drawer-badges">
-                    <span class="status" [ngClass]="statusClass(b)">{{ displayStatus(b) }}</span>
-                    <span class="status" *ngIf="b.estado_fisico" [ngClass]="claseEstadoFisico(b.estado_fisico)">Estado {{ b.estado_fisico | lowercase }}</span>
-                    <span class="status status-neutral">{{ b.estatus_asignacion === 'ASIGNADO' ? 'Asignado' : 'Sin asignar' }}</span>
-                  </div>
-                </div>
-                <button class="close-button" (click)="bienSeleccionado=null">×</button>
+            <aside class="drawer dw" *ngIf="bienSeleccionado as b">
+              <div class="dw-foto" [class.vacia]="!b.foto_mini">
+                <img *ngIf="b.foto_mini" [src]="b.foto_mini" [alt]="'Foto de ' + b.articulo" (click)="ampliarFoto(b)" title="Ver en grande">
+                <img *ngIf="!b.foto_mini" class="dw-logo" src="logo-dozzer.png" alt="">
+                <button class="dw-cerrar" title="Cerrar" (click)="bienSeleccionado=null"><ico n="x"></ico></button>
               </div>
-
               <div class="drawer-body">
-                <div class="drawer-section drawer-foto" *ngIf="b.foto_mini || isAdmin">
-                  <button type="button" class="foto-mini" *ngIf="b.foto_mini" (click)="ampliarFoto(b)" title="Ver foto en grande">
-                    <img [src]="b.foto_mini" [alt]="'Foto de ' + b.articulo" loading="lazy">
-                    <span>🔍 Ver en grande</span>
-                  </button>
-                  <label class="foto-cambiar" *ngIf="isAdmin" [class.off]="fotoSubiendo">
-                    {{ fotoSubiendo ? 'Subiendo foto…' : (b.foto_mini ? '📷 Cambiar foto' : '📷 Tomar foto') }}
-                    <input type="file" accept="image/*" capture="environment" (change)="cambiarFotoBien($event, b)" [disabled]="fotoSubiendo" hidden>
-                  </label>
+                <div class="dw-tit">
+                  <h2>{{ b.articulo | titlecase }}</h2>
+                  <p class="dw-desc">{{ descripcionBien(b) | titlecase }}</p>
+                  <span class="dw-sub"><span class="edot" [ngClass]="claseEstadoFisico(b.estado_fisico)"></span><span class="bc-clave">{{ b.clave }}</span></span>
                 </div>
-                <div class="drawer-section">
-                  <h3>Información general</h3>
-                  <dl>
-                    <div><dt>Clasificación</dt><dd>{{ textoCampo(b.clasificacion) }}</dd></div>
-                    <div><dt>Subcategoría</dt><dd>{{ textoCampo(b.subcategoria) }}</dd></div>
-                    <div><dt>Marca</dt><dd>{{ textoCampo(b.marca) }}</dd></div>
-                    <div><dt>Modelo</dt><dd>{{ textoCampo(b.modelo) }}</dd></div>
-                    <div><dt>Número de serie</dt><dd>{{ textoCampo(b.numero_serie) }}</dd></div>
-                    <div><dt>Color</dt><dd>{{ textoCampo(b.color) }}</dd></div>
-                    <div><dt>Piezas</dt><dd>{{ b.cantidad_piezas || 1 }} {{ b.unidad_medida || '' }}</dd></div>
-                    <div><dt>Fecha de alta</dt><dd>{{ b.fecha_alta ? (b.fecha_alta | date:'dd/MM/yyyy') : '—' }}</dd></div>
-                  </dl>
-                </div>
-
-                <div class="drawer-section">
-                  <h3>Ubicación y responsables</h3>
-                  <dl>
-                    <div><dt>Sede</dt><dd>{{ textoCampo(b.sede) }}</dd></div>
-                    <div><dt>Ubicación</dt><dd>{{ textoCampo(b.ubicacion) }}</dd></div>
-                    <div><dt>Responsable de área</dt><dd>{{ b.responsable || 'Sin asignar' }}</dd></div>
-                    <div><dt>Usuario directo</dt><dd>{{ b.usuario_directo || 'Sin asignar' }}</dd></div>
-                  </dl>
-                </div>
-
-                <div class="drawer-section" *ngIf="b.requiere_calibracion || b.requiere_mantenimiento">
-                  <h3>Calibración y mantenimiento</h3>
-                  <div class="cm-chips">
-                    <span *ngIf="b.requiere_calibracion" class="cm-chip" [ngClass]="'cm-' + estadoFechaCM(b.fecha_calibracion)">🟢 Calibración · {{ textoFechaCM(b.fecha_calibracion) }}</span>
-                    <span *ngIf="b.requiere_mantenimiento" class="cm-chip" [ngClass]="'cm-' + estadoFechaCM(b.fecha_mantenimiento)">🔵 Mantenimiento · {{ textoFechaCM(b.fecha_mantenimiento) }}</span>
-                  </div>
-                </div>
-
-                <div class="drawer-section" *ngIf="b.caracteristicas">
-                  <h3>Características</h3>
-                  <div class="note-box">{{ b.caracteristicas }}</div>
-                </div>
-
-                <div class="drawer-section">
-                  <h3>Etiqueta QR</h3>
-                  <div class="qr-block">
-                    <div class="qr-frame">
-                      <img *ngIf="qrPreview" [src]="qrPreview" alt="Código QR del bien">
-                      <span *ngIf="!qrPreview && b.etiqueta" class="mini-ring"></span>
-                      <span *ngIf="!b.etiqueta" class="etq-vacia">🏷</span>
-                    </div>
-                    <div class="qr-info">
-                      <ng-container *ngIf="b.etiqueta">
-                        <small>Etiqueta pegada</small>
-                        <strong class="qr-id">{{ b.etiqueta }}</strong>
-                        <p>El QR solo lleva este código. Al escanearlo con DOZZER se abre este bien.</p>
-                        <div class="etq-btns">
-                          <button class="btn-outline btn-small" (click)="imprimirCodigos([b.etiqueta])">⎙ Reimprimir</button>
-                          <button class="btn-outline btn-small" *ngIf="isAdmin" (click)="abrirAsignarEtiqueta(b)">Cambiar</button>
-                        </div>
-                      </ng-container>
-                      <ng-container *ngIf="!b.etiqueta">
-                        <small>Sin etiqueta</small>
-                        <strong class="qr-id">—</strong>
-                        <p>Pega una etiqueta en blanco y asígnala aquí, o escanéala durante el levantamiento.</p>
-                        <button class="btn-outline btn-small" *ngIf="isAdmin" (click)="abrirAsignarEtiqueta(b)">🏷 Asignar etiqueta</button>
-                      </ng-container>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="info-box" *ngIf="!isAdmin">
-                  <strong>Los cambios requieren autorización</strong>
-                  <p>Al editar o dar de baja este bien se enviará una solicitud al administrador.</p>
-                </div>
+                <ng-container *ngTemplateOutlet="infoBienTpl; context: { $implicit: b }"></ng-container>
+                <div class="dw-qr" *ngIf="b.etiqueta && qrPreview"><img [src]="qrPreview" alt="Código QR"><span><b>{{ b.etiqueta }}</b><small>Al escanearla con DOZZER se abre este bien.</small></span></div>
               </div>
-
               <div class="drawer-footer">
-                <button class="btn-outline" *ngIf="isAdmin" (click)="formatoAltaDeBien(b)">📄 Formato de alta</button>
-                <button class="btn-danger" (click)="deleteBien(b.id_bien)">⌫ {{ isAdmin ? 'Dar de baja' : 'Solicitar baja' }}</button>
-                <button class="btn-primary" (click)="editarDesdePanel(b)">✎ {{ isAdmin ? 'Editar bien' : 'Solicitar cambio' }}</button>
+                <ng-container *ngTemplateOutlet="accionesBienTpl; context: { $implicit: b }"></ng-container>
               </div>
             </aside>
 
@@ -1566,7 +1571,7 @@ interface FormatoDoc {
           <!-- INVENTARIO ANUAL -->
           <section *ngIf="section==='anual'">
 
-            <!-- ===== Lista de levantamientos ===== -->
+            <!-- ===== Lista de inventarios ===== -->
             <ng-container *ngIf="anualVista==='lista'">
               <div class="inv-head">
                 <div>
@@ -1574,62 +1579,76 @@ interface FormatoDoc {
                   <p class="inv-resumen">Revisa los bienes persona por persona; los resguardos y el acta se arman solos.</p>
                 </div>
                 <div class="heading-actions" *ngIf="isAdmin">
-                  <button class="btn-outline" (click)="abrirEtiquetas()">🏷 Etiquetas QR</button>
-                  <button class="btn-primary" (click)="abrirNuevoLevantamiento()">＋ Nuevo inventario</button>
+                  <button class="btn-outline" (click)="abrirEtiquetas()" title="Imprimir etiquetas QR en blanco"><ico n="qr"></ico> Etiquetas</button>
+                  <button class="btn-primary" *ngIf="levantamientos.length" (click)="abrirNuevoLevantamiento()"><ico n="plus"></ico> Nuevo inventario</button>
                 </div>
               </div>
 
-              <div class="inventory-panel placeholder-panel" *ngIf="!levCargando && !levantamientos.length">
-                <div class="placeholder-icon">✓</div>
+              <div class="lv-vacio" *ngIf="!levCargando && !levantamientos.length">
+                <span class="lv-vacio-ico"><ico n="clipboard"></ico></span>
                 <h2>Aún no hay inventarios</h2>
-                <p>{{ isAdmin ? 'Crea el primero: se genera el Acta de inicio y el capturista podrá revisar los bienes desde su celular.' : 'Cuando el administrador te asigne como capturista, aparecerá aquí.' }}</p>
-                <button class="btn-primary" *ngIf="isAdmin" (click)="abrirNuevoLevantamiento()">＋ Nuevo inventario</button>
+                <p>{{ isAdmin ? 'Crea el primero: se genera el acta de inicio y se captura desde el celular.' : 'Cuando el administrador te asigne uno, aparecerá aquí.' }}</p>
+                <button class="btn-primary" *ngIf="isAdmin" (click)="abrirNuevoLevantamiento()"><ico n="plus"></ico> Nuevo inventario</button>
               </div>
 
-              <div class="lev-list">
-                <div class="lev-card" *ngFor="let l of levantamientos" [class.open]="levAbierto===l.idLevantamiento" [class.cerrado]="l.estado==='CERRADO'">
-                  <button class="lev-head" (click)="levAbierto = levAbierto===l.idLevantamiento ? null : l.idLevantamiento">
-                    <span class="lev-ico">{{ l.estado==='CERRADO' ? '✓' : '◷' }}</span>
-                    <span class="lev-main">
-                      <strong>Inventario {{ l.anio }}-{{ l.periodo || 1 }} · {{ l.sede }}</strong>
-                      <span class="lev-bar"><span [style.width.%]="pctLev(l)"></span></span>
-                      <small>{{ l.capturados | number }} de {{ l.totalBienes | number }} bienes revisados · {{ pctLev(l) }}%</small>
-                    </span>
-                    <span class="lev-chip" [class.ok]="l.estado==='CERRADO'">{{ l.estado==='CERRADO' ? 'Cerrado' : 'En curso' }}</span>
-                    <span class="lev-chev">⌄</span>
-                  </button>
-
-                  <div class="lev-body" *ngIf="levAbierto===l.idLevantamiento">
-                    <div class="lev-actions">
-                      <button class="btn-primary" *ngIf="puedeCapturar(l)" (click)="iniciarCaptura(l)">▶ {{ l.capturados ? 'Continuar inventario' : 'Empezar inventario' }}</button>
-                      <button class="btn-outline" *ngIf="!puedeCapturar(l)" (click)="abrirAvance(l)">📊 {{ l.estado==='CERRADO' ? 'Ver resultado' : 'Ver avance' }}</button>
-                      <button class="btn-outline" *ngIf="l.puedoAdministrar && l.estado==='EN_CURSO'" (click)="cerrarLevantamiento(l)">✓ Cerrar inventario</button>
-                      <button class="btn-eliminar-lev" *ngIf="l.puedoBorrar || (l.puedoAdministrar && l.estado==='EN_CURSO')" (click)="eliminarLevantamiento(l)">🗑 Eliminar (solo pruebas)</button>
+              <div class="lv-grid">
+                <article class="lv" *ngFor="let l of levsEnCurso">
+                  <div class="lv-top">
+                    <span class="lv-ico"><ico n="clipboard"></ico></span>
+                    <div class="lv-tit">
+                      <h2>{{ l.sede | titlecase }}</h2>
+                      <small>Inventario {{ l.anio }} · {{ semestre(l) }}</small>
                     </div>
+                    <span class="lv-estado" title="En curso"><i></i>En curso</span>
+                  </div>
 
-                    <div class="lev-docs">
-                      <button *ngIf="l.idDocumentoInicio" (click)="abrirDocumentoGuardado(l.idDocumentoInicio)">📄 Acta de inicio</button>
-                      <button *ngIf="l.idDocumentoCierre" (click)="abrirDocumentoGuardado(l.idDocumentoCierre)">📄 Acta de cierre <em *ngIf="l.estado==='EN_CURSO'">borrador</em></button>
-                      <button *ngIf="l.resguardos" (click)="verResguardosLev(l)">👤 Resguardos <em>{{ l.resguardos }}</em></button>
+                  <div class="lv-prog">
+                    <div class="lv-num"><b>{{ pctLev(l) }}%</b><span>{{ l.capturados | number }} de {{ l.totalBienes | number }} bienes revisados</span></div>
+                    <div class="lv-bar"><span [style.width.%]="pctLev(l)"></span></div>
+                  </div>
+
+                  <button class="btn-primary lv-main" *ngIf="puedeCapturar(l)" (click)="iniciarCaptura(l)"><ico n="play"></ico> {{ l.capturados ? 'Continuar inventario' : 'Empezar inventario' }}</button>
+                  <button class="btn-outline lv-main" *ngIf="!puedeCapturar(l)" (click)="abrirAvance(l)"><ico n="chart"></ico> Ver avance</button>
+
+                  <div class="lv-pie">
+                    <div class="lv-ics">
+                      <button *ngIf="l.idDocumentoInicio" (click)="abrirDocumentoGuardado(l.idDocumentoInicio)" title="Acta de inicio"><ico n="flag"></ico><span>Inicio</span></button>
+                      <button *ngIf="l.idDocumentoCierre" (click)="abrirDocumentoGuardado(l.idDocumentoCierre)" title="Acta de cierre (borrador)"><ico n="file"></ico><span>Cierre</span></button>
+                      <button *ngIf="l.resguardos" (click)="verResguardosLev(l)" [title]="l.resguardos + ' resguardos'"><ico n="idcard"></ico><span>Resguardos</span></button>
+                      <button [class.on]="levDetalle===l.idLevantamiento" (click)="levDetalle = levDetalle===l.idLevantamiento ? null : l.idLevantamiento" title="Detalles"><ico n="info"></ico><span>Detalles</span></button>
                     </div>
-
-                    <button class="lev-more" (click)="levDetalle = levDetalle===l.idLevantamiento ? null : l.idLevantamiento">
-                      {{ levDetalle===l.idLevantamiento ? '▴ Ocultar detalles' : '▾ Ver detalles' }}
-                    </button>
-                    <div class="lev-detail" *ngIf="levDetalle===l.idLevantamiento">
-                      <dl>
-                        <div><dt>Inicio</dt><dd>{{ l.fechaInicio | date:'dd/MM/yyyy HH:mm' }}</dd></div>
-                        <div *ngIf="l.fechaCierre"><dt>Cierre</dt><dd>{{ l.fechaCierre | date:'dd/MM/yyyy HH:mm' }}</dd></div>
-                        <div><dt>Captura</dt><dd>{{ l.capturista || '—' }}</dd></div>
-                        <div><dt>Lugar</dt><dd>{{ l.ciudad || '—' }}<br><small>{{ l.direccion }}</small></dd></div>
-                        <div><dt>Pregunta</dt><dd>{{ l.pregunta?.texto }}<br><small>{{ (l.pregunta?.opciones || []).join(' · ') }}</small></dd></div>
-                        <div><dt>Participantes</dt><dd><span class="lev-person" *ngFor="let p of l.participantes">{{ p.nombre }} <small>{{ p.cargo }}</small></span></dd></div>
-                        <div><dt>Revisión</dt><dd>{{ (l.noEncontrados || 0) | number }} no encontrados · {{ ((l.nuevos || 0) + (l.transferidos || 0)) | number }} nuevos o traídos · {{ l.fueraDeLugar | number }} fuera de lugar · {{ l.fotosNuevas | number }} fotos tomadas</dd></div>
-                      </dl>
+                    <div class="lv-ics" *ngIf="l.puedoAdministrar">
+                      <button (click)="cerrarLevantamiento(l)" title="Cerrar el inventario y firmar el acta"><ico n="lock"></ico><span>Cerrar</span></button>
+                      <button class="peligro" *ngIf="l.puedoBorrar || l.estado==='EN_CURSO'" (click)="eliminarLevantamiento(l)" title="Eliminar (solo pruebas)"><ico n="trash"></ico><span>Borrar</span></button>
                     </div>
                   </div>
-                </div>
+
+                  <div class="lv-detalle" *ngIf="levDetalle===l.idLevantamiento">
+                    <div><ico n="user"></ico><span><small>Captura</small>{{ l.capturista || '—' }}</span></div>
+                    <div><ico n="pin"></ico><span><small>Lugar</small>{{ l.ciudad || '—' }}</span></div>
+                    <div><ico n="users"></ico><span><small>Participantes del acta</small><span class="lv-p" *ngFor="let p of l.participantes">{{ p.nombre }}<em *ngIf="p.cargo"> · {{ p.cargo }}</em></span></span></div>
+                    <div><ico n="check"></ico><span><small>Revisión</small>{{ (l.noEncontrados || 0) | number }} no encontrados · {{ ((l.nuevos || 0) + (l.transferidos || 0)) | number }} nuevos o traídos · {{ l.fotosNuevas | number }} fotos</span></div>
+                  </div>
+                </article>
               </div>
+
+              <section class="lv-cerrados" *ngIf="levsCerrados.length">
+                <h3>Cerrados</h3>
+                <div class="lv-fila" *ngFor="let l of levsCerrados">
+                  <span class="lv-ico ok"><ico n="check"></ico></span>
+                  <div class="lv-tit">
+                    <strong>{{ l.sede | titlecase }}</strong>
+                    <small>Inventario {{ l.anio }} · {{ semestre(l) }} · {{ pctLev(l) }}% revisado</small>
+                  </div>
+                  <div class="lv-ics">
+                    <button (click)="abrirAvance(l)" title="Ver resultado"><ico n="chart"></ico><span>Resultado</span></button>
+                    <button *ngIf="l.idDocumentoInicio" (click)="abrirDocumentoGuardado(l.idDocumentoInicio)" title="Acta de inicio"><ico n="flag"></ico><span>Inicio</span></button>
+                    <button *ngIf="l.idDocumentoCierre" (click)="abrirDocumentoGuardado(l.idDocumentoCierre)" title="Acta de cierre"><ico n="file"></ico><span>Cierre</span></button>
+                    <button *ngIf="l.resguardos" (click)="verResguardosLev(l)" [title]="l.resguardos + ' resguardos'"><ico n="idcard"></ico><span>Resguardos</span></button>
+                    <button class="peligro" *ngIf="l.puedoBorrar" (click)="eliminarLevantamiento(l)" title="Borrar (solo pruebas)"><ico n="trash"></ico><span>Borrar</span></button>
+                  </div>
+                </div>
+              </section>
             </ng-container>
 
             <!-- ===== Avance (monitoreo): resumen -> areas -> bienes ===== -->
@@ -2163,7 +2182,7 @@ interface FormatoDoc {
                 <div class="modal-header">
                   <div>
                     <h2>Nuevo inventario</h2>
-                    <p>Paso {{ levNuevo.paso }} de 4 · {{ ['Sede', 'Lugar y fecha', 'Personas', 'Pregunta'][levNuevo.paso - 1] }}</p>
+                    <p>Paso {{ levNuevo.paso }} de 4 · {{ ['Sede', 'Lugar', 'Personas', 'Pregunta'][levNuevo.paso - 1] }}</p>
                   </div>
                   <button class="close-button" [disabled]="levGuardando" (click)="levNuevo=null">×</button>
                 </div>
@@ -2179,8 +2198,8 @@ interface FormatoDoc {
                   <input type="number" [(ngModel)]="levNuevo.anio" min="2020" max="2100">
                   <label>Semestre</label>
                   <div class="cap-options">
-                    <button type="button" [class.on]="levNuevo.periodo===1" (click)="levNuevo.periodo=1">1.º · enero a junio</button>
-                    <button type="button" [class.on]="levNuevo.periodo===2" (click)="levNuevo.periodo=2">2.º · julio a diciembre</button>
+                    <button type="button" [class.on]="levNuevo.periodo===1" (click)="levNuevo.periodo=1">1.er semestre</button>
+                    <button type="button" [class.on]="levNuevo.periodo===2" (click)="levNuevo.periodo=2">2.º semestre</button>
                   </div>
                 </div>
 
@@ -2189,8 +2208,6 @@ interface FormatoDoc {
                   <input [(ngModel)]="levNuevo.ciudad" placeholder="Ej. Celaya, Guanajuato">
                   <label>Dirección</label>
                   <textarea rows="2" [(ngModel)]="levNuevo.direccion"></textarea>
-                  <label>Fecha y hora de inicio</label>
-                  <input type="datetime-local" [(ngModel)]="levNuevo.fechaInicio">
                 </div>
 
                 <div class="form-section" *ngIf="levNuevo.paso===3">
@@ -2200,14 +2217,17 @@ interface FormatoDoc {
                     <option *ngFor="let c of candidatos" [ngValue]="c.idUsuario">{{ c.nombre }} · {{ c.rol }}</option>
                   </select>
                   <label>Participantes del acta <span class="muted">(observan y firman)</span></label>
-                  <div class="wiz-people">
-                    <div *ngFor="let p of levNuevo.participantes; let i = index">
-                      <input [(ngModel)]="p.nombre" placeholder="Nombre">
-                      <input [(ngModel)]="p.cargo" placeholder="Cargo">
-                      <button class="close-button" title="Quitar" (click)="levNuevo.participantes.splice(i, 1)">×</button>
+                  <div class="wp-lista">
+                    <div class="wp" *ngFor="let p of levNuevo.participantes; let i = index">
+                      <span class="wp-av">{{ inicialesDe(p.nombre) || (i + 1) }}</span>
+                      <div class="wp-campos">
+                        <input [(ngModel)]="p.nombre" placeholder="Nombre completo">
+                        <input [(ngModel)]="p.cargo" placeholder="Cargo (ej. Jefe de inventarios)">
+                      </div>
+                      <button class="wp-x" type="button" title="Quitar" (click)="levNuevo.participantes.splice(i, 1)"><ico n="x"></ico></button>
                     </div>
                   </div>
-                  <button class="lev-more" *ngIf="levNuevo.participantes.length < 8" (click)="levNuevo.participantes.push({ nombre: '', cargo: '' })">＋ Agregar participante</button>
+                  <button class="wp-add" type="button" *ngIf="levNuevo.participantes.length < 8" (click)="levNuevo.participantes.push({ nombre: '', cargo: '' })"><ico n="plus"></ico> Agregar participante</button>
                 </div>
 
                 <div class="form-section" *ngIf="levNuevo.paso===4">
@@ -2583,6 +2603,188 @@ interface FormatoDoc {
     .foto-cambiar.off{opacity:.6;pointer-events:none}
     .etq-pasos{margin:0 0 16px;padding:12px 14px 12px 34px;background:#f3f7fc;border-radius:12px;font-size:14px;color:#33465e;line-height:1.65}
     .lev-detail .btn-eliminar-lev{margin-top:12px}
+    /* --- iconos en el menu --- */
+    .nav-icon{display:grid;place-items:center}
+    .nav-icon ico{width:21px;height:21px}
+    .side-op>span:first-child{display:grid;place-items:center}
+    .side-op ico{width:19px;height:19px}
+    .top-logo{height:26px;width:auto;display:block;margin-right:auto}
+    /* --- bienvenida --- */
+    .bv{position:fixed;top:0;right:0;bottom:0;left:0;inset:0;z-index:400;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;cursor:pointer;
+        background:radial-gradient(900px 520px at 50% -8%,#e3edf9 0%,#f6f9fd 45%,#fff 75%);animation:fadeIn .3s ease both}
+    .bv-in{display:flex;flex-direction:column;align-items:center;text-align:center;max-width:520px;width:100%}
+    .bv-logo{width:min(300px,74%);height:auto;margin-bottom:34px;animation:fadeUp .6s ease both}
+    .bv-chip{font-size:13.5px;font-weight:700;color:#4f6f95;background:#eaf1f9;padding:6px 14px;border-radius:999px;margin-bottom:18px;animation:fadeUp .6s .1s ease both}
+    .bv h1{margin:0 0 12px;font-size:38px;font-weight:800;letter-spacing:-.8px;color:#111c2e;animation:fadeUp .6s .18s ease both}
+    .bv p{margin:0;font-size:16.5px;line-height:1.6;color:#4b5a6d;animation:fadeUp .6s .26s ease both}
+    .bv-barra{width:150px;height:4px;border-radius:4px;background:#e4ebf4;margin:34px 0 10px;overflow:hidden;animation:fadeIn .4s .3s ease both}
+    .bv-barra span{display:block;height:100%;width:100%;background:linear-gradient(90deg,#2d5d93,#f08a24);transform-origin:left;animation:bvCarga 3s linear both}
+    @keyframes bvCarga{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+    .bv-tip{font-size:12.5px;color:#9aa6b5}
+    .bv-pie{position:absolute;bottom:22px;font-size:11.5px;font-weight:600;letter-spacing:2.2px;color:#a3adbb;text-align:center;padding:0 16px}
+    @media(max-width:600px){.bv h1{font-size:30px}.bv p{font-size:15.5px}}
+    /* --- vistas de Bienes (iconos) --- */
+    .vistas{display:inline-flex;gap:2px;background:#fff;border:1px solid #e1e7ef;border-radius:12px;padding:3px}
+    .vistas button{display:inline-flex;align-items:center;gap:7px;border:0;background:transparent;color:#6a7a8f;border-radius:9px;padding:7px 10px;cursor:pointer;font-size:14px;font-weight:700;transition:background .15s,color .15s}
+    .vistas button ico{width:20px;height:20px}
+    .vistas button span{display:none}
+    .vistas button:hover{color:#17263d;background:#f2f5f9}
+    .vistas button.on{background:#17263d;color:#fff}
+    .vistas button.on span{display:inline}
+    .btn-nuevo{display:inline-flex;align-items:center;gap:7px}
+    .btn-nuevo ico{width:18px;height:18px}
+    /* --- barra de herramientas y hojas --- */
+    .tb-btn{display:inline-flex;align-items:center;gap:7px;max-width:240px}
+    .tb-btn ico{width:17px;height:17px}
+    .tb-txt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .tb-chev{width:14px!important;height:14px!important;opacity:.6}
+    .column-picker>.btn-outline{display:inline-flex;align-items:center;gap:7px}
+    .column-picker>.btn-outline>ico{width:17px;height:17px}
+    .clasif-menu{width:300px}
+    .inv-toolbar .table-actions{display:flex;flex-direction:row;align-items:center;gap:8px;flex-wrap:nowrap}
+    .filters-menu select{height:auto!important;min-height:42px;padding:9px 11px!important;line-height:1.35}
+    .clasif-list{display:flex;flex-direction:column;padding:4px 8px 10px;max-height:60vh;overflow-y:auto}
+    .clasif-list button{display:flex;align-items:center;gap:10px;border:0;background:transparent;border-radius:9px;padding:10px;font-size:14.5px;color:#25364c;text-align:left;cursor:pointer}
+    .clasif-list button:hover{background:#f3f6fa}
+    .clasif-list button.on{background:#eef3f9;font-weight:700}
+    .clasif-list i{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+    .clasif-list span{flex:1}
+    .clasif-list b{font-size:13px;color:#7b8798;font-weight:700}
+    .sheet-asa{display:none}
+    @keyframes subeHoja{from{transform:translateY(60px);opacity:0}to{transform:none;opacity:1}}
+    @media(max-width:700px){
+      .inv-toolbar{flex-wrap:wrap}
+      .inv-toolbar .search-box{flex:1 1 100%;max-width:none}
+      .inv-toolbar .table-actions{width:100%;display:flex;gap:8px}
+      .inv-toolbar .table-actions .column-picker{flex:1;min-width:0}
+      .inv-toolbar .table-actions .column-picker>.btn-outline{width:100%;justify-content:center;max-width:none}
+      .refreshing .tb-txt{display:none}
+      .picker-backdrop{z-index:129;background:#0f1c2e66;animation:fadeIn .2s ease both}
+      .picker-menu.sheet,.picker-menu.filters-menu{position:fixed;left:0;right:0;bottom:0;top:auto;width:auto;max-height:86vh;max-height:86dvh;overflow-y:auto;border-radius:20px 20px 0 0;z-index:130;
+        padding-bottom:env(safe-area-inset-bottom);animation:subeHoja .25s ease both}
+      .sheet-asa{display:block;width:42px;height:5px;border-radius:5px;background:#d5dde8;margin:10px auto 2px}
+      .clasif-list{max-height:none}
+      .inv-head .heading-actions{flex-wrap:nowrap}
+      .inv-head .heading-actions>.vistas{flex:0 0 auto}
+      .inv-head .heading-actions>.btn-nuevo{flex:1;justify-content:center}
+    }
+    /* --- tarjetas de bien (contraíbles) --- */
+    .bcs{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px;padding:6px 16px 16px;align-items:start}
+    .bc{background:#fff;border:1px solid #e6ebf2;border-radius:16px;overflow:hidden;transition:box-shadow .2s,border-color .2s}
+    .bc:hover{border-color:#d3dce8}
+    .bc.open{border-color:#c5d3e4;box-shadow:0 12px 32px #17263d14;grid-column:1/-1}
+    .bc-row{display:flex;align-items:center;gap:14px;padding:12px 14px;cursor:pointer}
+    .bc-foto{width:64px;height:64px;border-radius:13px;border:1px solid #eef1f5;background:#f6f8fb;padding:0;overflow:hidden;flex-shrink:0;display:grid;place-items:center;cursor:zoom-in}
+    .bc-foto.vacia{cursor:inherit}
+    .bc-foto img{width:100%;height:100%;object-fit:cover}
+    .bc-foto img.bc-logo{width:78%;height:auto;object-fit:contain;opacity:.32;filter:grayscale(1)}
+    .bc-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+    .bc-nombre{font-size:15.5px;font-weight:700;color:#14243a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .bc-desc{font-size:13.5px;color:#6b7a8d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .bc-meta{display:flex;align-items:center;gap:8px;margin-top:3px;min-width:0}
+    .bc-clave{font-family:"SFMono-Regular",Consolas,monospace;font-size:12px;font-weight:700;color:#5d6d82;letter-spacing:.2px}
+    .bc-mini{display:inline-flex;align-items:center;gap:3px;font-size:12px;color:#8592a3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+    .bc-mini ico{width:13px;height:13px}
+    .bc-chev{width:18px!important;height:18px!important;color:#a3aebd;transition:transform .2s}
+    .bc.open .bc-chev{transform:rotate(180deg)}
+    .bc-body{border-top:1px solid #eef1f5;padding:14px 16px 16px;animation:fadeIn .2s ease both}
+    .edot{width:9px;height:9px;border-radius:50%;background:#b6c0cd;flex-shrink:0;display:inline-block}
+    .edot.grande{width:12px;height:12px;margin:0 4px}
+    .edot.status-good{background:#26a269}
+    .edot.status-warning{background:#e3a21a}
+    .edot.status-bad{background:#d24c55}
+    .bi{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px 18px}
+    .bi li{display:flex;align-items:flex-start;gap:10px;font-size:14px;color:#25364c;min-width:0}
+    .bi li>ico{width:20px;height:20px;color:#5f7590;margin-top:1px}
+    .bi li>span:last-child{display:flex;flex-direction:column;min-width:0;overflow-wrap:anywhere}
+    .bi small{font-size:12px;color:#8a96a6;margin-top:1px}
+    .bi li.cm-vencida>span{color:#b8333d}
+    .bi li.cm-proxima>span{color:#b26a00}
+    .bi-carac{margin:14px 0 0;font-size:14px;line-height:1.55;color:#4b5a6d;background:#f6f8fb;border-radius:10px;padding:10px 12px}
+    .ba{display:flex;flex-wrap:wrap;gap:6px;margin-top:16px;padding-top:14px;border-top:1px solid #eef1f5}
+    .ba>button,.ba>label{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:66px;border:0;background:transparent;border-radius:12px;padding:8px 6px;color:#2d4a6b;
+        font-size:12px!important;font-weight:700!important;cursor:pointer;margin:0!important;transition:background .15s}
+    .ba>button:hover,.ba>label:hover{background:#f1f5fa}
+    .ba ico{width:22px;height:22px}
+    .ba .peligro{color:#c0434c;margin-left:auto!important}
+    .ba .peligro:hover{background:#fdf0f1}
+    .ba .off{opacity:.55;pointer-events:none}
+    .ba-nota{margin:8px 0 0;font-size:12.5px;color:#8a96a6}
+    @media(max-width:700px){.bcs{grid-template-columns:1fr;padding:4px 10px 12px}.bc-foto{width:56px;height:56px}.ba>button,.ba>label{min-width:0;flex:1}.ba .peligro{margin-left:0!important}}
+    /* --- ficha lateral --- */
+    .dw .dw-foto{position:relative;height:210px;background:#f3f6fa;display:grid;place-items:center;flex-shrink:0;overflow:hidden}
+    .dw .dw-foto img{width:100%;height:100%;object-fit:cover;cursor:zoom-in}
+    .dw .dw-foto img.dw-logo{width:46%;height:auto;object-fit:contain;opacity:.25;filter:grayscale(1);cursor:default}
+    .dw-cerrar{position:absolute;top:12px;right:12px;width:36px;height:36px;border-radius:50%;border:0;background:#ffffffe6;color:#17263d;display:grid;place-items:center;cursor:pointer;box-shadow:0 2px 10px #17263d26}
+    .dw-cerrar ico{width:18px;height:18px}
+    .dw-tit{margin-bottom:18px}
+    .dw-tit h2{margin:0 0 6px;font-size:22px;font-weight:800;color:#14243a;letter-spacing:-.3px}
+    .dw-sub{display:flex;align-items:center;gap:8px}
+    .dw-desc{margin:0 0 8px;font-size:14px;color:#6b7a8d}
+    .dw-qr{display:flex;align-items:center;gap:12px;margin-top:16px;background:#f6f8fb;border-radius:12px;padding:10px}
+    .dw-qr img{width:64px;height:64px;border-radius:8px;background:#fff}
+    .dw-qr span{display:flex;flex-direction:column;font-size:14px;color:#25364c}
+    .dw-qr small{font-size:12px;color:#8a96a6}
+    .dw .drawer-footer{display:block}
+    .dw .drawer-footer .ba{margin-top:0;padding-top:0;border-top:0}
+    /* --- inventarios --- */
+    .lv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;align-items:start}
+    .lv{background:#fff;border:1px solid #e5eaf1;border-radius:20px;padding:20px;display:flex;flex-direction:column;gap:18px;box-shadow:0 6px 22px #17263d0b;animation:fadeUp .35s ease both}
+    .lv-top{display:flex;align-items:center;gap:14px}
+    .lv-ico{width:46px;height:46px;border-radius:14px;background:linear-gradient(140deg,#17304f,#2d5d93);color:#fff;display:grid;place-items:center;flex-shrink:0}
+    .lv-ico ico{width:23px;height:23px}
+    .lv-ico.ok{background:linear-gradient(140deg,#0f4c3a,#21835a);width:40px;height:40px;border-radius:12px}
+    .lv-tit{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+    .lv-tit h2{margin:0;font-size:19px;font-weight:800;color:#14243a;letter-spacing:-.2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .lv-tit strong{font-size:15.5px;color:#14243a}
+    .lv-tit small{font-size:13px;color:#7d8a9b}
+    .lv-estado{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#8a6a1e;white-space:nowrap}
+    .lv-estado i{width:8px;height:8px;border-radius:50%;background:#e8a21a;box-shadow:0 0 0 3px #fbecc8}
+    .lv-prog{display:flex;flex-direction:column;gap:9px}
+    .lv-num{display:flex;align-items:baseline;gap:10px}
+    .lv-num b{font-size:30px;font-weight:800;color:#14243a;letter-spacing:-.6px}
+    .lv-num span{font-size:13.5px;color:#6b7a8d}
+    .lv-bar{height:8px;background:#edf1f6;border-radius:6px;overflow:hidden}
+    .lv-bar span{display:block;height:100%;background:linear-gradient(90deg,#2d5d93,#21835a);border-radius:6px;transition:width .5s}
+    .lv-main{width:100%;height:48px;display:inline-flex;align-items:center;justify-content:center;gap:9px;font-size:15.5px;border-radius:13px}
+    .lv-main ico{width:18px;height:18px}
+    .lv-pie{display:flex;justify-content:space-between;gap:6px;border-top:1px solid #eef1f5;padding-top:12px;flex-wrap:wrap}
+    .lv-ics{display:flex;gap:2px}
+    .lv-ics button{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:60px;border:0;background:transparent;border-radius:11px;padding:7px 4px;color:#2d4a6b;font-size:11.5px;font-weight:700;cursor:pointer;transition:background .15s}
+    .lv-ics button:hover,.lv-ics button.on{background:#f1f5fa}
+    .lv-ics ico{width:21px;height:21px}
+    .lv-ics .peligro{color:#c0434c}
+    .lv-ics .peligro:hover{background:#fdf0f1}
+    .lv-detalle{display:flex;flex-direction:column;gap:12px;background:#f7f9fc;border-radius:14px;padding:14px;animation:fadeIn .2s ease both}
+    .lv-detalle>div{display:flex;gap:10px;font-size:14px;color:#25364c}
+    .lv-detalle ico{width:18px;height:18px;color:#5f7590;margin-top:2px}
+    .lv-detalle span{display:flex;flex-direction:column;min-width:0}
+    .lv-detalle small{font-size:11.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:#8d99a9;margin-bottom:2px}
+    .lv-detalle em{font-style:normal;color:#7d8a9b}
+    .lv-detalle .lv-p{display:block;margin-bottom:3px}
+    .lv-cerrados{margin-top:28px}
+    .lv-cerrados h3{margin:0 0 10px;font-size:13px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#8d99a9}
+    .lv-fila{display:flex;align-items:center;gap:14px;background:#fff;border:1px solid #e8edf3;border-radius:16px;padding:12px 14px;margin-bottom:10px}
+    .lv-vacio{display:flex;flex-direction:column;align-items:center;text-align:center;background:#fff;border:1px dashed #d3dce8;border-radius:20px;padding:44px 20px}
+    .lv-vacio-ico{width:64px;height:64px;border-radius:18px;background:#eef3f9;color:#2d5d93;display:grid;place-items:center;margin-bottom:14px}
+    .lv-vacio-ico ico{width:30px;height:30px}
+    .lv-vacio h2{margin:0 0 6px;font-size:20px;color:#14243a}
+    .lv-vacio p{margin:0 0 18px;color:#6b7a8d;max-width:420px}
+    .heading-actions .btn-primary ico,.heading-actions .btn-outline ico,.lv-vacio .btn-primary ico{width:17px;height:17px;vertical-align:-3px}
+    @media(max-width:700px){.lv-grid{grid-template-columns:1fr}.lv{padding:16px;border-radius:18px}.lv-fila{flex-wrap:wrap}.lv-fila .lv-ics{width:100%;justify-content:space-between}.lv-ics button{min-width:52px}}
+    /* --- participantes del acta --- */
+    .wp-lista{display:flex;flex-direction:column;gap:10px}
+    .wp{display:flex;align-items:center;gap:12px;background:#f7f9fc;border:1px solid #e6ebf2;border-radius:14px;padding:10px 10px 10px 12px}
+    .wp-av{width:38px;height:38px;border-radius:50%;background:#dce8f7;color:#244568;display:grid;place-items:center;font-size:13.5px;font-weight:800;flex-shrink:0}
+    .wp-campos{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+    .wp-campos input{background:#fff}
+    .wp-campos input:last-child{font-size:13.5px;padding-top:7px;padding-bottom:7px}
+    .wp-x{width:34px;height:34px;border-radius:50%;border:0;background:transparent;color:#9aa6b5;display:grid;place-items:center;cursor:pointer;flex-shrink:0}
+    .wp-x:hover{background:#fdf0f1;color:#c0434c}
+    .wp-x ico{width:17px;height:17px}
+    .wp-add{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:10px;border:1.5px dashed #c9d6e6;background:transparent;border-radius:12px;padding:11px;color:#2d5d93;font-size:14px;font-weight:700;cursor:pointer}
+    .wp-add:hover{background:#f3f7fc}
+    .wp-add ico{width:17px;height:17px}
     .saludo{position:relative;overflow:hidden;display:flex;align-items:center;gap:24px;background:linear-gradient(120deg,#fff 55%,#edf3fb);border:1px solid #e5eaf1;border-radius:20px;padding:26px 30px 26px 34px;margin-bottom:18px;box-shadow:0 6px 24px #17263d0d;animation:fadeUp .45s ease both}
     .saludo::before{content:'';position:absolute;left:0;top:0;bottom:0;width:5px;background:linear-gradient(#f5a04a,#e07a12)}
     .saludo-txt{flex:1;min-width:0}
@@ -3315,7 +3517,7 @@ interface FormatoDoc {
     @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
     @keyframes zoomIn{from{opacity:0;transform:scale(.96) translateY(8px)}to{opacity:1;transform:none}}
     @keyframes fadeIn{from{opacity:0}to{opacity:1}}
-    .fade-in{animation:fadeUp .45s ease both}
+    .fade-in{animation:fadeIn .35s ease both}
     .sk{display:block;border-radius:6px;background:linear-gradient(90deg,#eef2f7 0%,#f7f9fc 40%,#eef2f7 80%);background-size:800px 100%;animation:shimmer 1.4s linear infinite}
     .skeleton-card{display:flex;flex-direction:column;gap:12px}
     .sk-line{height:10px}
@@ -3801,6 +4003,10 @@ export class AppComponent {
   menuUsuario = false;
   manualAbierto = false;
   formMas = false;
+  bienAbierto: any = null;
+  clasifAbierto = false;
+  bienvenida = false;
+  private bienvenidaTimer: any;
   bienFoto: { blob: Blob; url: string } | null = null;
   fotoSubiendo = false;
   private uiGuardado = '';
@@ -4000,6 +4206,7 @@ export class AppComponent {
     this.prepararApp();
     if (this.logged && !this.mustChangePassword) {
       this.loadAll();
+      this.mostrarBienvenida(false);
     }
   }
 
@@ -4415,7 +4622,7 @@ export class AppComponent {
         this.loading = false;
         clearTimeout(lento); this.loginLento = false;
         this.login.password = '';
-        if (!this.mustChangePassword) this.loadAll();
+        if (!this.mustChangePassword) { this.loadAll(); this.mostrarBienvenida(true); }
       },
       error: e => {
         this.loading = false;
@@ -4497,6 +4704,48 @@ export class AppComponent {
 
   get pushCambiable(): boolean {
     return this.pushEstado === 'activo' || this.pushEstado === 'inactivo';
+  }
+
+  get levsEnCurso(): any[] { return this.levantamientos.filter(l => l.estado !== 'CERRADO'); }
+  get levsCerrados(): any[] { return this.levantamientos.filter(l => l.estado === 'CERRADO'); }
+  semestre(l: any): string { return (l?.periodo || 1) === 1 ? '1.er semestre' : '2.º semestre'; }
+
+  get nombreClasificacionActual(): string {
+    if (!this.filtroClasificacion) return 'Todas';
+    const c = this.resumenClasificaciones.find(x => x.id === this.filtroClasificacion);
+    const n = String(c?.nombre || 'Clasificación').toLowerCase();
+    return n.charAt(0).toUpperCase() + n.slice(1);
+  }
+
+  tocarFotoTarjeta(ev: Event, b: any): void {
+    if (!b?.foto_mini) return;          // sin foto: el toque abre la tarjeta
+    ev.stopPropagation();
+    this.ampliarFoto(b);
+  }
+
+  descripcionBien(b: any): string {
+    if (this.esTexto(b.caracteristicas)) return String(b.caracteristicas).trim();
+    const mm = [b.marca, b.modelo].filter(x => this.esTexto(x)).join(' · ');
+    return mm || (b.clasificacion ? String(b.clasificacion).charAt(0) + String(b.clasificacion).slice(1).toLowerCase() : 'Sin descripción');
+  }
+
+  estadoCorto(b: any): string {
+    const st = String(b?.estatus_inventario || '').toUpperCase();
+    if (st === 'BAJA') return 'De baja';
+    if (st === 'EN_REPARACION') return 'En reparación';
+    return ({ BUENO: 'Buen estado', REGULAR: 'Estado regular', MALO: 'Mal estado' } as any)[String(b?.estado_fisico || '').toUpperCase()] || 'Sin estado';
+  }
+
+  // Bienvenida: al iniciar sesión y al abrir la app después de varias horas
+  private mostrarBienvenida(forzar: boolean): void {
+    const k = 'dozzer_saludo_' + this.email;
+    let ultima = 0;
+    try { ultima = Number(localStorage.getItem(k) || 0); } catch { /* */ }
+    if (!forzar && Date.now() - ultima < 6 * 3600 * 1000) return;
+    try { localStorage.setItem(k, String(Date.now())); } catch { /* */ }
+    this.bienvenida = true;
+    clearTimeout(this.bienvenidaTimer);
+    this.bienvenidaTimer = setTimeout(() => this.bienvenida = false, 3200);
   }
 
   puedeCapturar(l: any): boolean {
@@ -5561,6 +5810,7 @@ export class AppComponent {
   }
 
   abrirBien(b: any): void {
+    this.bienAbierto = null;
     this.bienSeleccionado = b;
     this.qrPreview = '';
     this.refrescarFotoBien(b);
