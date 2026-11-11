@@ -1809,6 +1809,11 @@ export class IcoComponent { @Input() n = ''; }
 
                 <div class="cap-step">
                   <div class="step-title"><span>2</span> Firmas del acta de cierre</div>
+                  <button type="button" class="ver-acta" (click)="abrirDocumentoGuardado(z.lev.idDocumentoCierre)">
+                    <span class="ver-acta-ico"><ico n="file"></ico></span>
+                    <span class="ver-acta-txt"><b>Ver el acta antes de firmar</b><small>Revisa lo que van a firmar; al cerrarla regresas aquí</small></span>
+                    <ico class="ver-acta-go" n="chev"></ico>
+                  </button>
                   <div class="cierre-firma" *ngFor="let p of r.participantes; let i = index">
                     <label class="firma-lbl">{{ p.nombre }} <span class="muted">· {{ p.cargo }}</span></label>
                     <div class="firma-pad" [hidden]="z.papel[i]">
@@ -2204,6 +2209,11 @@ export class IcoComponent { @Input() n = ''; }
                   <button class="close-button" [disabled]="fi.guardando" (click)="firmaIni=null">×</button>
                 </div>
                 <div class="form-section">
+                  <button type="button" class="ver-acta" (click)="abrirDocumentoGuardado(fi.lev.idDocumentoInicio)">
+                    <span class="ver-acta-ico"><ico n="file"></ico></span>
+                    <span class="ver-acta-txt"><b>Ver el acta antes de firmar</b><small>Revisa lo que van a firmar; al cerrarla regresas aquí</small></span>
+                    <ico class="ver-acta-go" n="chev"></ico>
+                  </button>
                   <div class="cierre-firma" *ngFor="let p of fi.ps; let i = index">
                     <label class="firma-lbl">{{ p.nombre }} <span class="muted">· {{ p.cargo }}</span></label>
                     <div class="firma-pad" [hidden]="fi.papel[i]">
@@ -2688,6 +2698,14 @@ export class IcoComponent { @Input() n = ''; }
     .column-picker>.btn-outline{display:inline-flex;align-items:center;gap:7px}
     .column-picker>.btn-outline>ico{width:17px;height:17px}
     .clasif-menu{width:300px}
+    .ver-acta{display:flex;align-items:center;gap:12px;width:100%;margin:0 0 16px;border:1px solid #d6e2f0;background:#f4f8fd;border-radius:14px;padding:12px 14px;text-align:left;cursor:pointer;transition:background .15s,border-color .15s}
+    .ver-acta:hover{background:#eaf2fb;border-color:#b9cde4}
+    .ver-acta-ico{width:38px;height:38px;border-radius:11px;background:#fff;color:#2d5d93;display:grid;place-items:center;flex-shrink:0;box-shadow:0 2px 8px #17263d12}
+    .ver-acta-ico ico{width:20px;height:20px}
+    .ver-acta-txt{flex:1;display:flex;flex-direction:column;gap:2px;min-width:0}
+    .ver-acta-txt b{font-size:14.5px;color:#14243a}
+    .ver-acta-txt small{font-size:12.5px;color:#6b7a8d}
+    .ver-acta-go{width:18px!important;height:18px!important;color:#8a9bb0;transform:rotate(-90deg)}
     .escaneo-ok{position:fixed;top:max(16px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);z-index:500;display:flex;align-items:center;gap:12px;background:#14804f;color:#fff;
       border-radius:16px;padding:12px 20px 12px 14px;box-shadow:0 14px 40px #0f3d2a55;animation:escaneoEntra .25s ease both;pointer-events:none}
     .escaneo-ok-ico{width:34px;height:34px;border-radius:50%;background:#ffffff2e;display:grid;place-items:center}
