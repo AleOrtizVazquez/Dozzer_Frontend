@@ -1661,7 +1661,7 @@ interface FormatoDoc {
                   <button class="lev-head" (click)="levAbierto = levAbierto===l.idLevantamiento ? null : l.idLevantamiento">
                     <span class="lev-ico">{{ l.estado==='CERRADO' ? '✓' : '◷' }}</span>
                     <span class="lev-main">
-                      <strong>Inventario {{ l.anio }} · {{ l.sede }}</strong>
+                      <strong>Inventario {{ l.anio }}-{{ l.periodo || 1 }} · {{ l.sede }}</strong>
                       <span class="lev-bar"><span [style.width.%]="pctLev(l)"></span></span>
                       <small>{{ l.capturados | number }} de {{ l.totalBienes | number }} bienes revisados · {{ pctLev(l) }}%</small>
                     </span>
@@ -1691,7 +1691,7 @@ interface FormatoDoc {
 
                     <div class="lev-actions" *ngIf="l.puedoAdministrar">
                       <button class="btn-danger" *ngIf="l.estado==='EN_CURSO'" (click)="cerrarLevantamiento(l)">Cerrar levantamiento</button>
-                      <button class="btn-eliminar-lev" (click)="eliminarLevantamiento(l)">🗑 Eliminar inventario</button>
+                      <button class="btn-eliminar-lev" *ngIf="l.estado==='EN_CURSO'" (click)="eliminarLevantamiento(l)">🗑 Eliminar inventario</button>
                     </div>
 
                     <button class="lev-more" (click)="levDetalle = levDetalle===l.idLevantamiento ? null : l.idLevantamiento">
@@ -1717,7 +1717,7 @@ interface FormatoDoc {
             <div class="cap av" *ngIf="av">
               <div class="cap-top">
                 <button class="doc-back" (click)="cerrarAvance()">{{ av.enCaptura ? '← Volver a capturar' : '← Inventarios' }}</button>
-                <strong>Avance · Inventario {{ av.lev.anio }} · {{ av.lev.sede }}</strong>
+                <strong>Avance · Inventario {{ av.lev.anio }}-{{ av.lev.periodo || 1 }} · {{ av.lev.sede }}</strong>
                 <span class="lev-bar"><span [style.width.%]="av.vista.pct"></span></span>
                 <small>{{ av.vista.revisados | number }} de {{ av.vista.total | number }} revisados · {{ av.vista.pct }}%
                   <ng-container *ngIf="!av.enCaptura && av.actualizado"> · {{ av.lev.estado==='EN_CURSO' ? 'se actualiza solo · ' : '' }}{{ av.actualizado | date:'HH:mm' }}</ng-container>
@@ -1825,11 +1825,63 @@ interface FormatoDoc {
               </ng-template>
             </div>
 
+            <!-- ===== Cierre del inventario: revisión y firmas del acta ===== -->
+            <div class="cap" *ngIf="anualVista==='cierre' && cierre as z">
+              <div class="cap-top">
+                <button class="doc-back" [disabled]="z.guardando" (click)="salirCierre()">← Inventarios</button>
+                <strong>Cerrar · Inventario {{ z.lev.anio }}-{{ z.lev.periodo || 1 }} · {{ z.lev.sede }}</strong>
+              </div>
+              <div class="cap-loading" *ngIf="z.cargando"><div class="loader-ring"></div><strong>Revisando…</strong></div>
+              <ng-container *ngIf="!z.cargando && z.resumen as r">
+                <div class="etq-stats">
+                  <div><b>{{ r.revisados | number }}</b><small>Revisados</small></div>
+                  <div><b>{{ r.noEncontrados | number }}</b><small>No encontrados</small></div>
+                  <div><b>{{ r.pendientes | number }}</b><small>Sin revisar</small></div>
+                </div>
+                <div class="av-aviso" *ngIf="r.pendientes">
+                  <b>Quedan {{ r.pendientes | number }} bienes sin revisar.</b>
+                  <span>Si cierras así, quedarán como "no localizados" en el acta.</span>
+                  <button class="btn-outline btn-small" (click)="cierre=null; abrirAvance(z.lev, { filtro: 'pendientes' })">Ver pendientes</button>
+                </div>
+
+                <div class="cap-step">
+                  <div class="step-title"><span>1</span> Resguardos</div>
+                  <p class="cap-hint"><b>{{ r.firmadas }} de {{ r.personas }}</b> personas firmaron su resguardo en DOZZER.
+                    <ng-container *ngIf="r.sinFirma.length">Los demás se emiten sin firma para firmarse en papel.</ng-container></p>
+                  <button class="lev-more" *ngIf="r.sinFirma.length" (click)="z.verSin = !z.verSin">{{ z.verSin ? '▴ Ocultar' : '▾ Ver quién falta (' + r.sinFirma.length + ')' }}</button>
+                  <div class="term-pend" *ngIf="z.verSin"><span *ngFor="let n of r.sinFirma">{{ n }}</span></div>
+                </div>
+
+                <div class="cap-step">
+                  <div class="step-title"><span>2</span> Firmas del acta de cierre</div>
+                  <div class="cierre-firma" *ngFor="let p of r.participantes; let i = index">
+                    <label class="firma-lbl">{{ p.nombre }} <span class="muted">· {{ p.cargo }}</span></label>
+                    <div class="firma-pad" [hidden]="z.papel[i]">
+                      <canvas [id]="'firma-cierre-' + i" #fc width="600" height="220" (pointerdown)="firmaDown($event, fc, 'c' + i)" (pointermove)="firmaMove($event, fc, 'c' + i)"
+                              (pointerup)="firmaUp('c' + i)" (pointercancel)="firmaUp('c' + i)" (pointerleave)="firmaUp('c' + i)"></canvas>
+                      <span class="firma-guia" *ngIf="!z.trazos['c' + i]">Firme aquí con el dedo</span>
+                      <button class="firma-borrar" *ngIf="z.trazos['c' + i]" (click)="borrarFirma(fc, 'c' + i)">Borrar</button>
+                    </div>
+                    <label class="cm-check"><input type="checkbox" [(ngModel)]="z.papel[i]"> Firmará en papel</label>
+                  </div>
+                </div>
+
+                <div class="inline-error" *ngIf="z.error">{{ z.error }}</div>
+                <div class="cap-footer">
+                  <button class="btn-outline" [disabled]="z.guardando" (click)="salirCierre()">Cancelar</button>
+                  <button class="btn-primary" [disabled]="z.guardando" (click)="confirmarCierre()">
+                    <span class="mini-ring light" *ngIf="z.guardando"></span>
+                    {{ z.guardando ? 'Cerrando…' : '✓ Cerrar y generar acta' }}
+                  </button>
+                </div>
+              </ng-container>
+            </div>
+
             <!-- ===== Captura (celular) ===== -->
             <div class="cap" *ngIf="anualVista==='captura' && cap && !av">
               <div class="cap-top">
                 <button class="doc-back" (click)="salirCaptura()">← Salir</button>
-                <strong>Inventario {{ cap.lev.anio }} · {{ cap.lev.sede }}</strong>
+                <strong>Inventario {{ cap.lev.anio }}-{{ cap.lev.periodo || 1 }} · {{ cap.lev.sede }}</strong>
                 <span class="lev-bar"><span [style.width.%]="capPct"></span></span>
                 <small>{{ capRevisados | number }} de {{ cap.bienes.length | number }} revisados</small>
                 <button class="sync-chip" [ngClass]="'sync-' + estadoSync" (click)="tocarSync()">{{ textoSync }}</button>
@@ -2206,6 +2258,11 @@ interface FormatoDoc {
                   </select>
                   <label>Año del inventario</label>
                   <input type="number" [(ngModel)]="levNuevo.anio" min="2020" max="2100">
+                  <label>Semestre</label>
+                  <div class="cap-options">
+                    <button type="button" [class.on]="levNuevo.periodo===1" (click)="levNuevo.periodo=1">1.º · enero a junio</button>
+                    <button type="button" [class.on]="levNuevo.periodo===2" (click)="levNuevo.periodo=2">2.º · julio a diciembre</button>
+                  </div>
                 </div>
 
                 <div class="form-section" *ngIf="levNuevo.paso===2">
@@ -3153,6 +3210,8 @@ interface FormatoDoc {
     .cola-item small{font-size:12.5px;color:#7d8a9b}
     .cola-item.err{border-color:#efc4c7;background:#fdf6f6}
     .cola-item.err small{color:#bd4b52}
+    .cierre-firma{display:flex;flex-direction:column;gap:6px;padding:8px 0;border-bottom:1px solid #eef1f5}
+    .cierre-firma:last-child{border-bottom:0}
     .chk{display:flex;flex-direction:column;gap:10px;margin-top:6px}
     .chk-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
     .chk-head strong{font-size:17px;color:#14243a}
@@ -3634,7 +3693,8 @@ export class AppComponent {
   levCargando = false;
   levAbierto: any = null;
   levDetalle: any = null;
-  anualVista: 'lista' | 'captura' | 'avance' = 'lista';
+  anualVista: 'lista' | 'captura' | 'avance' | 'cierre' = 'lista';
+  cierre: any = null;
   // Captura: "bien nuevo", "buscar en todas las sedes" y opciones de la sede (áreas, personas, catálogos)
   capNuevo: any = null;
   capBuscar: any = null;
@@ -5780,7 +5840,7 @@ export class AppComponent {
     this.candidatos = [];
     this.levError = '';
     this.levNuevo = {
-      paso: 1, idSede: null, anio: ahora.getFullYear(),
+      paso: 1, idSede: null, anio: ahora.getFullYear(), periodo: ahora.getMonth() < 6 ? 1 : 2,
       ciudad: '',
       direccion: '',
       fechaInicio: local, idUsuarioCapturista: null,
@@ -5842,7 +5902,7 @@ export class AppComponent {
     this.levGuardando = true;
     this.levError = '';
     this.http.post<any>(this.api + '/levantamientos', {
-      idSede: n.idSede, anio: n.anio, ciudad: n.ciudad, direccion: n.direccion, fechaInicio: n.fechaInicio,
+      idSede: n.idSede, anio: n.anio, periodo: n.periodo, ciudad: n.ciudad, direccion: n.direccion, fechaInicio: n.fechaInicio,
       idUsuarioCapturista: n.idUsuarioCapturista,
       participantes: n.participantes.filter((p: any) => String(p.nombre || '').trim()),
       pregunta: n.pregunta
@@ -5852,7 +5912,7 @@ export class AppComponent {
         this.levNuevo = null;
         this.levAbierto = r.idLevantamiento;
         this.loadLevantamientos();
-        this.notificar('exito', 'Levantamiento iniciado', 'Inventario ' + r.anio + ' · ' + r.sede + '. El acta de inicio quedó guardada en Documentos.', 3500,
+        this.notificar('exito', 'Inventario iniciado', 'Inventario ' + r.anio + '-' + r.periodo + ' · ' + r.sede + '. El acta de inicio quedó guardada en Documentos.', 3500,
           { texto: '📄 Ver acta de inicio', fn: () => this.abrirDocumentoGuardado(r.idDocumentoInicio) });
       },
       error: e => { this.levGuardando = false; this.levError = this.mensajeError(e, 'No fue posible crear el levantamiento.'); }
@@ -5888,29 +5948,55 @@ export class AppComponent {
 
   cerrarLevantamiento(l: any, yaRevisoPendientes = false): void {
     const faltan = this.pendientesLev(l);
-    const marcados = l.noEncontrados || 0;
     if (faltan > 0 && !yaRevisoPendientes) {
       this.abrirAvance(l, { filtro: 'pendientes', antesDeCerrar: true });
       return;
     }
-    this.abrirDialogo({
-      tipo: 'peligro', icono: '✓',
-      titulo: '¿Cerrar el levantamiento?',
-      mensaje: 'Se revisaron ' + l.capturados + ' de ' + l.totalBienes + ' bienes.' +
-        (faltan + marcados > 0 ? ' Los ' + (faltan + marcados) + ' restantes (' + marcados + ' marcados como no encontrados) quedarán como "no localizados" en el acta.' : '') +
-        ' Ya no se podrá capturar; se emitirán el Acta de cierre y el resguardo de cada persona.',
-      textoConfirmar: 'Sí, cerrar y generar acta',
-      accion: terminar => {
-        this.http.post<any>(this.api + '/levantamientos/' + l.idLevantamiento + '/cerrar', {}).subscribe({
-          next: r => {
-            terminar();
-            this.loadLevantamientos();
-            this.notificar('exito', 'Levantamiento cerrado', 'El acta de cierre y los resguardos quedaron emitidos en Documentos.', 3500,
-              { texto: '📄 Ver acta de cierre', fn: () => this.abrirDocumentoGuardado(r.idDocumentoCierre) });
-          },
-          error: e => terminar(this.mensajeError(e, 'No fue posible cerrar el levantamiento.'))
-        });
-      }
+    this.abrirCierre(l);
+  }
+
+  // Pantalla de cierre: resumen, resguardos sin firmar y firmas de los participantes del acta
+  abrirCierre(l: any): void {
+    this.detenerTimerAvance();
+    this.av = null;
+    this.anualVista = 'cierre';
+    this.cierre = { lev: l, cargando: true, resumen: null, papel: [], trazos: {}, guardando: false, error: '', verSin: false };
+    const z = this.cierre;
+    this.http.get<any>(this.api + '/levantamientos/' + l.idLevantamiento + '/cierre-resumen').subscribe({
+      next: r => { z.resumen = r; z.papel = (r.participantes || []).map(() => false); z.cargando = false; },
+      error: e => { z.cargando = false; z.error = this.mensajeError(e, 'No se pudo preparar el cierre.'); }
+    });
+    window.scrollTo({ top: 0 });
+  }
+
+  salirCierre(): void {
+    this.cierre = null;
+    this.anualVista = 'lista';
+    this.loadLevantamientos();
+  }
+
+  confirmarCierre(): void {
+    const z = this.cierre;
+    if (!z?.resumen || z.guardando) return;
+    const ps: any[] = z.resumen.participantes || [];
+    const sinNada = ps.findIndex((_, i) => !z.papel[i] && !z.trazos['c' + i]);
+    if (sinNada >= 0) { z.error = 'Falta la firma de ' + ps[sinNada].nombre + ' (o marca "Firmará en papel").'; return; }
+    const firmas = ps.map((_, i) => {
+      if (z.papel[i]) return null;
+      const c = document.getElementById('firma-cierre-' + i) as HTMLCanvasElement | null;
+      return c ? c.toDataURL('image/png') : null;
+    });
+    z.guardando = true; z.error = '';
+    this.http.post<any>(this.api + '/levantamientos/' + z.lev.idLevantamiento + '/cerrar', { firmas }).subscribe({
+      next: r => {
+        this.cierre = null;
+        this.anualVista = 'lista';
+        this.loadLevantamientos();
+        window.scrollTo({ top: 0 });
+        this.notificar('exito', 'Inventario cerrado', 'Se emitieron el acta de cierre y los resguardos.', 4000,
+          { texto: '📄 Ver acta de cierre', fn: () => this.abrirDocumentoGuardado(r.idDocumentoCierre) });
+      },
+      error: e => { z.guardando = false; z.error = this.mensajeError(e, 'No se pudo cerrar el inventario.'); }
     });
   }
 
@@ -6014,10 +6100,7 @@ export class AppComponent {
 
   cerrarDesdeAvance(): void {
     const l = this.av.lev;
-    l.capturados = this.av.vista.revisados;
-    l.noEncontrados = this.av.vista.cuentas.noenc || 0;
-    this.cerrarAvance();
-    this.cerrarLevantamiento(l, true);
+    this.abrirCierre(l);
   }
 
   private detenerTimerAvance(): void {
@@ -6139,7 +6222,7 @@ export class AppComponent {
       doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.setTextColor(20, 36, 58);
       doc.text('Lista de pendientes por ' + (porPersona ? 'persona' : 'área'), M, 18);
       doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(95, 110, 130);
-      doc.text('Inventario ' + av.lev.anio + ' · ' + av.lev.sede + ' · ' + total + ' bienes pendientes · generado ' +
+      doc.text('Inventario ' + av.lev.anio + '-' + (av.lev.periodo || 1) + ' · ' + av.lev.sede + ' · ' + total + ' bienes pendientes · generado ' +
         new Date().toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' }), M, 24);
       doc.setDrawColor(45, 93, 147); doc.setLineWidth(0.6); doc.line(M, 27, W - M, 27);
       y = 34;
@@ -6854,6 +6937,7 @@ export class AppComponent {
     try { canvas.setPointerCapture(ev.pointerId); } catch { /* */ }
     this.firmaPunto[k] = this.puntoFirma(ev, canvas);
     if (this.cap?.term) this.cap.term.trazos[k] = true;
+    if (this.cierre) this.cierre.trazos[k] = true;
   }
 
   firmaMove(ev: PointerEvent, canvas: HTMLCanvasElement, k: string): void {
@@ -6874,6 +6958,7 @@ export class AppComponent {
   borrarFirma(canvas: HTMLCanvasElement, k: string): void {
     (canvas.getContext('2d') as CanvasRenderingContext2D).clearRect(0, 0, canvas.width, canvas.height);
     if (this.cap?.term) this.cap.term.trazos[k] = false;
+    if (this.cierre) this.cierre.trazos[k] = false;
   }
 
   firmarYTerminar(canvasA: HTMLCanvasElement, canvasB: HTMLCanvasElement): void {
@@ -7121,6 +7206,7 @@ export class AppComponent {
         [ps[i], ps[i + 1]].forEach((p, j) => {
           if (!p) return;
           const cx = j === 0 ? X + W * 0.25 : X + W * 0.75;
+          if (p.firma) { try { doc.addImage(p.firma, 'PNG', cx - 30, y - 21, 60, 22); } catch { /* firma ilegible */ } }
           doc.setDrawColor(0); doc.setLineWidth(0.3);
           doc.line(cx - 38, y, cx + 38, y);
           doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5);
@@ -7134,7 +7220,7 @@ export class AppComponent {
 
     cabecera();
     if (inicio) {
-      titulo(['ACTA DE INICIO DE LEVANTAMIENTO', 'DE INVENTARIO DE BIENES ' + d.anio]);
+      titulo(['ACTA DE INICIO DE LEVANTAMIENTO', 'DE INVENTARIO DE BIENES ' + d.anio + (d.periodo ? ' · ' + (d.periodo === 2 ? 'SEGUNDO' : 'PRIMER') + ' SEMESTRE' : '')]);
       parrafo('En la ciudad de ' + (d.ciudad || '________') + ', al día ' + d.dia + ' del mes de ' + d.mes + ' del año ' + d.anioFecha +
         ' siendo las ' + d.hora + ' hrs, en las instalaciones de la empresa DOZZER, sede ' + d.sede +
         (d.direccion ? ', ubicada en dirección ' + d.direccion : '') +
@@ -7155,7 +7241,7 @@ export class AppComponent {
       participantes();
     } else {
       const t = d.totales || {};
-      titulo(['ACTA DE CIERRE DE INVENTARIO ' + d.anio]);
+      titulo(['ACTA DE CIERRE DE INVENTARIO ' + d.anio, ...(d.periodo ? [(d.periodo === 2 ? 'SEGUNDO' : 'PRIMER') + ' SEMESTRE'] : [])]);
       parrafo('Siendo las ' + d.hora + ' hrs. del día ' + d.dia + ' de ' + d.mes + ' del ' + d.anioFecha +
         ', se declara formalmente concluido el levantamiento físico de inventario de bienes muebles correspondiente a DOZZER, sede ' + d.sede +
         (d.direccion ? ', ubicada en dirección ' + d.direccion : '') +
