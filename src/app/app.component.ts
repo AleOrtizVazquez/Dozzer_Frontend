@@ -67,47 +67,42 @@ interface FormatoDoc {
         <button class="sidebar-close" title="Cerrar menú" (click)="menuCollapsed=true">×</button>
       </div>
 
-      <div class="menu-label">MENÚ PRINCIPAL</div>
+      <nav class="side-nav">
+        <button class="nav-item" [class.active]="section==='bienes'" (click)="irA('bienes')">
+          <span class="nav-icon">▦</span><span>Bienes</span>
+        </button>
+        <button class="nav-item" *ngIf="verInventarioAnual" [class.active]="section==='anual'" (click)="irA('anual')">
+          <span class="nav-icon">✓</span><span>Inventario</span>
+        </button>
+        <button class="nav-item" [class.active]="section==='solicitudes'" (click)="irA('solicitudes')">
+          <span class="nav-icon">▣</span><span>{{ isAdmin ? 'Autorizaciones' : 'Solicitudes' }}</span>
+          <span class="nav-badge" *ngIf="pendientesBadge > 0">{{ pendientesBadge }}</span>
+        </button>
+        <button class="nav-item" [class.active]="section==='documentos'" (click)="irA('documentos')">
+          <span class="nav-icon">▤</span><span>Documentos</span>
+        </button>
+        <button class="nav-item" *ngIf="isAdmin" [class.active]="section==='catalogos'" (click)="irA('catalogos')">
+          <span class="nav-icon">⚙</span><span>Catálogos</span>
+        </button>
+      </nav>
 
-      <button class="nav-item" [class.active]="section==='inicio'" (click)="menuCollapsed=true; section='inicio'; editing=false">
-        <span class="nav-icon">⌂</span>
-        <span>Inicio</span>
-      </button>
-
-      <button class="nav-item" [class.active]="section==='bienes'" (click)="menuCollapsed=true; section='bienes'; vistaInv='menu'; editing=false">
-        <span class="nav-icon">▦</span>
-        <span>Bienes</span>
-      </button>
-
-      <button class="nav-item" *ngIf="verInventarioAnual" [class.active]="section==='anual'" (click)="menuCollapsed=true; section='anual'; anualVista='lista'; loadLevantamientos()">
-        <span class="nav-icon">✓</span>
-        <span>Inventario</span>
-      </button>
-
-      <button class="nav-item" [class.active]="section==='solicitudes'" (click)="menuCollapsed=true; section='solicitudes'; loadSolicitudes()">
-        <span class="nav-icon">▣</span>
-        <span>{{ isAdmin ? 'Autorizaciones' : 'Solicitudes' }}</span>
-        <span class="nav-badge" *ngIf="pendientesBadge > 0">{{ pendientesBadge }}</span>
-      </button>
-
-      <button class="nav-item" [class.active]="section==='documentos'" (click)="menuCollapsed=true; section='documentos'; docsVista='menu'; loadDocumentos()">
-        <span class="nav-icon">▤</span>
-        <span>Documentos</span>
-      </button>
-
-      <button class="nav-item" *ngIf="isAdmin" [class.active]="section==='catalogos'" (click)="menuCollapsed=true; section='catalogos'; loadCatalog()">
-        <span class="nav-icon">⚙</span>
-        <span>Catálogos</span>
-      </button>
-
-      <div class="sidebar-bottom" *ngIf="logged">
-        <div class="user-avatar">{{ initials }}</div>
-        <div class="user-info">
-          <strong [title]="email">{{ nombreUsuario || email }}</strong>
-          <small>{{ isAdmin ? 'Administrador' : 'Empleado' }}</small>
+      <div class="side-cuenta" *ngIf="logged">
+        <div class="side-user">
+          <div class="user-avatar">{{ initials }}</div>
+          <div class="user-info">
+            <strong [title]="email">{{ nombreUsuario || email }}</strong>
+            <small>{{ isAdmin ? 'Administrador' : 'Empleado' }}</small>
+          </div>
         </div>
-        <button class="logout" title="Cambiar contraseña" (click)="abrirCambioPassword()">⚿</button>
-        <button class="logout" title="Cerrar sesión" (click)="logout()">↪</button>
+        <button class="side-op" [disabled]="pushProcesando || !pushCambiable" (click)="pushEstado==='activo' ? desactivarPush() : activarPush()">
+          <span>🔔</span>
+          <span class="side-op-txt">Notificaciones<small *ngIf="!pushCambiable">{{ textoPushEstado }}</small></span>
+          <span class="switch" *ngIf="pushCambiable" [class.on]="pushEstado==='activo'"><i></i></span>
+        </button>
+        <button class="side-op" *ngIf="instalarPrompt" (click)="instalarApp()"><span>📲</span><span class="side-op-txt">Instalar app</span></button>
+        <button class="side-op" (click)="menuCollapsed=true; abrirCambioPassword()"><span>🔑</span><span class="side-op-txt">Cambiar contraseña</span></button>
+        <button class="side-op" (click)="menuCollapsed=true; manualAbierto=true"><span>📘</span><span class="side-op-txt">Manual de usuario</span></button>
+        <button class="side-op salir" (click)="logout()"><span>↪</span><span class="side-op-txt">Cerrar sesión</span></button>
       </div>
     </aside>
 
@@ -261,6 +256,61 @@ interface FormatoDoc {
           <iframe src="manual.html" title="Manual de usuario"></iframe>
         </div>
       </div>
+
+      <!-- ETIQUETAS QR EN BLANCO -->
+      <div class="modal-backdrop" *ngIf="etq">
+        <div class="modal-card wizard">
+          <div class="modal-header">
+            <div>
+              <h2>🏷 Etiquetas QR en blanco</h2>
+              <p>Para identificar con QR los bienes que no tienen etiqueta.</p>
+            </div>
+            <button class="close-button" [disabled]="etq.generando" (click)="etq=null">×</button>
+          </div>
+          <div class="form-section">
+            <ol class="etq-pasos">
+              <li><b>Imprime</b> aquí hojas adhesivas (carta, 30 etiquetas tipo Avery 5160).</li>
+              <li><b>Pega</b> una etiqueta en cada bien que no tenga.</li>
+              <li>En el <b>inventario</b>, escanéala junto al bien: queda ligada sola.</li>
+            </ol>
+            <div class="cap-loading" *ngIf="etq.cargando"><div class="loader-ring"></div><strong>Calculando…</strong></div>
+            <ng-container *ngIf="!etq.cargando && etq.resumen as r">
+              <div class="etq-stats">
+                <div><b>{{ r.total | number }}</b><small>Impresas</small></div>
+                <div><b>{{ r.asignadas | number }}</b><small>Pegadas</small></div>
+                <div><b>{{ r.libres | number }}</b><small>Sin pegar</small></div>
+              </div>
+
+              <button class="lev-more" (click)="etq.verSedes = !etq.verSedes">{{ etq.verSedes ? '▴' : '▾' }} Bienes sin etiqueta por sede ({{ etqFaltan | number }})</button>
+              <div class="etq-sedes" *ngIf="etq.verSedes">
+                <div *ngFor="let x of r.porSede"><span>{{ x.sede }}</span><b>{{ x.sin_etiqueta | number }}</b><small>≈ {{ hojasPara(x.sin_etiqueta) }} hojas</small></div>
+              </div>
+
+              <label>¿Cuántas hojas vas a imprimir?</label>
+              <div class="etq-hojas">
+                <button class="btn-outline" (click)="etq.hojas = mathMax(1, etq.hojas - 1)">−</button>
+                <input type="number" min="1" max="30" [(ngModel)]="etq.hojas">
+                <button class="btn-outline" (click)="etq.hojas = mathMin(30, etq.hojas + 1)">＋</button>
+              </div>
+              <p class="cap-hint">
+                = {{ etq.hojas * 30 | number }} etiquetas, de <b>{{ codigoEtiqueta(r.ultimo + 1) }}</b> a <b>{{ codigoEtiqueta(r.ultimo + etq.hojas * 30) }}</b>.
+                Para terminar todo faltan ≈ <b>{{ hojasSugeridas | number }} hojas</b> (incluye 5% extra); imprímelas por partes de hasta 30.
+              </p>
+              <div class="wiz-summary">En la impresora elige <b>tamaño carta</b>, <b>escala 100%</b> y <b>sin márgenes</b>. Haz primero una prueba en hoja normal y empálmala con la adhesiva.</div>
+              <button class="lev-more" *ngIf="r.libres" [disabled]="etq.generando" (click)="reimprimirLibres()">⎙ Volver a imprimir las {{ mathMin(r.libres, 900) | number }} que siguen sin pegar</button>
+            </ng-container>
+          </div>
+          <div class="inline-error" *ngIf="etq.error" style="margin:0 24px 12px">{{ etq.error }}</div>
+          <div class="modal-footer">
+            <button class="btn-outline" [disabled]="etq.generando" (click)="etq=null">Cerrar</button>
+            <button class="btn-primary" [disabled]="etq.cargando || etq.generando || !(etq.hojas >= 1)" (click)="generarEtiquetas()">
+              <span class="mini-ring light" *ngIf="etq.generando"></span>
+              {{ etq.generando ? 'Generando…' : '⎙ Generar e imprimir ' + (etq.hojas || 0) + (etq.hojas === 1 ? ' hoja' : ' hojas') }}
+            </button>
+          </div>
+        </div>
+      </div>
+
 
       <!-- FORMATO PDF DE ALTA / BAJA -->
       <div class="modal-backdrop doc-backdrop" *ngIf="documento || docGenerando">
@@ -470,132 +520,53 @@ interface FormatoDoc {
         <!-- TOPBAR -->
         <header class="topbar">
           <button class="menu-toggle" title="Menú" (click)="menuCollapsed=!menuCollapsed">☰<span class="toggle-badge" *ngIf="pendientesBadge > 0">{{ pendientesBadge }}</span></button>
-          <div class="topbar-title">
-            <small>DOZZER / {{ sectionLabel }}</small>
-            <strong>{{ sectionTitle }}</strong>
-          </div>
-          <div class="topbar-right">
-            <span class="online-dot"></span>
-            <span class="online-label">Sistema activo</span>
-            <div class="user-menu-wrap">
-              <button class="top-avatar top-avatar-btn" [class.open]="menuUsuario" title="Mi cuenta" (click)="menuUsuario=!menuUsuario">{{ initials }}</button>
-              <div class="picker-backdrop" *ngIf="menuUsuario" (click)="menuUsuario=false"></div>
-              <div class="user-menu" *ngIf="menuUsuario">
-                <div class="user-menu-head">
-                  <span class="top-avatar">{{ initials }}</span>
-                  <div>
-                    <strong>{{ nombreUsuario || email }}</strong>
-                    <small>{{ isAdmin ? 'Administrador' : 'Empleado' }} · {{ email }}</small>
-                  </div>
-                </div>
-                <button *ngIf="isAdmin" (click)="menuUsuario=false; abrirRestablecerManual()">
-                  <span class="more-ico">⚿</span>
-                  <div><strong>Restablecer contraseña</strong><small>Asignar una temporal a un usuario</small></div>
-                </button>
-                <button *ngIf="isAdmin" (click)="menuUsuario=false; generarTemporalesPendientes()">
-                  <span class="more-ico">⇩</span>
-                  <div><strong>Contraseñas temporales</strong><small>Una distinta por empleado (Excel)</small></div>
-                </button>
-                <button *ngIf="instalarPrompt" (click)="menuUsuario=false; instalarApp()">
-                  <span class="more-ico">📲</span>
-                  <div><strong>Instalar DOZZER</strong><small>Como app en este dispositivo</small></div>
-                </button>
-                <button [disabled]="pushProcesando" (click)="menuUsuario=false; pushEstado==='activo' ? desactivarPush() : activarPush()">
-                  <span class="more-ico">{{ pushEstado==='activo' ? '🔔' : '🔕' }}</span>
-                  <div><strong>{{ pushEstado==='activo' ? 'Avisos activados' : 'Activar avisos' }}</strong><small>{{ textoPushEstado }}</small></div>
-                </button>
-                <button (click)="menuUsuario=false; abrirCambioPassword()">
-                  <span class="more-ico">✎</span>
-                  <div><strong>Cambiar mi contraseña</strong><small>Actualiza tu acceso</small></div>
-                </button>
-                <a class="user-menu-ayuda" (click)="menuUsuario=false; manualAbierto=true">📘 Manual de usuario</a>
-                <button class="user-menu-exit" (click)="menuUsuario=false; logout()">
-                  <span class="more-ico">↪</span>
-                  <div><strong>Cerrar sesión</strong></div>
-                </button>
-              </div>
-            </div>
-          </div>
+          <div class="topbar-title"><strong>{{ sectionTitle }}</strong></div>
+          <button class="sync-chip top-sync" *ngIf="(cola.total || !enLinea) && !(section==='anual' && anualVista==='captura')" [ngClass]="'sync-' + estadoSync" (click)="tocarSync()">{{ textoSync }}</button>
         </header>
 
         <div class="content-area">
 
 
 
-          <!-- INICIO: SALUDO -->
-          <section class="welcome" *ngIf="section==='inicio'">
-            <div class="welcome-inner">
-              <img class="welcome-logo" src="logo-dozzer.png" alt="DOZZER Construcción y Asesoría S.A. de C.V.">
-              <span class="welcome-chip">{{ saludoHora }} · {{ fechaHoy }}</span>
-              <h1>Hola, {{ primerNombre }}</h1>
-              <p>Bienvenido al sistema oficial de inventarios.<br>Selecciona una opción del menú lateral para comenzar.</p>
-              <div class="push-invita" *ngIf="(pushEstado==='inactivo' || pushEstado==='instalar-ios') && !avisoPushOculto">
-                <span class="push-ico">🔔</span>
-                <div class="push-txt">
-                  <strong>Recibe avisos en este celular</strong>
-                  <small>{{ isAdmin || canAuthorize ? 'Que te suene cuando haya autorizaciones pendientes.' : 'Te avisamos cuando aprueben o rechacen tus solicitudes.' }}</small>
-                </div>
-                <button class="btn-primary btn-small" [disabled]="pushProcesando" (click)="activarPush()">Activar</button>
-                <button class="push-x" title="Ahora no" (click)="ocultarAvisoPush()">×</button>
-              </div>
-              <button class="push-instalar" *ngIf="instalarPrompt" (click)="instalarApp()">📲 Instalar DOZZER como app</button>
-              <div class="cm-aviso" *ngIf="(isAdmin || canAuthorize) && alertasCM.total as total">
-                <span class="push-ico">🛠</span>
-                <div class="push-txt">
-                  <strong>Calibración y mantenimiento</strong>
-                  <small>
-                    <ng-container *ngIf="alertasCM.vencidas"><b class="cm-n vencida">{{ alertasCM.vencidas }} vencidos</b> · </ng-container>
-                    <ng-container *ngIf="alertasCM.proximas"><b class="cm-n proxima">{{ alertasCM.proximas }} en 30 días</b> · </ng-container>
-                    {{ alertasCM.sinFecha }} sin fecha de {{ total }}
-                  </small>
-                </div>
-                <button class="btn-outline btn-small" (click)="verAlertasCM(alertasCM.vencidas || alertasCM.proximas ? 'atencion' : 'sinfecha')">Ver</button>
-              </div>
-            </div>
-            <footer class="welcome-foot">DOZZER INVENTORY CONTROL SYSTEM V1.0 • © {{ anioActual }}</footer>
-          </section>
 
           <!-- INVENTARIO -->
           <section *ngIf="section==='bienes'">
 
             <div class="inv-head">
               <div>
-                <button class="inv-back" *ngIf="vistaInv!=='menu'" (click)="volverInventario()">← {{ textoVolverInv }}</button>
+                <button class="inv-back" *ngIf="vistaInv==='bienes' && origenVistaInv!=='menu'" (click)="volverInventario()">← {{ textoVolverInv }}</button>
                 <h1>{{ tituloVistaInv }}</h1>
-                <p class="inv-resumen" *ngIf="vistaInv!=='menu'">{{ subtituloVistaInv }}</p>
-                <ng-container *ngIf="vistaInv==='menu'">
+                <p class="inv-resumen" *ngIf="!(vistaInv==='bienes' && origenVistaInv==='menu')">{{ subtituloVistaInv }}</p>
+                <ng-container *ngIf="vistaInv==='bienes' && origenVistaInv==='menu'">
                 <p class="inv-resumen" *ngIf="bienes.length; else resumenVacio">
                   <span><b>{{ bienes.length | number }}</b> bienes</span>
-                  <span><b>{{ totalPiezas | number }}</b> piezas</span>
                   <span><b>{{ porcentaje(bienesBuenEstado) }}%</b> en buen estado</span>
-                  <span><b>{{ bienesDisponibles | number }}</b> sin asignar</span>
                   <span class="inv-scope">{{ isAdmin ? 'Todas las sedes' : 'Tu sede' }}</span>
                 </p>
                 <ng-template #resumenVacio><p class="inv-resumen">{{ bienesCargando ? 'Cargando…' : 'Bienes y equipo de la empresa' }}</p></ng-template>
                 </ng-container>
               </div>
               <div class="heading-actions">
-                <div class="more-wrap">
-                  <button class="btn-outline" (click)="menuMasInventario=!menuMasInventario">
-                    Más opciones <span class="caret">▾</span>
-                  </button>
-                  <div class="picker-backdrop" *ngIf="menuMasInventario" (click)="menuMasInventario=false"></div>
-                  <div class="more-menu" *ngIf="menuMasInventario">
-                    <button *ngIf="isAdmin" (click)="menuMasInventario=false; abrirEtiquetas()">
-                      <span class="more-ico">🏷</span>
-                      <div><strong>Etiquetas QR en blanco</strong><small>Calcular, generar e imprimir hojas</small></div>
-                    </button>
-                    <button *ngIf="isAdmin" (click)="menuMasInventario=false; openExcel()">
-                      <span class="more-ico">▤</span>
-                      <div><strong>Importar desde Excel</strong><small>Carga masiva de bienes</small></div>
-                    </button>
-                  </div>
-                </div>
-                <button class="btn-primary" (click)="newBien()">
-                  <span>＋</span> Nuevo registro
-                </button>
+                <button class="btn-primary" (click)="newBien()"><span>＋</span> Nuevo bien</button>
               </div>
             </div>
+
+            <div class="vista-seg" *ngIf="!(vistaInv==='bienes' && origenVistaInv!=='menu')">
+              <button [class.on]="vistaInv==='bienes'" (click)="abrirVistaInv('bienes')">▦ Bienes</button>
+              <button [class.on]="vistaInv==='personas'" (click)="abrirVistaInv('personas')">👤 Por persona</button>
+              <button *ngIf="isAdmin" [class.on]="vistaInv==='sedes'" (click)="abrirVistaInv('sedes')">🏢 Por sede</button>
+              <button class="solo-pc" [class.on]="vistaInv==='completo'" (click)="abrirVistaInv('completo')">☰ Tabla</button>
+            </div>
+
+            <button class="cm-banner" *ngIf="(isAdmin || canAuthorize) && (alertasCM.vencidas || alertasCM.proximas) && vistaInv!=='completo'" (click)="verAlertasCM('atencion')">
+              <span class="cm-banner-ico">🛠</span>
+              <span>
+                <b *ngIf="alertasCM.vencidas">{{ alertasCM.vencidas }} con calibración o mantenimiento vencido</b>
+                <ng-container *ngIf="alertasCM.vencidas && alertasCM.proximas"> · </ng-container>
+                <ng-container *ngIf="alertasCM.proximas">{{ alertasCM.proximas }} vencen en 30 días</ng-container>
+              </span>
+              <em>Ver →</em>
+            </button>
 
             <!-- CARGA INICIAL: ESQUELETOS ANIMADOS -->
             <ng-container *ngIf="bienesCargando && !bienes.length">
@@ -625,50 +596,6 @@ interface FormatoDoc {
 
             <ng-container *ngIf="bienes.length || (!bienesCargando && !bienesError)">
               <div class="fade-in">
-
-                <!-- MENÚ DE INVENTARIO: TARJETAS GRANDES -->
-                <div class="inv-tiles" *ngIf="vistaInv==='menu'">
-                  <button class="inv-tile t-sedes" (click)="abrirVistaInv('sedes')">
-                    <svg class="tile-bg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h1M14 9h1M9 13h1M14 13h1M10 21v-4h4v4"/></svg>
-                    <span class="tile-ico"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h1M14 9h1M9 13h1M14 13h1M10 21v-4h4v4"/></svg></span>
-                    <span class="tile-text">
-                      <strong>Sedes</strong>
-                      <small>Bienes agrupados por sede</small>
-                    </span>
-                    <span class="tile-num">{{ resumenSedes.length | number }}<em>{{ resumenSedes.length === 1 ? 'sede' : 'sedes' }}</em></span>
-                    <span class="tile-go">Ver sedes →</span>
-                  </button>
-                  <button class="inv-tile t-bienes" (click)="abrirVistaInv('bienes')">
-                    <svg class="tile-bg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>
-                    <span class="tile-ico"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg></span>
-                    <span class="tile-text">
-                      <strong>Bienes</strong>
-                      <small>Cada bien en una tarjeta</small>
-                    </span>
-                    <span class="tile-num">{{ bienes.length | number }}<em>bienes</em></span>
-                    <span class="tile-go">Ver bienes →</span>
-                  </button>
-                  <button class="inv-tile t-personas" (click)="abrirVistaInv('personas')">
-                    <svg class="tile-bg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><circle cx="17" cy="9" r="2.6"/><path d="M16.5 14.6c2.6.2 4.4 1.9 5 5.4"/></svg>
-                    <span class="tile-ico"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><circle cx="17" cy="9" r="2.6"/><path d="M16.5 14.6c2.6.2 4.4 1.9 5 5.4"/></svg></span>
-                    <span class="tile-text">
-                      <strong>Personas</strong>
-                      <small>Quién tiene cada bien a su cargo</small>
-                    </span>
-                    <span class="tile-num">{{ resumenPersonas.length | number }}<em>personas</em></span>
-                    <span class="tile-go">Ver personas →</span>
-                  </button>
-                  <button class="inv-tile t-completo" (click)="abrirVistaInv('completo')">
-                    <svg class="tile-bg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M3 14h18M9 9v11M15 9v11"/></svg>
-                    <span class="tile-ico"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M3 14h18M9 9v11M15 9v11"/></svg></span>
-                    <span class="tile-text">
-                      <strong>Completo</strong>
-                      <small>Tabla con búsqueda, filtros y columnas</small>
-                    </span>
-                    <span class="tile-num">{{ totalPiezas | number }}<em>piezas</em></span>
-                    <span class="tile-go">Abrir tabla →</span>
-                  </button>
-                </div>
 
                 <!-- VISTA: SEDES -->
                 <div class="sede-grid" *ngIf="vistaInv==='sedes'">
@@ -936,55 +863,6 @@ interface FormatoDoc {
               </div>
             </ng-container>
 
-            <!-- ETIQUETAS QR EN BLANCO -->
-            <div class="modal-backdrop" *ngIf="etq">
-              <div class="modal-card wizard">
-                <div class="modal-header">
-                  <div>
-                    <h2>🏷 Etiquetas QR en blanco</h2>
-                    <p>Hoja carta adhesiva de 30 etiquetas (tipo Avery 5160). Se pegan en cualquier bien y se ligan al escanearlas.</p>
-                  </div>
-                  <button class="close-button" [disabled]="etq.generando" (click)="etq=null">×</button>
-                </div>
-                <div class="form-section">
-                  <div class="cap-loading" *ngIf="etq.cargando"><div class="loader-ring"></div><strong>Calculando…</strong></div>
-                  <ng-container *ngIf="!etq.cargando && etq.resumen as r">
-                    <div class="etq-stats">
-                      <div><b>{{ r.total | number }}</b><small>Impresas</small></div>
-                      <div><b>{{ r.asignadas | number }}</b><small>Pegadas</small></div>
-                      <div><b>{{ r.libres | number }}</b><small>Sin pegar</small></div>
-                    </div>
-
-                    <button class="lev-more" (click)="etq.verSedes = !etq.verSedes">{{ etq.verSedes ? '▴' : '▾' }} Bienes sin etiqueta por sede ({{ etqFaltan | number }})</button>
-                    <div class="etq-sedes" *ngIf="etq.verSedes">
-                      <div *ngFor="let x of r.porSede"><span>{{ x.sede }}</span><b>{{ x.sin_etiqueta | number }}</b><small>≈ {{ hojasPara(x.sin_etiqueta) }} hojas</small></div>
-                    </div>
-
-                    <label>¿Cuántas hojas vas a imprimir?</label>
-                    <div class="etq-hojas">
-                      <button class="btn-outline" (click)="etq.hojas = mathMax(1, etq.hojas - 1)">−</button>
-                      <input type="number" min="1" max="30" [(ngModel)]="etq.hojas">
-                      <button class="btn-outline" (click)="etq.hojas = mathMin(30, etq.hojas + 1)">＋</button>
-                    </div>
-                    <p class="cap-hint">
-                      = {{ etq.hojas * 30 | number }} etiquetas, de <b>{{ codigoEtiqueta(r.ultimo + 1) }}</b> a <b>{{ codigoEtiqueta(r.ultimo + etq.hojas * 30) }}</b>.
-                      Para terminar todo faltan ≈ <b>{{ hojasSugeridas | number }} hojas</b> (incluye 5% extra); imprímelas por partes de hasta 30.
-                    </p>
-                    <div class="wiz-summary">En la impresora elige <b>tamaño carta</b>, <b>escala 100%</b> y <b>sin márgenes</b>. Haz primero una prueba en hoja normal y empálmala con la adhesiva.</div>
-                    <button class="lev-more" *ngIf="r.libres" [disabled]="etq.generando" (click)="reimprimirLibres()">⎙ Volver a imprimir las {{ mathMin(r.libres, 900) | number }} que siguen sin pegar</button>
-                  </ng-container>
-                </div>
-                <div class="inline-error" *ngIf="etq.error" style="margin:0 24px 12px">{{ etq.error }}</div>
-                <div class="modal-footer">
-                  <button class="btn-outline" [disabled]="etq.generando" (click)="etq=null">Cerrar</button>
-                  <button class="btn-primary" [disabled]="etq.cargando || etq.generando || !(etq.hojas >= 1)" (click)="generarEtiquetas()">
-                    <span class="mini-ring light" *ngIf="etq.generando"></span>
-                    {{ etq.generando ? 'Generando…' : '⎙ Generar e imprimir ' + (etq.hojas || 0) + (etq.hojas === 1 ? ' hoja' : ' hojas') }}
-                  </button>
-                </div>
-              </div>
-            </div>
-
             <!-- ASIGNAR ETIQUETA A UN BIEN (desde su ficha) -->
             <div class="modal-backdrop" *ngIf="etqAsignar">
               <div class="modal-card wizard">
@@ -1031,11 +909,15 @@ interface FormatoDoc {
               </div>
 
               <div class="drawer-body">
-                <div class="drawer-section drawer-foto" *ngIf="b.foto_mini">
-                  <button type="button" class="foto-mini" (click)="ampliarFoto(b)" title="Ver foto en grande">
+                <div class="drawer-section drawer-foto" *ngIf="b.foto_mini || isAdmin">
+                  <button type="button" class="foto-mini" *ngIf="b.foto_mini" (click)="ampliarFoto(b)" title="Ver foto en grande">
                     <img [src]="b.foto_mini" [alt]="'Foto de ' + b.articulo" loading="lazy">
                     <span>🔍 Ver en grande</span>
                   </button>
+                  <label class="foto-cambiar" *ngIf="isAdmin" [class.off]="fotoSubiendo">
+                    {{ fotoSubiendo ? 'Subiendo foto…' : (b.foto_mini ? '📷 Cambiar foto' : '📷 Tomar foto') }}
+                    <input type="file" accept="image/*" capture="environment" (change)="cambiarFotoBien($event, b)" [disabled]="fotoSubiendo" hidden>
+                  </label>
                 </div>
                 <div class="drawer-section">
                   <h3>Información general</h3>
@@ -1120,23 +1002,68 @@ interface FormatoDoc {
               <div class="modal-card large-modal">
                 <div class="modal-header">
                   <div>
-                    <h2>{{ bien.idBien ? 'Editar registro' : 'Nuevo registro' }}</h2>
-                    <p>Completa la información del bien.</p>
+                    <h2>{{ bien.idBien ? 'Editar bien' : 'Nuevo bien' }}</h2>
+                    <p>{{ bien.idBien ? 'Cambia lo que necesites.' : 'Lo básico arriba; lo demás es opcional.' }}</p>
                   </div>
                   <button class="close-button" (click)="editing=false">×</button>
                 </div>
 
                 <div class="form-section">
-                  <h3>Información general</h3>
-                  <div class="form-grid">
-                    <div>
-                      <label>Clave manual *</label>
-                      <input [(ngModel)]="bien.clave" placeholder="Ej. ED0001">
+                  <div class="foto-alta" *ngIf="!bien.idBien">
+                    <label class="foto-alta-btn" *ngIf="!bienFoto">
+                      <span class="foto-alta-ico">📷</span>
+                      <span><b>Tomar foto del bien</b><small>Opcional · se guarda junto con el registro</small></span>
+                      <input type="file" accept="image/*" capture="environment" (change)="fotoParaAlta($event)" hidden>
+                    </label>
+                    <div class="foto-alta-prev" *ngIf="bienFoto">
+                      <img [src]="bienFoto.url" alt="Foto del bien">
+                      <label class="btn-outline btn-small">Repetir<input type="file" accept="image/*" capture="environment" (change)="fotoParaAlta($event)" hidden></label>
+                      <button class="btn-outline btn-small" (click)="quitarFotoAlta()">Quitar</button>
                     </div>
+                  </div>
+                  <div class="form-grid">
                     <div>
                       <label>Nombre del bien *</label>
                       <input [(ngModel)]="bien.articulo" placeholder="Ej. Laptop">
                     </div>
+                    <div>
+                      <label>Clave *</label>
+                      <input [(ngModel)]="bien.clave" placeholder="Ej. ED0001">
+                    </div>
+                    <div>
+                      <label>Ubicación</label>
+                      <select [(ngModel)]="bien.idUbicacion">
+                        <option [ngValue]="null">Seleccionar</option>
+                        <option *ngFor="let x of activos(catalogs.ubicaciones, bien.idUbicacion, 'id_ubicacion')" [ngValue]="x.id_ubicacion">{{ x.nombre_area }}{{ x.nombre_sede && isAdmin ? ' · ' + x.nombre_sede : '' }}</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label>Responsable de área</label>
+                      <select [(ngModel)]="bien.idResponsableArea">
+                        <option [ngValue]="null">Seleccionar</option>
+                        <option *ngFor="let x of activos(catalogs.personas, bien.idResponsableArea, 'id_persona')" [ngValue]="x.id_persona">{{ x.nombre_completo }}</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label>Usuario directo</label>
+                      <select [(ngModel)]="bien.idUsuarioDirecto">
+                        <option [ngValue]="null">Seleccionar</option>
+                        <option *ngFor="let x of activos(catalogs.personas, bien.idUsuarioDirecto, 'id_persona')" [ngValue]="x.id_persona">{{ x.nombre_completo }}</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label>Estado físico</label>
+                      <select [(ngModel)]="bien.estadoFisico">
+                        <option value="">Seleccionar</option>
+                        <option>BUENO</option>
+                        <option>REGULAR</option>
+                        <option>MALO</option>
+                      </select>
+                    </div>
+                  </div>
+                  <button class="lev-more form-mas" *ngIf="!bien.idBien" (click)="formMas=!formMas">{{ formMas ? '▴ Menos datos' : '▾ Más datos (marca, modelo, serie, clasificación…)' }}</button>
+                  <ng-container *ngIf="formMas || bien.idBien">
+                  <div class="form-grid form-grid-mas">
                     <div>
                       <label>Clasificación</label>
                       <select [(ngModel)]="bien.idClasificacion" (ngModelChange)="onClasificacionBienChange()">
@@ -1182,36 +1109,6 @@ interface FormatoDoc {
                       <input type="number" min="1" [(ngModel)]="bien.cantidadPiezas">
                     </div>
                     <div>
-                      <label>Responsable de área</label>
-                      <select [(ngModel)]="bien.idResponsableArea">
-                        <option [ngValue]="null">Seleccionar</option>
-                        <option *ngFor="let x of activos(catalogs.personas, bien.idResponsableArea, 'id_persona')" [ngValue]="x.id_persona">{{ x.nombre_completo }}</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label>Usuario directo</label>
-                      <select [(ngModel)]="bien.idUsuarioDirecto">
-                        <option [ngValue]="null">Seleccionar</option>
-                        <option *ngFor="let x of activos(catalogs.personas, bien.idUsuarioDirecto, 'id_persona')" [ngValue]="x.id_persona">{{ x.nombre_completo }}</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label>Ubicación</label>
-                      <select [(ngModel)]="bien.idUbicacion">
-                        <option [ngValue]="null">Seleccionar</option>
-                        <option *ngFor="let x of activos(catalogs.ubicaciones, bien.idUbicacion, 'id_ubicacion')" [ngValue]="x.id_ubicacion">{{ x.nombre_area }}{{ x.nombre_sede && isAdmin ? ' · ' + x.nombre_sede : '' }}</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label>Estado físico</label>
-                      <select [(ngModel)]="bien.estadoFisico">
-                        <option value="">Seleccionar</option>
-                        <option>BUENO</option>
-                        <option>REGULAR</option>
-                        <option>MALO</option>
-                      </select>
-                    </div>
-                    <div>
                       <label>Estatus de inventario</label>
                       <select [(ngModel)]="bien.estatusInventario">
                         <option>ACTIVO</option>
@@ -1239,12 +1136,13 @@ interface FormatoDoc {
                   </div>
                   <label>Características y descripción</label>
                   <textarea [(ngModel)]="bien.caracteristicas" rows="3" placeholder="Describe las características del bien..."></textarea>
+                  </ng-container>
                 </div>
 
                 <div class="modal-footer">
                   <button class="btn-outline" (click)="editing=false">Cancelar</button>
                   <button class="btn-primary" [disabled]="saving" (click)="saveBien()">
-                    {{ saving ? 'Guardando...' : 'Guardar registro' }}
+                    {{ saving ? 'Guardando...' : (bien.idBien ? 'Guardar cambios' : 'Guardar bien') }}
                   </button>
                 </div>
               </div>
@@ -1654,20 +1552,19 @@ interface FormatoDoc {
               <div class="inv-head">
                 <div>
                   <h1>Inventario</h1>
-                  <p class="inv-resumen">Por sede y por persona: escanea cada bien y se arman solos los resguardos y el acta de cierre.</p>
+                  <p class="inv-resumen">Revisa los bienes persona por persona; los resguardos y el acta se arman solos.</p>
                 </div>
-                <div class="heading-actions">
-                  <button class="sync-chip" *ngIf="cola.total || !enLinea" [ngClass]="'sync-' + estadoSync" (click)="tocarSync()">{{ textoSync }}</button>
-                  <button class="btn-outline" [disabled]="levCargando" (click)="loadLevantamientos()">⟳ Actualizar</button>
-                  <button class="btn-primary" *ngIf="isAdmin" (click)="abrirNuevoLevantamiento()">＋ Nuevo levantamiento</button>
+                <div class="heading-actions" *ngIf="isAdmin">
+                  <button class="btn-outline" (click)="abrirEtiquetas()">🏷 Etiquetas QR</button>
+                  <button class="btn-primary" (click)="abrirNuevoLevantamiento()">＋ Nuevo inventario</button>
                 </div>
               </div>
 
               <div class="inventory-panel placeholder-panel" *ngIf="!levCargando && !levantamientos.length">
                 <div class="placeholder-icon">✓</div>
-                <h2>Aún no hay levantamientos</h2>
+                <h2>Aún no hay inventarios</h2>
                 <p>{{ isAdmin ? 'Crea el primero: se genera el Acta de inicio y el capturista podrá revisar los bienes desde su celular.' : 'Cuando el administrador te asigne como capturista, aparecerá aquí.' }}</p>
-                <button class="btn-primary" *ngIf="isAdmin" (click)="abrirNuevoLevantamiento()">＋ Nuevo levantamiento</button>
+                <button class="btn-primary" *ngIf="isAdmin" (click)="abrirNuevoLevantamiento()">＋ Nuevo inventario</button>
               </div>
 
               <div class="lev-list">
@@ -1684,28 +1581,16 @@ interface FormatoDoc {
                   </button>
 
                   <div class="lev-body" *ngIf="levAbierto===l.idLevantamiento">
-                    <div class="lev-stats">
-                      <div><b>{{ l.capturados | number }}</b><small>Revisados</small></div>
-                      <div><b>{{ pendientesLev(l) | number }}</b><small>{{ l.estado==='CERRADO' ? 'No localizados' : 'Pendientes' }}</small></div>
-                      <div><b>{{ (l.noEncontrados || 0) | number }}</b><small>Marcados no encontrados</small></div>
-                      <div><b>{{ ((l.nuevos || 0) + (l.transferidos || 0)) | number }}</b><small>Nuevos o traídos</small></div>
-                    </div>
-
                     <div class="lev-actions">
-                      <button class="btn-primary" *ngIf="l.estado==='EN_CURSO' && (l.soyCapturista || l.puedoAdministrar)" (click)="iniciarCaptura(l)">📷 Capturar bienes</button>
-                      <button class="btn-outline" (click)="abrirAvance(l)">📊 Ver avance</button>
+                      <button class="btn-primary" *ngIf="puedeCapturar(l)" (click)="iniciarCaptura(l)">▶ {{ l.capturados ? 'Continuar inventario' : 'Empezar inventario' }}</button>
+                      <button class="btn-outline" *ngIf="!puedeCapturar(l)" (click)="abrirAvance(l)">📊 {{ l.estado==='CERRADO' ? 'Ver resultado' : 'Ver avance' }}</button>
+                      <button class="btn-outline" *ngIf="l.puedoAdministrar && l.estado==='EN_CURSO'" (click)="cerrarLevantamiento(l)">✓ Cerrar inventario</button>
                     </div>
 
                     <div class="lev-docs">
-                      <span class="lev-docs-label">Documentos</span>
                       <button *ngIf="l.idDocumentoInicio" (click)="abrirDocumentoGuardado(l.idDocumentoInicio)">📄 Acta de inicio</button>
                       <button *ngIf="l.idDocumentoCierre" (click)="abrirDocumentoGuardado(l.idDocumentoCierre)">📄 Acta de cierre <em *ngIf="l.estado==='EN_CURSO'">borrador</em></button>
                       <button *ngIf="l.resguardos" (click)="verResguardosLev(l)">👤 Resguardos <em>{{ l.resguardos }}</em></button>
-                    </div>
-
-                    <div class="lev-actions" *ngIf="l.puedoAdministrar">
-                      <button class="btn-danger" *ngIf="l.estado==='EN_CURSO'" (click)="cerrarLevantamiento(l)">Cerrar levantamiento</button>
-                      <button class="btn-eliminar-lev" *ngIf="l.puedoBorrar || (l.puedoAdministrar && l.estado==='EN_CURSO')" (click)="eliminarLevantamiento(l)">{{ l.estado==='CERRADO' ? '🗑 Borrar (temporal, pruebas)' : '🗑 Eliminar inventario' }}</button>
                     </div>
 
                     <button class="lev-more" (click)="levDetalle = levDetalle===l.idLevantamiento ? null : l.idLevantamiento">
@@ -1719,8 +1604,9 @@ interface FormatoDoc {
                         <div><dt>Lugar</dt><dd>{{ l.ciudad || '—' }}<br><small>{{ l.direccion }}</small></dd></div>
                         <div><dt>Pregunta</dt><dd>{{ l.pregunta?.texto }}<br><small>{{ (l.pregunta?.opciones || []).join(' · ') }}</small></dd></div>
                         <div><dt>Participantes</dt><dd><span class="lev-person" *ngFor="let p of l.participantes">{{ p.nombre }} <small>{{ p.cargo }}</small></span></dd></div>
-                        <div><dt>Revisión</dt><dd>{{ l.fueraDeLugar | number }} fuera de lugar · {{ l.fotosNuevas | number }} fotos tomadas<br><small>Fotos en {{ l.almacenFotos }}</small></dd></div>
+                        <div><dt>Revisión</dt><dd>{{ (l.noEncontrados || 0) | number }} no encontrados · {{ ((l.nuevos || 0) + (l.transferidos || 0)) | number }} nuevos o traídos · {{ l.fueraDeLugar | number }} fuera de lugar · {{ l.fotosNuevas | number }} fotos tomadas</dd></div>
                       </dl>
+                      <button class="btn-eliminar-lev" *ngIf="l.puedoBorrar || (l.puedoAdministrar && l.estado==='EN_CURSO')" (click)="eliminarLevantamiento(l)">{{ l.estado==='CERRADO' ? '🗑 Borrar (temporal, pruebas)' : '🗑 Eliminar inventario' }}</button>
                     </div>
                   </div>
                 </div>
@@ -1900,7 +1786,6 @@ interface FormatoDoc {
                 <small>{{ capRevisados | number }} de {{ cap.bienes.length | number }} revisados</small>
                 <button class="sync-chip" [ngClass]="'sync-' + estadoSync" (click)="tocarSync()">{{ textoSync }}</button>
                 <div class="sync-aviso" *ngIf="cap.offlineDesde">📴 Trabajando con la copia guardada en este celular ({{ cap.offlineDesde | date:'dd/MM HH:mm' }}). Lo que captures se sube solo al volver la señal.</div>
-                <button class="cap-avance-btn" *ngIf="!cap.cargando && cap.paso!=='bien'" (click)="abrirAvanceCaptura()">📋 Ver avance</button>
               </div>
 
               <div class="cap-loading" *ngIf="cap.cargando"><div class="loader-ring"></div><strong>Cargando bienes de la sede…</strong></div>
@@ -1922,7 +1807,10 @@ interface FormatoDoc {
                   </button>
                   <p class="cap-hint" *ngIf="!gruposCaptura.length">Sin resultados.</p>
                 </div>
-                <button class="lev-more" (click)="elegirGrupo(null)">Ver todos los bienes de la sede</button>
+                <div class="chk-links">
+                  <button class="lev-more" (click)="elegirGrupo(null)">Ver todos los bienes de la sede</button>
+                  <button class="lev-more" (click)="abrirAvanceCaptura()">📊 Resumen y pendientes (PDF)</button>
+                </div>
               </ng-container>
 
               <!-- Paso 2: escanear -->
@@ -1964,11 +1852,9 @@ interface FormatoDoc {
                     <button class="btn-primary" (click)="buscarPorClave()">Buscar</button>
                   </div>
 
-                  <div class="cap-tools" *ngIf="!esChecklist">
-                    <button (click)="abrirAvanceCaptura('pendientes')"><span>📋</span><b>{{ pendientesGrupo.length | number }}</b><small>Pendientes</small></button>
-                    <button (click)="abrirAvanceCaptura('sinetiq')"><span>🏷</span><b>{{ sinEtiquetaGrupo | number }}</b><small>Sin etiqueta</small></button>
-                    <button (click)="abrirNuevoBienCap()"><span>＋</span><b>Nuevo</b><small>Bien que no está</small></button>
-                    <button (click)="abrirBuscarGeneral()"><span>🔍</span><b>Buscar</b><small>En todas las sedes</small></button>
+                  <div class="chk-links" *ngIf="!esChecklist">
+                    <button class="lev-more" (click)="abrirNuevoBienCap()">＋ Bien que no está en la lista</button>
+                    <button class="lev-more" (click)="abrirBuscarGeneral()">🔍 Buscar en otras sedes</button>
                   </div>
                 </ng-container>
 
@@ -1980,9 +1866,9 @@ interface FormatoDoc {
                     <button class="btn-outline btn-small" (click)="cap.etiquetaPorAsignar=null">Cancelar</button>
                   </div>
                   <div class="chk-head">
-                    <strong>Bienes de {{ nombreCorto(cap.grupo.nombre) }}</strong>
+                    <strong>{{ cap.grupo.modo==='persona' ? 'Bienes de ' + nombreCorto(cap.grupo.nombre) : cap.grupo.nombre }}</strong>
                     <small>{{ hechosGrupo }} de {{ bienesGrupo.length }}</small>
-                    <span class="firma-tag" *ngIf="estadoPersona(cap.grupo.id) as e" [ngClass]="'fe-' + e">{{ textoEstadoPersona(e) }}</span>
+                    <span class="firma-tag" *ngIf="(cap.grupo.modo==='persona' ? estadoPersona(cap.grupo.id) : null) as e" [ngClass]="'fe-' + e">{{ textoEstadoPersona(e) }}</span>
                   </div>
                   <div class="chk-list">
                     <button class="chk-item" *ngFor="let b of checklistGrupo; trackBy: trackBien" [ngClass]="'st-' + avEstado(b)" (click)="tocarChecklist(b)">
@@ -1998,7 +1884,7 @@ interface FormatoDoc {
                     <button class="lev-more" (click)="abrirNuevoBienCap()">＋ Bien que no está en la lista</button>
                     <button class="lev-more" (click)="abrirBuscarGeneral()">🔍 Buscar en otras sedes</button>
                   </div>
-                  <button class="btn-primary chk-terminar" (click)="abrirTerminarPersona()">✍ Terminar con {{ nombreCorto(cap.grupo.nombre) }}</button>
+                  <button class="btn-primary chk-terminar" *ngIf="cap.grupo.modo==='persona'" (click)="abrirTerminarPersona()">✍ Terminar con {{ nombreCorto(cap.grupo.nombre) }}</button>
                 </div>
               </ng-container>
 
@@ -2257,7 +2143,7 @@ interface FormatoDoc {
               <div class="modal-card wizard">
                 <div class="modal-header">
                   <div>
-                    <h2>Nuevo levantamiento</h2>
+                    <h2>Nuevo inventario</h2>
                     <p>Paso {{ levNuevo.paso }} de 4 · {{ ['Sede', 'Lugar y fecha', 'Personas', 'Pregunta'][levNuevo.paso - 1] }}</p>
                   </div>
                   <button class="close-button" [disabled]="levGuardando" (click)="levNuevo=null">×</button>
@@ -2451,6 +2337,10 @@ interface FormatoDoc {
                 <h1>Catálogos</h1>
                 <p>Administra la información base que se usa al registrar bienes, personas y ubicaciones.</p>
               </div>
+              <div class="heading-actions">
+                <button class="btn-outline" (click)="abrirRestablecerManual()">🔑 Restablecer contraseña</button>
+                <button class="btn-outline" (click)="generarTemporalesPendientes()">⇩ Contraseñas temporales</button>
+              </div>
             </div>
 
             <div class="catalog-layout">
@@ -2595,7 +2485,7 @@ interface FormatoDoc {
   </div>
   `,
   styles: [`
-    :host{display:block;min-height:100vh;font-family:Inter,Arial,sans-serif;color:#243247}
+    :host{display:block;min-height:100vh;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:#243247}
     *{box-sizing:border-box}
     .app-shell{min-height:100vh;background:#f4f6fa;display:flex}
     .sidebar{position:fixed;top:0;left:0;bottom:0;z-index:95;width:270px;max-width:86vw;overflow-y:auto;background:#17263d;color:#fff;display:flex;flex-direction:column;padding:25px 17px;transform:translateX(0);box-shadow:12px 0 40px #0b172840;transition:transform .28s cubic-bezier(.4,0,.2,1),box-shadow .28s}
@@ -2640,6 +2530,41 @@ interface FormatoDoc {
     .user-menu button strong{display:block;font-size:14px;color:#25364c}
     .user-menu button small{display:block;font-size:12px;color:#8d99a9;margin-top:2px}
     .user-menu-exit strong{color:#bd4b52!important}
+    .side-nav{display:flex;flex-direction:column}
+    .side-cuenta{margin-top:auto;border-top:1px solid #35455d;padding-top:14px;display:flex;flex-direction:column;gap:2px}
+    .side-user{display:flex;align-items:center;gap:10px;padding:0 6px 10px}
+    .side-op{display:flex;align-items:center;gap:12px;width:100%;border:0;background:transparent;color:#c1ccdb;padding:9px 10px;border-radius:9px;font-size:14px;text-align:left;cursor:pointer}
+    .side-op:hover:not(:disabled){background:#2b405e;color:#fff}
+    .side-op:disabled{cursor:default}
+    .side-op>span:first-child{width:22px;text-align:center;font-size:16px}
+    .side-op-txt{flex:1;display:flex;flex-direction:column;gap:2px}
+    .side-op-txt small{font-size:11.5px;color:#8fa0b6}
+    .side-op.salir{color:#f0a6ab}
+    .switch{width:38px;height:22px;border-radius:999px;background:#4a5b74;position:relative;flex-shrink:0;transition:background .2s}
+    .switch i{position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .2s}
+    .switch.on{background:#2fa36b}
+    .switch.on i{transform:translateX(16px)}
+    .top-sync{margin-left:auto}
+    .vista-seg{display:flex;gap:6px;flex-wrap:wrap;margin:-4px 0 16px}
+    .vista-seg button{border:1px solid #dbe3ee;background:#fff;color:#4a5d75;font-size:14px;font-weight:700;border-radius:999px;padding:8px 15px;cursor:pointer}
+    .vista-seg button.on{background:#17263d;border-color:#17263d;color:#fff}
+    .cm-banner{display:flex;align-items:center;gap:10px;width:100%;border:1px solid #f3d9a8;background:#fff8ec;color:#7a4b0c;border-radius:12px;padding:10px 14px;margin:0 0 16px;font-size:14px;text-align:left;cursor:pointer}
+    .cm-banner>span:nth-child(2){flex:1}
+    .cm-banner em{font-style:normal;font-weight:700;white-space:nowrap}
+    .foto-alta{margin-bottom:6px}
+    .foto-alta-btn{display:flex!important;align-items:center;gap:14px;border:2px dashed #c9d6e6;border-radius:14px;padding:14px 16px;cursor:pointer;background:#f8fafd;margin:0!important;font-weight:400!important}
+    .foto-alta-ico{font-size:28px}
+    .foto-alta-btn b{display:block;color:#244c78;font-size:15px}
+    .foto-alta-btn small{display:block;color:#7b8798;font-size:13px;margin-top:2px}
+    .foto-alta-prev{display:flex;align-items:center;gap:10px}
+    .foto-alta-prev img{width:96px;height:96px;object-fit:cover;border-radius:12px;border:1px solid #e3e9f1}
+    .form-mas{margin:14px 0 4px}
+    .form-grid-mas{margin-top:8px}
+    .foto-cambiar{display:inline-block!important;margin:8px 0 0!important;font-size:14px!important;font-weight:700;color:#2d5d93!important;cursor:pointer}
+    .foto-cambiar.off{opacity:.6;pointer-events:none}
+    .etq-pasos{margin:0 0 16px;padding:12px 14px 12px 34px;background:#f3f7fc;border-radius:12px;font-size:14px;color:#33465e;line-height:1.65}
+    .lev-detail .btn-eliminar-lev{margin-top:12px}
+    @media(max-width:700px){.solo-pc{display:none!important}.vista-seg{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.vista-seg button{flex-shrink:0}}
     .user-menu-ayuda{display:block;padding:6px 12px 8px;font-size:12.5px;color:#8d99a9;cursor:pointer;text-decoration:none;border-top:1px solid #f0f3f7;margin-top:4px}
     .user-menu-ayuda:hover{color:#244c78}
     .manual-backdrop{position:fixed;top:0;right:0;bottom:0;left:0;inset:0;z-index:150;background:#15243b88;display:flex;align-items:center;justify-content:center;padding:16px}
@@ -3698,7 +3623,7 @@ export class AppComponent {
     { clave: 'fechaMantenimiento', claveActual: 'fecha_mantenimiento', etiqueta: 'Próximo mantenimiento' }
   ];
 
-  section = 'inicio';
+  section = 'bienes';
   menuCollapsed = true;
 
   error = '';
@@ -3841,6 +3766,11 @@ export class AppComponent {
   menuMasInventario = false;
   menuUsuario = false;
   manualAbierto = false;
+  formMas = false;
+  bienFoto: { blob: Blob; url: string } | null = null;
+  fotoSubiendo = false;
+  private uiGuardado = '';
+  private reanudar: any = null;
   loginLento = false;
   // App instalable y avisos al celular (Web Push)
   pushEstado: 'cargando' | 'no-soportado' | 'sin-https' | 'instalar-ios' | 'bloqueado' | 'inactivo' | 'activo' = 'cargando';
@@ -3848,7 +3778,7 @@ export class AppComponent {
   instalarPrompt: any = null;
   avisoPushOculto = this.leerLocal('dozzer_push_oculto') === '1';
   private swRegistro: Promise<ServiceWorkerRegistration | null> = Promise.resolve(null);
-  vistaInv: 'menu' | 'sedes' | 'bienes' | 'personas' | 'completo' = 'menu';
+  vistaInv: 'menu' | 'sedes' | 'bienes' | 'personas' | 'completo' = 'bienes';
   origenVistaInv: 'menu' | 'sedes' | 'personas' = 'menu';
   filtroPersona: any = null;
   busquedaPersonas = '';
@@ -4310,8 +4240,8 @@ export class AppComponent {
       anual: 'Inventario',
       bienes: 'Bienes',
       documentos: 'Documentos',
-      solicitudes: 'Solicitudes',
-      catalogos: 'Configuración'
+      solicitudes: this.isAdmin ? 'Autorizaciones' : 'Solicitudes',
+      catalogos: 'Catálogos'
     } as any)[this.section];
   }
 
@@ -4496,10 +4426,11 @@ export class AppComponent {
     this.filtroAsignacion = '';
     this.filtroPersona = null;
     this.filtroCM = '';
-    this.vistaInv = 'menu';
+    this.vistaInv = 'bienes';
+    this.origenVistaInv = 'menu';
     this.filtroSolicitudes = '';
     this.filtroOperacion = '';
-    this.section = 'inicio';
+    this.section = 'bienes';
     this.menuCollapsed = true;
     this.detenerEscaner();
     this.levantamientos = [];
@@ -4509,7 +4440,154 @@ export class AppComponent {
     this.anualVista = 'lista';
   }
 
+  // ----- Navegación y "seguir donde ibas" al recargar -----
+
+  irA(s: string): void {
+    this.menuCollapsed = true;
+    this.editing = false;
+    if (s === 'bienes') { this.section = 'bienes'; this.abrirVistaInv('bienes'); return; }
+    if (s === 'anual') {
+      this.section = 'anual';
+      if (this.cap) { this.salirCaptura(); return; }
+      if (this.av) { this.detenerTimerAvance(); this.av = null; }
+      this.cierre = null;
+      this.anualVista = 'lista';
+      this.loadLevantamientos();
+      return;
+    }
+    this.section = s;
+    if (s === 'solicitudes') this.loadSolicitudes();
+    if (s === 'documentos') { this.docsVista = 'menu'; this.loadDocumentos(); }
+    if (s === 'catalogos') this.loadCatalog();
+  }
+
+  get pushCambiable(): boolean {
+    return this.pushEstado === 'activo' || this.pushEstado === 'inactivo';
+  }
+
+  puedeCapturar(l: any): boolean {
+    return l?.estado === 'EN_CURSO' && !!(l.soyCapturista || l.puedoAdministrar);
+  }
+
+  // Guarda en el dispositivo en qué pantalla vas (y el formulario a medias) para no perderlo al recargar
+  ngDoCheck(): void {
+    if (!this.logged || this.mustChangePassword || !this.email) return;
+    const g = this.cap?.grupo;
+    const ui = {
+      s: this.section, v: this.vistaInv, d: this.docsVista,
+      cl: this.section === 'anual' && this.cap ? this.cap.lev?.idLevantamiento ?? null : null,
+      cm: this.cap?.modo || null,
+      cg: g ? { key: g.key, id: g.id, nombre: g.nombre, modo: g.modo } : null,
+      f: this.editing && this.bien && !this.bien.idBien ? this.bien : null
+    };
+    let j = '';
+    try { j = JSON.stringify(ui); } catch { return; }
+    if (j === this.uiGuardado) return;
+    this.uiGuardado = j;
+    try { localStorage.setItem('dozzer_ui_' + this.email, j); } catch { /* sin espacio */ }
+  }
+
+  private restaurarVista(): void {
+    let ui: any = null;
+    try { ui = JSON.parse(localStorage.getItem('dozzer_ui_' + this.email) || 'null'); } catch { ui = null; }
+    if (!ui || typeof ui !== 'object') return;
+    const permitidas = ['bienes', 'solicitudes', 'documentos']
+      .concat(this.verInventarioAnual ? ['anual'] : [], this.isAdmin ? ['catalogos'] : []);
+    if (permitidas.includes(ui.s)) this.section = ui.s;
+    if (['bienes', 'personas', 'completo'].includes(ui.v) || (ui.v === 'sedes' && this.isAdmin)) this.vistaInv = ui.v;
+    if (this.section === 'documentos' && ['menu', 'ALTA', 'BAJA', 'ACTAS', 'RESGUARDO'].includes(ui.d)) { this.docsVista = ui.d; this.loadDocumentos(); }
+    if (ui.f && typeof ui.f === 'object' && !ui.f.idBien) {
+      this.bien = ui.f; this.bienOriginal = null; this.formMas = true; this.editing = true;
+    }
+    if (this.section === 'anual' && ui.cl) this.reanudar = ui;
+  }
+
+  private reanudarCaptura(): void {
+    const u = this.reanudar;
+    this.reanudar = null;
+    if (!u || this.section !== 'anual' || this.cap) return;
+    const l = this.levantamientos.find(x => x.idLevantamiento === u.cl);
+    if (!l || !this.puedeCapturar(l)) return;
+    this.iniciarCaptura(l);
+    if (u.cg && (u.cg.modo === 'persona' || u.cg.modo === 'area')) { this.cap.modo = u.cg.modo; this.elegirGrupo(u.cg); }
+    else if (u.cm === 'persona' || u.cm === 'area') this.cap.modo = u.cm;
+  }
+
+  // ----- Foto del bien: desde el alta y desde la ficha -----
+
+  private async comprimirFoto(archivo: Blob): Promise<Blob> {
+    const img = await this.cargarImagen(archivo);
+    const escala = Math.min(1, 1280 / Math.max(img.width, img.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(img.width * escala);
+    canvas.height = Math.round(img.height * escala);
+    (canvas.getContext('2d') as CanvasRenderingContext2D).drawImage(img, 0, 0, canvas.width, canvas.height);
+    return await new Promise<Blob>((ok, mal) => canvas.toBlob(b => b ? ok(b) : mal(), 'image/jpeg', 0.72));
+  }
+
+  async fotoParaAlta(ev: Event): Promise<void> {
+    const input = ev.target as HTMLInputElement;
+    const archivo = input.files?.[0];
+    input.value = '';
+    if (!archivo) return;
+    try {
+      const blob = await this.comprimirFoto(archivo);
+      this.quitarFotoAlta();
+      this.bienFoto = { blob, url: URL.createObjectURL(blob) };
+    } catch {
+      this.notificar('error', 'No se pudo usar la foto', 'Inténtalo de nuevo.', 0);
+    }
+  }
+
+  quitarFotoAlta(): void {
+    if (this.bienFoto) URL.revokeObjectURL(this.bienFoto.url);
+    this.bienFoto = null;
+    if (this.bien) delete this.bien.fotoKey;
+  }
+
+  private async guardarBienConFoto(): Promise<void> {
+    if (this.bienFoto && !this.bien.fotoKey) {
+      this.saving = true;
+      try {
+        const fd = new FormData();
+        fd.append('foto', this.bienFoto.blob, 'foto.jpg');
+        const r: any = await firstValueFrom(this.http.post(this.api + '/bienes/fotos', fd));
+        this.bien.fotoKey = r?.fotoKey;
+      } catch (e) {
+        this.saving = false;
+        this.notificar('error', 'No se pudo subir la foto', this.mensajeError(e, 'Revisa tu señal, o quita la foto y guarda sin ella.'), 0);
+        return;
+      }
+      this.saving = false;
+    }
+    this.guardarBien();
+  }
+
+  async cambiarFotoBien(ev: Event, b: any): Promise<void> {
+    const input = ev.target as HTMLInputElement;
+    const archivo = input.files?.[0];
+    input.value = '';
+    if (!archivo || this.fotoSubiendo) return;
+    this.fotoSubiendo = true;
+    try {
+      const blob = await this.comprimirFoto(archivo);
+      const fd = new FormData();
+      fd.append('foto', blob, 'foto.jpg');
+      const r: any = await firstValueFrom(this.http.post(this.api + '/bienes/' + b.id_bien + '/foto', fd));
+      const cambios = { tiene_foto: true, foto_mini: r?.foto_mini, foto_url: r?.foto_url };
+      Object.assign(b, cambios);
+      const enLista = this.bienes.find(x => x.id_bien === b.id_bien);
+      if (enLista && enLista !== b) Object.assign(enLista, cambios);
+      this.notificar('exito', 'Foto guardada', 'La foto del bien se actualizó.', 2500);
+    } catch (e) {
+      this.notificar('error', 'No se pudo guardar la foto', this.mensajeError(e, 'Inténtalo de nuevo.'), 0);
+    } finally {
+      this.fotoSubiendo = false;
+    }
+  }
+
   loadAll(): void {
+    this.restaurarVista();
     this.revisarPush();
     this.contarCola().then(() => this.procesarCola());
     let etiqueta: string | null = null;
@@ -4923,28 +5001,35 @@ export class AppComponent {
     if (!this.logged) return;
     this.bienesCargando = true;
     this.bienesError = '';
-
+    const llave = 'bienes-' + this.email;
+    if (!this.bienes.length) {
+      this.idbGet('datos', llave).then(c => { if (Array.isArray(c) && c.length && !this.bienes.length && this.bienesCargando) this.ponerBienes(c); });
+    }
     this.http.get<any[]>(this.api + '/bienes').subscribe({
       next: v => {
-        this.bienes = (v || []).map(b => ({
-          ...b,
-          _busqueda: [b.clave, b.etiqueta, b.articulo, b.modelo, b.marca, b.numero_serie, b.responsable, b.usuario_directo,
-                      b.ubicacion, b.sede, b.clasificacion, b.subcategoria, b.color]
-            .filter(x => x !== null && x !== undefined).join(' ').toLowerCase()
-        }));
-        this.calcularResumenBienes();
-        this.aplicarFiltrosBienes(false);
-        // Mantiene el panel lateral sincronizado si estaba abierto
-        if (this.bienSeleccionado) {
-          this.bienSeleccionado = this.bienes.find(b => b.id_bien === this.bienSeleccionado.id_bien) || null;
-        }
+        this.ponerBienes(v || []);
         this.bienesCargando = false;
+        this.idbPut('datos', v || [], llave);
       },
       error: e => {
         this.bienesCargando = false;
-        this.bienesError = this.mensajeError(e, 'Revisa tu conexión e inténtalo de nuevo.');
+        if (!this.bienes.length) this.bienesError = this.mensajeError(e, 'Revisa tu conexión e inténtalo de nuevo.');
       }
     });
+  }
+
+  private ponerBienes(v: any[]): void {
+    this.bienes = v.map(b => ({
+      ...b,
+      _busqueda: [b.clave, b.etiqueta, b.articulo, b.modelo, b.marca, b.numero_serie, b.responsable, b.usuario_directo,
+                  b.ubicacion, b.sede, b.clasificacion, b.subcategoria, b.color]
+        .filter(x => x !== null && x !== undefined).join(' ').toLowerCase()
+    }));
+    this.calcularResumenBienes();
+    this.aplicarFiltrosBienes(false);
+    if (this.bienSeleccionado) {
+      this.bienSeleccionado = this.bienes.find(b => b.id_bien === this.bienSeleccionado.id_bien) || null;
+    }
   }
 
   private calcularResumenBienes(): void {
@@ -5073,7 +5158,8 @@ export class AppComponent {
       if (this.isAdmin) this.filtroSede = null;
       this.aplicarFiltrosBienes();
     } else {
-      this.vistaInv = 'menu';
+      this.vistaInv = 'bienes';
+      this.origenVistaInv = 'menu';
     }
     this.subirAlInicio();
   }
@@ -5653,6 +5739,8 @@ export class AppComponent {
       requiereCalibracion: false, fechaCalibracion: null,
       requiereMantenimiento: false, fechaMantenimiento: null
     };
+    this.quitarFotoAlta();
+    this.formMas = false;
     this.editing = true;
   }
 
@@ -5859,12 +5947,16 @@ export class AppComponent {
       next: rows => {
         this.levantamientos = rows || [];
         this.levCargando = false;
-        if (this.levAbierto === null && this.levantamientos.length === 1) this.levAbierto = this.levantamientos[0].idLevantamiento;
+        if (this.levAbierto === null && this.levantamientos.length) {
+          this.levAbierto = (this.levantamientos.find(x => x.estado === 'EN_CURSO') || this.levantamientos[0]).idLevantamiento;
+        }
         this.idbPut('datos', this.levantamientos, 'levs-' + this.email);
+        this.reanudarCaptura();
       },
       error: async () => {
         this.levCargando = false;
         if (!this.levantamientos.length) this.levantamientos = (await this.idbGet('datos', 'levs-' + this.email)) || [];
+        this.reanudarCaptura();
       }
     });
   }
@@ -6889,8 +6981,9 @@ export class AppComponent {
 
   // ----- Checklist por persona y firmas (arranque) -----
 
+  // Persona o área elegida: se trabaja con su lista (primero lo pendiente)
   get esChecklist(): boolean {
-    return !!this.cap && this.cap.grupo?.modo === 'persona' && this.cap.grupo?.key !== 'sin';
+    return !!this.cap?.grupo && this.cap.grupo.key !== 'sin';
   }
 
   get checklistGrupo(): any[] {
@@ -7915,7 +8008,7 @@ export class AppComponent {
   saveBien(): void {
     if (this.saving) return;
     if (!this.bien.idBien) {
-      this.guardarBien();
+      this.guardarBienConFoto();
       return;
     }
 
@@ -7959,6 +8052,7 @@ export class AppComponent {
         this.saving = false;
         this.editing = false;
         this.bienOriginal = null;
+        this.quitarFotoAlta();
         terminar?.();
         if (response?.pendienteAutorizacion) {
           this.notificar('pendiente', 'Solicitud enviada',

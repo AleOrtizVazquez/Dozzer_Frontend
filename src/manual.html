@@ -4,10 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Manual de usuario · DOZZER</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap">
 <style>
   :root{--navy:#17263d;--azul:#244c78;--naranja:#f28c1e;--gris:#6d7b8e;--fondo:#f4f6fa;--linea:#e3e9f1}
   *{box-sizing:border-box}
-  body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--fondo);color:#25364c;line-height:1.5}
+  body{margin:0;font-family:Inter,system-ui,Arial,sans-serif;background:var(--fondo);color:#25364c;line-height:1.5}
   header{background:#fff;border-bottom:1px solid var(--linea);padding:18px 20px 14px;position:sticky;top:0;z-index:2}
   .top{max-width:860px;margin:0 auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
   .top img{height:30px}
@@ -66,7 +67,7 @@
       <ol><li>En la pantalla de entrada toca <b>¿Olvidaste tu contraseña?</b></li><li>Escribe tu correo y tu <b>número de empleado</b> (ej. 2002).</li><li>Escribe la nueva contraseña dos veces y listo: entras directo.</li></ol>
       <div class="tip">Después de 5 intentos fallidos se bloquea una hora. Si no recuerdas tu número de empleado, pídele al administrador que te restablezca la contraseña.</div>
       <h3>Cambiar mi contraseña</h3>
-      <p>Toca tu inicial (arriba a la derecha) → <b>Cambiar mi contraseña</b>.</p>
+      <p>Abre el menú ☰ → abajo, <b>Cambiar contraseña</b>.</p>
     </div>
   </details>
 
@@ -74,9 +75,9 @@
     <summary><span class="ico">📲</span>Instalar la app y recibir avisos <span class="rol todos">TODOS</span><span class="flecha">⌄</span></summary>
     <div class="cuerpo">
       <h3>Instalar DOZZER en el celular</h3>
-      <ul><li><b>Android (Chrome):</b> menú ⋮ → <b>Instalar app</b>, o el botón 📲 en Inicio.</li><li><b>iPhone (Safari):</b> botón Compartir ⬆ → <b>Agregar a pantalla de inicio</b>.</li></ul>
+      <ul><li><b>Android (Chrome):</b> menú ⋮ → <b>Instalar app</b>, o en el menú ☰ de DOZZER → <b>📲 Instalar app</b>.</li><li><b>iPhone (Safari):</b> botón Compartir ⬆ → <b>Agregar a pantalla de inicio</b>.</li></ul>
       <h3>Activar avisos</h3>
-      <ol><li>En Inicio toca <b class="btn">Activar</b> (o tu inicial → <b>Activar avisos</b>).</li><li>Acepta el permiso del celular. Te llega un aviso de prueba.</li></ol>
+      <ol><li>Menú ☰ → <b>🔔 Notificaciones</b>: enciende el interruptor.</li><li>Acepta el permiso del celular. Te llega un aviso de prueba.</li></ol><p>Para apagarlas, toca otra vez el mismo interruptor.</p>
       <p>Al administrador le suena cuando hay una autorización nueva; al empleado, cuando le aprueban o rechazan una solicitud.</p>
       <div class="tip">En iPhone los avisos solo funcionan si abres DOZZER desde el ícono de la pantalla de inicio (iOS 16.4 o más reciente). Cada celular recibe los avisos de la última cuenta que entró en él.</div>
     </div>
@@ -85,14 +86,14 @@
   <details>
     <summary><span class="ico">▦</span>Bienes: buscar y consultar <span class="rol todos">TODOS</span><span class="flecha">⌄</span></summary>
     <div class="cuerpo">
-      <p>En <b>Bienes</b> eliges cómo verlos: <b>por sede</b>, <b>por persona</b> o el <b>inventario completo</b> (tabla).</p>
+      <p>Al entrar ves directamente tus <b>bienes</b>. Arriba puedes cambiar a <b>Por persona</b>, <b>Por sede</b> o <b>Tabla</b> (en computadora).</p>
       <ul>
         <li><b>Buscar:</b> escribe clave, nombre, serie, persona o etiqueta (DZ-…).</li>
         <li><b>Filtros:</b> sede, clasificación, estado, asignación, calibración y mantenimiento.</li>
         <li><b>Ficha del bien:</b> toca cualquier bien para ver sus datos, foto, ubicación, responsable y etiqueta.</li>
       </ul>
       <h3>Calibración y mantenimiento</h3>
-      <p>Los bienes marcados 🟢 requieren calibración y 🔵 mantenimiento. La fecha se ve en <b>rojo</b> si ya venció y en <b>naranja</b> si vence en 30 días. En Inicio el administrador ve el resumen y el botón <b>Ver</b>.</p>
+      <p>Los bienes marcados 🟢 requieren calibración y 🔵 mantenimiento. La fecha se ve en <b>rojo</b> si ya venció y en <b>naranja</b> si vence en 30 días. Si hay fechas vencidas o próximas, el administrador ve un aviso naranja arriba de Bienes; tócalo para verlos.</p>
     </div>
   </details>
 
@@ -100,7 +101,8 @@
     <summary><span class="ico">✎</span>Dar de alta, modificar o dar de baja un bien <span class="rol todos">TODOS</span><span class="flecha">⌄</span></summary>
     <div class="cuerpo">
       <ul>
-        <li><b>Alta:</b> Bienes → <b class="btn">＋ Nuevo registro</b> → llena los datos → Guardar.</li>
+        <li><b>Alta:</b> Bienes → <b class="btn">＋ Nuevo bien</b> → toma la foto (opcional) → nombre, clave y lo básico → <b class="btn">Guardar bien</b>. Marca, modelo y serie están en <b>Más datos</b>.</li>
+        <li><b>Foto de un bien que ya existe</b> <span class="rol admin">ADMINISTRADOR</span>: ficha del bien → <b>📷 Tomar foto</b> o <b>Cambiar foto</b>.</li>
         <li><b>Modificar:</b> abre la ficha del bien → <b class="btn">Editar bien</b>. Antes de guardar verás qué cambia.</li>
         <li><b>Baja:</b> ficha del bien → <b class="btn">Dar de baja</b>.</li>
       </ul>
@@ -124,7 +126,7 @@
     <div class="cuerpo">
       <p>Las etiquetas son <b>en blanco</b>: solo llevan un código (DZ-000123). Se pegan en cualquier bien y se ligan al escanearlas.</p>
       <h3>Imprimir</h3>
-      <ol><li>Bienes → <b>Más opciones</b> → <b>Etiquetas QR en blanco</b>.</li><li>El sistema calcula cuántas hojas faltan por sede; elige cuántas imprimir (hasta 30 por vez).</li><li>Usa hoja carta adhesiva de 30 etiquetas (tipo Avery 5160), escala 100 % y sin márgenes.</li></ol>
+      <ol><li>Inventario → <b class="btn">🏷 Etiquetas QR</b>.</li><li>El sistema calcula cuántas hojas faltan por sede; elige cuántas imprimir (hasta 30 por vez).</li><li>Usa hoja carta adhesiva de 30 etiquetas (tipo Avery 5160), escala 100 % y sin márgenes.</li></ol>
       <div class="tip">Imprime primero una prueba en hoja normal y empálmala con la adhesiva.</div>
       <h3>Ligar una etiqueta a un bien</h3>
       <ul><li><b>En el inventario:</b> pega la etiqueta, escanéala y toca el bien al que se la pegaste.</li><li><b>Desde la ficha del bien:</b> <b class="btn">🏷 Asignar etiqueta</b>, escribe el código o tómale foto al QR.</li><li>Si una etiqueta se daña: ficha del bien → <b>Cambiar</b> (la anterior queda anulada) o <b>Reimprimir</b>.</li></ul>
@@ -136,10 +138,10 @@
     <div class="cuerpo">
       <p>Se hace <b>dos veces al año por sede</b> (1.º: enero–junio, 2.º: julio–diciembre).</p>
       <h3>1. Crear el inventario</h3>
-      <ol><li>Inventario → <b class="btn">＋ Nuevo levantamiento</b>.</li><li>Elige sede, año y semestre; revisa lugar y fecha; elige quién captura y los participantes del acta.</li><li>Se genera el <b>Acta de inicio</b> en Documentos.</li></ol>
+      <ol><li>Inventario → <b class="btn">＋ Nuevo inventario</b>.</li><li>Elige sede, año y semestre; revisa lugar y fecha; elige quién captura y los participantes del acta.</li><li>Se genera el <b>Acta de inicio</b> en Documentos.</li></ol>
       <h3>2. Capturar con el celular (por persona)</h3>
       <ol>
-        <li>Toca la tarjeta del inventario → <b class="btn">📷 Capturar bienes</b> → <b>Por persona</b> → elige a la persona.</li>
+        <li>En la tarjeta del inventario toca <b class="btn">▶ Empezar inventario</b> (o <b>Continuar</b>) → elige a la persona. La lista ya te dice cuántos lleva cada una.</li>
         <li>Verás <b>su lista de bienes</b> (pendientes primero) y el botón <b class="btn">📷 Escanear QR</b>.</li>
         <li>Por cada bien: pega la etiqueta y escanéala (o toca el bien en la lista) → toma la foto si no tiene → el estado ya viene en <b>Bueno</b>, cámbialo si hace falta → <b class="btn">Guardar y siguiente</b>.</li>
         <li>¿No aparece? Ábrelo desde la lista y toca <b>✗ No lo encuentro</b>.</li>
@@ -149,10 +151,10 @@
       <ol><li>Al final de su lista: <b class="btn">✍ Terminar con…</b></li><li>Decide qué pasa con los pendientes (no encontrados o seguir buscando).</li><li>Pregunta si está de acuerdo; si no, escribe las diferencias.</li><li>Firman los dos con el dedo. Puedes <b>recordar tu firma</b> en tu celular.</li></ol>
       <div class="ok">Queda su <b>resguardo firmado</b> en Documentos. Si después se revisa otro bien suyo, el sistema pedirá firmar de nuevo.</div>
       <h3>4. Cerrar el inventario</h3>
-      <ol><li>En la tarjeta del inventario: <b class="btn">Cerrar levantamiento</b>.</li><li>Revisa los pendientes y quién falta de firmar su resguardo.</li><li>Cada participante firma con el dedo (o marca <b>Firmará en papel</b>) → <b class="btn">✓ Cerrar y generar acta</b>.</li></ol>
+      <ol><li>En la tarjeta del inventario: <b class="btn">✓ Cerrar inventario</b>.</li><li>Revisa los pendientes y quién falta de firmar su resguardo.</li><li>Cada participante firma con el dedo (o marca <b>Firmará en papel</b>) → <b class="btn">✓ Cerrar y generar acta</b>.</li></ol>
       <p>Se generan el <b>Acta de cierre</b> y los resguardos oficiales. Un inventario cerrado ya no se puede modificar.</p>
       <h3>Avance</h3>
-      <p><b class="btn">📊 Ver avance</b> muestra lo revisado por persona o por área, se actualiza solo y permite descargar en PDF la lista de pendientes.</p>
+      <p>El avance se ve en la misma captura: cada persona muestra cuántos bienes lleva. Al final de esa lista, <b>📊 Resumen y pendientes (PDF)</b> da el detalle por área y la lista para imprimir. Si recargas la página, DOZZER te regresa a la persona en la que ibas.</p>
     </div>
   </details>
 
@@ -180,9 +182,8 @@
     <div class="cuerpo">
       <ul>
         <li><b>Catálogos:</b> sedes (con su dirección), ubicaciones, personas (con número de empleado y si es <b>encargado</b> de su área), puestos, clasificaciones, marcas y colores.</li>
-        <li><b>Importar desde Excel:</b> Bienes → Más opciones.</li>
-        <li><b>Restablecer contraseña</b> de un usuario: tu inicial → <b>Restablecer contraseña</b>.</li>
-        <li><b>Contraseñas temporales:</b> tu inicial → genera una distinta por empleado y descarga la lista.</li>
+        <li><b>Restablecer contraseña</b> de un usuario: Catálogos → <b>🔑 Restablecer contraseña</b>.</li>
+        <li><b>Contraseñas temporales:</b> Catálogos → <b>⇩ Contraseñas temporales</b> (una distinta por empleado).</li>
       </ul>
     </div>
   </details>
