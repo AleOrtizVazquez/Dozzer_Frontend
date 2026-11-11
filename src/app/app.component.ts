@@ -525,6 +525,18 @@ interface FormatoDoc {
                 <button class="push-x" title="Ahora no" (click)="ocultarAvisoPush()">×</button>
               </div>
               <button class="push-instalar" *ngIf="instalarPrompt" (click)="instalarApp()">📲 Instalar DOZZER como app</button>
+              <div class="cm-aviso" *ngIf="(isAdmin || canAuthorize) && alertasCM.total as total">
+                <span class="push-ico">🛠</span>
+                <div class="push-txt">
+                  <strong>Calibración y mantenimiento</strong>
+                  <small>
+                    <ng-container *ngIf="alertasCM.vencidas"><b class="cm-n vencida">{{ alertasCM.vencidas }} vencidos</b> · </ng-container>
+                    <ng-container *ngIf="alertasCM.proximas"><b class="cm-n proxima">{{ alertasCM.proximas }} en 30 días</b> · </ng-container>
+                    {{ alertasCM.sinFecha }} sin fecha de {{ total }}
+                  </small>
+                </div>
+                <button class="btn-outline btn-small" (click)="verAlertasCM(alertasCM.vencidas || alertasCM.proximas ? 'atencion' : 'sinfecha')">Ver</button>
+              </div>
             </div>
             <footer class="welcome-foot">DOZZER INVENTORY CONTROL SYSTEM V1.0 • © {{ anioActual }}</footer>
           </section>
@@ -765,6 +777,15 @@ interface FormatoDoc {
                                 <option value="">Todos</option>
                                 <option value="ASIGNADO">Asignados</option>
                                 <option value="SIN_ASIGNAR">Sin asignar</option>
+                              </select>
+                            </label>
+                            <label>Calibración y mantenimiento
+                              <select [(ngModel)]="filtroCM" (ngModelChange)="aplicarFiltrosBienes()">
+                                <option value="">Todos</option>
+                                <option value="atencion">⚠ Vencidos o próximos (30 días)</option>
+                                <option value="calibracion">🟢 Requieren calibración</option>
+                                <option value="mantenimiento">🔵 Requieren mantenimiento</option>
+                                <option value="sinfecha">Sin fecha asignada</option>
                               </select>
                             </label>
                           </div>
@@ -1030,6 +1051,14 @@ interface FormatoDoc {
                   </dl>
                 </div>
 
+                <div class="drawer-section" *ngIf="b.requiere_calibracion || b.requiere_mantenimiento">
+                  <h3>Calibración y mantenimiento</h3>
+                  <div class="cm-chips">
+                    <span *ngIf="b.requiere_calibracion" class="cm-chip" [ngClass]="'cm-' + estadoFechaCM(b.fecha_calibracion)">🟢 Calibración · {{ textoFechaCM(b.fecha_calibracion) }}</span>
+                    <span *ngIf="b.requiere_mantenimiento" class="cm-chip" [ngClass]="'cm-' + estadoFechaCM(b.fecha_mantenimiento)">🔵 Mantenimiento · {{ textoFechaCM(b.fecha_mantenimiento) }}</span>
+                  </div>
+                </div>
+
                 <div class="drawer-section" *ngIf="b.caracteristicas">
                   <h3>Características</h3>
                   <div class="note-box">{{ b.caracteristicas }}</div>
@@ -1174,6 +1203,16 @@ interface FormatoDoc {
                         <option>SIN_ASIGNAR</option>
                         <option>ASIGNADO</option>
                       </select>
+                    </div>
+                  </div>
+                  <div class="cm-form">
+                    <div class="cm-row">
+                      <label class="cm-check"><input type="checkbox" [(ngModel)]="bien.requiereCalibracion"> 🟢 Requiere calibración</label>
+                      <input *ngIf="bien.requiereCalibracion" type="date" [(ngModel)]="bien.fechaCalibracion" title="Próxima calibración">
+                    </div>
+                    <div class="cm-row">
+                      <label class="cm-check"><input type="checkbox" [(ngModel)]="bien.requiereMantenimiento"> 🔵 Requiere mantenimiento</label>
+                      <input *ngIf="bien.requiereMantenimiento" type="date" [(ngModel)]="bien.fechaMantenimiento" title="Próximo mantenimiento">
                     </div>
                   </div>
                   <label>Características y descripción</label>
@@ -2952,6 +2991,20 @@ interface FormatoDoc {
     .push-txt small{font-size:13px;color:#6d7b8e}
     .push-x{border:0;background:transparent;color:#9aa6b6;font-size:20px;cursor:pointer;padding:0 4px}
     .push-instalar{margin-top:12px;border:1px solid #d6e0ec;background:#fff;color:#244c78;font-family:inherit;font-size:14px;font-weight:700;border-radius:999px;padding:9px 16px;cursor:pointer}
+    .cm-aviso{display:flex;align-items:center;gap:12px;margin:12px auto 0;max-width:460px;text-align:left;background:#fff;border:1px solid #dfe7f1;border-radius:16px;padding:12px 14px 12px 16px;animation:fadeUp .5s .25s ease both}
+    .cm-n{font-weight:800}
+    .cm-n.vencida{color:#bd4b52}
+    .cm-n.proxima{color:#a8650f}
+    .cm-form{display:flex;flex-direction:column;gap:10px;margin:0 0 16px;padding:12px 14px;background:#f6f8fb;border-radius:12px}
+    .cm-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;min-height:40px}
+    .cm-check{display:flex!important;align-items:center;gap:8px;margin:0!important;font-size:14px!important;color:#25364c!important;cursor:pointer;min-width:220px}
+    .cm-check input{width:18px;height:18px}
+    .cm-row input[type=date]{height:40px;max-width:200px}
+    .cm-chips{display:flex;flex-direction:column;gap:8px}
+    .cm-chip{align-self:flex-start;font-size:14px;font-weight:700;border-radius:999px;padding:7px 13px;background:#eef1f5;color:#41546b}
+    .cm-chip.cm-vencida{background:#fdecee;color:#bd4b52}
+    .cm-chip.cm-proxima{background:#fff4dc;color:#a8650f}
+    .cm-chip.cm-ok{background:#e8f6ee;color:#21835a}
     .welcome-chip{font-size:13.5px;font-weight:700;color:#4f6f95;background:#eef3f9;padding:6px 14px;border-radius:20px;margin-bottom:18px;animation:fadeUp .6s .1s ease both}
     .welcome h1{margin:0 0 14px;font-size:36px;font-weight:800;letter-spacing:-.6px;color:#111827;animation:fadeUp .6s .18s ease both}
     .welcome-inner p{margin:0;font-size:16.5px;line-height:1.7;color:#4b5563;animation:fadeUp .6s .26s ease both}
@@ -3356,7 +3409,11 @@ export class AppComponent {
     { clave: 'estadoFisico', claveActual: 'estado_fisico', etiqueta: 'Estado físico' },
     { clave: 'estatusInventario', claveActual: 'estatus_inventario', etiqueta: 'Estatus de inventario' },
     { clave: 'estatusAsignacion', claveActual: 'estatus_asignacion', etiqueta: 'Estatus de asignación' },
-    { clave: 'caracteristicas', claveActual: 'caracteristicas', etiqueta: 'Características' }
+    { clave: 'caracteristicas', claveActual: 'caracteristicas', etiqueta: 'Características' },
+    { clave: 'requiereCalibracion', claveActual: 'requiere_calibracion', etiqueta: 'Requiere calibración' },
+    { clave: 'fechaCalibracion', claveActual: 'fecha_calibracion', etiqueta: 'Próxima calibración' },
+    { clave: 'requiereMantenimiento', claveActual: 'requiere_mantenimiento', etiqueta: 'Requiere mantenimiento' },
+    { clave: 'fechaMantenimiento', claveActual: 'fecha_mantenimiento', etiqueta: 'Próximo mantenimiento' }
   ];
 
   section = 'inicio';
@@ -3431,6 +3488,7 @@ export class AppComponent {
   filtroClasificacion: number | null = null;
   filtroEstadoFisico = '';
   filtroAsignacion = '';
+  filtroCM: '' | 'atencion' | 'calibracion' | 'mantenimiento' | 'sinfecha' = '';
   ordenBienes: { key: string; dir: 'asc' | 'desc' } = { key: '', dir: 'asc' };
   paginaActualBienes = 1;
   tamanoPaginaBienes = 25;
@@ -3628,7 +3686,8 @@ export class AppComponent {
       descripcion: 'Empleados que pueden ser responsables o usuarios de un bien.',
       columnas: [
         { key: 'nombre_completo', label: 'Nombre' }, { key: 'numero_empleado', label: 'No. empleado' },
-        { key: 'correo', label: 'Correo' }, { key: 'nombre_puesto', label: 'Puesto' }, { key: 'nombre_sede', label: 'Sede' }
+        { key: 'correo', label: 'Correo' }, { key: 'nombre_puesto', label: 'Puesto' }, { key: 'nombre_sede', label: 'Sede' },
+        { key: 'es_encargado', label: 'Encargado', bool: true }
       ],
       campos: [
         { key: 'nombre_completo', label: 'Nombre completo', requerido: true, max: 180, ancho: 'completo' },
@@ -3636,6 +3695,7 @@ export class AppComponent {
         { key: 'correo', label: 'Correo electrónico', tipo: 'email', max: 180, placeholder: 'nombre@dozzer.mx' },
         { key: 'id_puesto', label: 'Puesto', tipo: 'select', opciones: { catalogo: 'puestos', valor: 'id_puesto', texto: 'nombre_puesto' } },
         { key: 'id_sede', label: 'Sede', tipo: 'select', requerido: true, opciones: { catalogo: 'sedes', valor: 'id_sede', texto: 'nombre_sede' } },
+        { key: 'es_encargado', label: 'Encargado de inventario de su área', tipo: 'check' },
         { key: 'estatus', label: 'Activa', tipo: 'check' }
       ]
     },
@@ -4020,6 +4080,7 @@ export class AppComponent {
       lista.push({ clave: 'persona', etiqueta: 'Persona', valor: p?.nombre || '#' + this.filtroPersona });
     }
     if (this.filtroAsignacion) lista.push({ clave: 'asignacion', etiqueta: 'Asignación', valor: this.filtroAsignacion === 'ASIGNADO' ? 'Asignados' : 'Sin asignar' });
+    if (this.filtroCM) lista.push({ clave: 'cm', etiqueta: 'Calibración/mant.', valor: ({ atencion: 'Vencidos o próximos', calibracion: 'Requieren calibración', mantenimiento: 'Requieren mantenimiento', sinfecha: 'Sin fecha' } as any)[this.filtroCM] });
     return lista;
   }
 
@@ -4030,6 +4091,7 @@ export class AppComponent {
     if (clave === 'fisico') this.filtroEstadoFisico = '';
     if (clave === 'asignacion') this.filtroAsignacion = '';
     if (clave === 'persona') this.filtroPersona = null;
+    if (clave === 'cm') this.filtroCM = '';
     this.aplicarFiltrosBienes();
   }
 
@@ -4124,6 +4186,7 @@ export class AppComponent {
     this.filtroEstadoFisico = '';
     this.filtroAsignacion = '';
     this.filtroPersona = null;
+    this.filtroCM = '';
     this.vistaInv = 'menu';
     this.filtroSolicitudes = '';
     this.filtroOperacion = '';
@@ -4492,6 +4555,7 @@ export class AppComponent {
   }
 
   private valorLegible(campo: any, valor: any): string {
+    if (typeof valor === 'boolean') return valor ? 'Sí' : 'No';
     if (!this.tieneValor(valor)) return '—';
     if (campo.catalogo) {
       const fila = (this.catalogs[campo.catalogo] || []).find((x: any) => String(x[campo.idCatalogo]) === String(valor));
@@ -4750,6 +4814,7 @@ export class AppComponent {
       (!this.filtroClasificacion || b.id_clasificacion === this.filtroClasificacion) &&
       (!this.filtroEstadoFisico || String(b.estado_fisico || '').toUpperCase() === this.filtroEstadoFisico) &&
       (!this.filtroAsignacion || String(b.estatus_asignacion || '').toUpperCase() === this.filtroAsignacion) &&
+      (!this.filtroCM || this.coincideCM(b, this.filtroCM)) &&
       (!this.filtroPersona || b.id_responsable_area === this.filtroPersona || b.id_usuario_directo === this.filtroPersona) &&
       palabras.every(p => b._busqueda.includes(p))
     );
@@ -4786,6 +4851,59 @@ export class AppComponent {
     this.aplicarFiltrosBienes();
   }
 
+  // ----- Calibración y mantenimiento -----
+
+  // vencida | proxima (30 días) | ok | sin (sin fecha)
+  estadoFechaCM(f: any): 'vencida' | 'proxima' | 'ok' | 'sin' {
+    if (!f) return 'sin';
+    const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+    const d = new Date(String(f).substring(0, 10) + 'T00:00:00');
+    const dias = Math.round((d.getTime() - hoy.getTime()) / 86400000);
+    return dias < 0 ? 'vencida' : dias <= 30 ? 'proxima' : 'ok';
+  }
+
+  textoFechaCM(f: any): string {
+    const e = this.estadoFechaCM(f);
+    if (e === 'sin') return 'sin fecha';
+    const d = new Date(String(f).substring(0, 10) + 'T00:00:00');
+    const txt = d.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    return e === 'vencida' ? 'vencida el ' + txt : 'próxima: ' + txt;
+  }
+
+  private coincideCM(b: any, filtro: string): boolean {
+    const cal = !!b.requiere_calibracion, man = !!b.requiere_mantenimiento;
+    switch (filtro) {
+      case 'calibracion': return cal;
+      case 'mantenimiento': return man;
+      case 'sinfecha': return (cal && !b.fecha_calibracion) || (man && !b.fecha_mantenimiento);
+      case 'atencion': return (cal && ['vencida', 'proxima'].includes(this.estadoFechaCM(b.fecha_calibracion)))
+        || (man && ['vencida', 'proxima'].includes(this.estadoFechaCM(b.fecha_mantenimiento)));
+      default: return true;
+    }
+  }
+
+  // Resumen para el aviso de Inicio (solo bienes activos)
+  get alertasCM(): { vencidas: number; proximas: number; sinFecha: number; total: number } {
+    let vencidas = 0, proximas = 0, sinFecha = 0, total = 0;
+    for (const b of this.bienes) {
+      for (const [req, f] of [[b.requiere_calibracion, b.fecha_calibracion], [b.requiere_mantenimiento, b.fecha_mantenimiento]]) {
+        if (!req) continue;
+        total++;
+        const e = this.estadoFechaCM(f);
+        if (e === 'vencida') vencidas++; else if (e === 'proxima') proximas++; else if (e === 'sin') sinFecha++;
+      }
+    }
+    return { vencidas, proximas, sinFecha, total };
+  }
+
+  verAlertasCM(filtro: 'atencion' | 'sinfecha'): void {
+    this.section = 'bienes';
+    this.abrirVistaInv('completo');
+    this.limpiarFiltrosBienes();
+    this.filtroCM = filtro;
+    this.aplicarFiltrosBienes();
+  }
+
   limpiarFiltrosBienes(): void {
     this.filter = '';
     this.statusFilter = '';
@@ -4794,6 +4912,7 @@ export class AppComponent {
     this.filtroEstadoFisico = '';
     this.filtroAsignacion = '';
     this.filtroPersona = null;
+    this.filtroCM = '';
     this.aplicarFiltrosBienes();
   }
 
@@ -5046,7 +5165,9 @@ export class AppComponent {
       articulo: '',
       cantidadPiezas: 1,
       estatusInventario: 'ACTIVO',
-      estatusAsignacion: 'SIN_ASIGNAR'
+      estatusAsignacion: 'SIN_ASIGNAR',
+      requiereCalibracion: false, fechaCalibracion: null,
+      requiereMantenimiento: false, fechaMantenimiento: null
     };
     this.editing = true;
   }
@@ -5071,7 +5192,11 @@ export class AppComponent {
       estatusInventario: b.estatus_inventario,
       estatusAsignacion: b.estatus_asignacion,
       estadoFisico: b.estado_fisico,
-      caracteristicas: b.caracteristicas
+      caracteristicas: b.caracteristicas,
+      requiereCalibracion: !!b.requiere_calibracion,
+      fechaCalibracion: b.fecha_calibracion || null,
+      requiereMantenimiento: !!b.requiere_mantenimiento,
+      fechaMantenimiento: b.fecha_mantenimiento || null
     };
     this.editing = true;
   }
