@@ -1845,6 +1845,7 @@ interface FormatoDoc {
                 <div class="cap-areas">
                   <button *ngFor="let g of gruposCaptura" [class.done]="g.hechos===g.total" (click)="elegirGrupo(g)">
                     <span>{{ g.nombre }}</span>
+                    <span class="firma-tag" *ngIf="cap.modo==='persona' && estadoPersona(g.id) as e" [ngClass]="'fe-' + e">{{ textoEstadoPersona(e) }}</span>
                     <small>{{ g.hechos }} / {{ g.total }}</small>
                   </button>
                   <p class="cap-hint" *ngIf="!gruposCaptura.length">Sin resultados.</p>
@@ -1891,13 +1892,105 @@ interface FormatoDoc {
                     <button class="btn-primary" (click)="buscarPorClave()">Buscar</button>
                   </div>
 
-                  <div class="cap-tools">
+                  <div class="cap-tools" *ngIf="!esChecklist">
                     <button (click)="abrirAvanceCaptura('pendientes')"><span>📋</span><b>{{ pendientesGrupo.length | number }}</b><small>Pendientes</small></button>
                     <button (click)="abrirAvanceCaptura('sinetiq')"><span>🏷</span><b>{{ sinEtiquetaGrupo | number }}</b><small>Sin etiqueta</small></button>
                     <button (click)="abrirNuevoBienCap()"><span>＋</span><b>Nuevo</b><small>Bien que no está</small></button>
                     <button (click)="abrirBuscarGeneral()"><span>🔍</span><b>Buscar</b><small>En todas las sedes</small></button>
                   </div>
                 </ng-container>
+
+                <!-- Checklist de la persona: sus bienes, primero los pendientes -->
+                <div class="chk" *ngIf="esChecklist">
+                  <div class="av-aviso etq-aviso" *ngIf="cap.etiquetaPorAsignar">
+                    <b>🏷 Etiqueta nueva {{ cap.etiquetaPorAsignar }}</b>
+                    <span>Toca el bien al que se la pegaste.</span>
+                    <button class="btn-outline btn-small" (click)="cap.etiquetaPorAsignar=null">Cancelar</button>
+                  </div>
+                  <div class="chk-head">
+                    <strong>Bienes de {{ nombreCorto(cap.grupo.nombre) }}</strong>
+                    <small>{{ hechosGrupo }} de {{ bienesGrupo.length }}</small>
+                    <span class="firma-tag" *ngIf="estadoPersona(cap.grupo.id) as e" [ngClass]="'fe-' + e">{{ textoEstadoPersona(e) }}</span>
+                  </div>
+                  <div class="chk-list">
+                    <button class="chk-item" *ngFor="let b of checklistGrupo; trackBy: trackBien" [ngClass]="'st-' + avEstado(b)" (click)="tocarChecklist(b)">
+                      <span class="av-ico">{{ avEstado(b)==='ok' ? '✓' : avEstado(b)==='fuera' ? '⚠' : avEstado(b)==='no' ? '✗' : '○' }}</span>
+                      <span class="av-txt">
+                        <span><b class="chip-key">{{ b.clave }}</b> {{ b.articulo }}<em class="av-orig" *ngIf="esVehiculo(b)">🚗 Vehículo</em></span>
+                        <small>{{ b.etiqueta || 'Sin etiqueta' }} · {{ avEstado(b)==='ok' || avEstado(b)==='fuera' ? b.respuesta : avEstado(b)==='no' ? 'No encontrado' : (b.tiene_foto ? 'Pendiente' : 'Pendiente · 📷') }}</small>
+                      </span>
+                      <span class="av-go">›</span>
+                    </button>
+                  </div>
+                  <div class="chk-links">
+                    <button class="lev-more" (click)="abrirNuevoBienCap()">＋ Bien que no está en la lista</button>
+                    <button class="lev-more" (click)="abrirBuscarGeneral()">🔍 Buscar en otras sedes</button>
+                  </div>
+                  <button class="btn-primary chk-terminar" (click)="abrirTerminarPersona()">✍ Terminar con {{ nombreCorto(cap.grupo.nombre) }}</button>
+                </div>
+              </ng-container>
+
+              <!-- Terminar con la persona: pendientes, conformidad y firmas -->
+              <ng-container *ngIf="!cap.cargando && cap.paso==='terminar' && cap.term as t">
+                <button class="doc-back" [disabled]="t.guardando" (click)="cap.paso='escanear'">← Volver a la lista</button>
+                <h2 class="cap-q">Terminar con {{ cap.grupo?.nombre }}</h2>
+                <div class="etq-stats">
+                  <div><b>{{ t.revisados }}</b><small>Revisados</small></div>
+                  <div><b>{{ t.noEncontrados }}</b><small>No encontrados</small></div>
+                  <div><b>{{ t.pendientes.length }}</b><small>Pendientes</small></div>
+                </div>
+
+                <div class="cap-step" *ngIf="t.pendientes.length">
+                  <div class="step-title"><span>1</span> Faltan {{ t.pendientes.length }} {{ t.pendientes.length === 1 ? 'bien' : 'bienes' }}</div>
+                  <div class="cap-options una">
+                    <button [class.on]="t.marcarPendientes" (click)="t.marcarPendientes=true">Marcarlos como no encontrados</button>
+                    <button [class.on]="!t.marcarPendientes" (click)="t.marcarPendientes=false">Dejarlos pendientes</button>
+                  </div>
+                  <button class="lev-more" (click)="t.verPend = !t.verPend">{{ t.verPend ? '▴ Ocultar' : '▾ Ver cuáles' }}</button>
+                  <div class="term-pend" *ngIf="t.verPend"><span *ngFor="let b of t.pendientes"><b class="chip-key">{{ b.clave }}</b> {{ b.articulo }}</span></div>
+                </div>
+
+                <div class="cap-step">
+                  <div class="step-title"><span>{{ t.pendientes.length ? 2 : 1 }}</span> ¿{{ nombreCorto(cap.grupo?.nombre) }} está de acuerdo con su resguardo?</div>
+                  <div class="cap-options">
+                    <button [class.on]="t.conforme" (click)="t.conforme=true">Sí, de acuerdo</button>
+                    <button [class.on]="!t.conforme" (click)="t.conforme=false">No, hay diferencias</button>
+                  </div>
+                  <textarea *ngIf="!t.conforme" rows="3" [(ngModel)]="t.observaciones" maxlength="1000" placeholder="¿Qué diferencias señala? (ej. el monitor CE0321 no es suyo)"></textarea>
+                  <button class="lev-more" (click)="abrirResguardo(cap.lev, cap.grupo?.id)">📄 Ver su resguardo antes de firmar</button>
+                </div>
+
+                <div class="cap-step">
+                  <div class="step-title"><span>{{ t.pendientes.length ? 3 : 2 }}</span> Firmas</div>
+                  <label class="firma-lbl">Firma de {{ cap.grupo?.nombre }}{{ t.conforme ? '' : ' (opcional)' }}</label>
+                  <div class="firma-pad">
+                    <canvas #firmaA width="600" height="220" (pointerdown)="firmaDown($event, firmaA, 'a')" (pointermove)="firmaMove($event, firmaA, 'a')"
+                            (pointerup)="firmaUp('a')" (pointercancel)="firmaUp('a')" (pointerleave)="firmaUp('a')"></canvas>
+                    <span class="firma-guia" *ngIf="!t.trazos.a">Firme aquí con el dedo</span>
+                    <button class="firma-borrar" *ngIf="t.trazos.a" (click)="borrarFirma(firmaA, 'a')">Borrar</button>
+                  </div>
+                  <label class="firma-lbl">Firma de {{ nombreUsuario || email }} · responsable del inventario</label>
+                  <ng-container *ngIf="t.usarGuardada && firmaGuardada">
+                    <img class="firma-img" [src]="firmaGuardada" alt="Firma guardada">
+                  </ng-container>
+                  <div class="firma-pad" [hidden]="t.usarGuardada && firmaGuardada">
+                    <canvas #firmaB width="600" height="220" (pointerdown)="firmaDown($event, firmaB, 'b')" (pointermove)="firmaMove($event, firmaB, 'b')"
+                            (pointerup)="firmaUp('b')" (pointercancel)="firmaUp('b')" (pointerleave)="firmaUp('b')"></canvas>
+                    <span class="firma-guia" *ngIf="!t.trazos.b">Firme aquí con el dedo</span>
+                    <button class="firma-borrar" *ngIf="t.trazos.b" (click)="borrarFirma(firmaB, 'b')">Borrar</button>
+                  </div>
+                  <label class="cm-check" *ngIf="firmaGuardada"><input type="checkbox" [(ngModel)]="t.usarGuardada"> Usar mi firma guardada en este celular</label>
+                  <label class="cm-check" *ngIf="!(t.usarGuardada && firmaGuardada)"><input type="checkbox" [(ngModel)]="t.recordar"> Recordar mi firma en este celular</label>
+                </div>
+
+                <div class="inline-error" *ngIf="t.error">{{ t.error }}</div>
+                <div class="cap-footer">
+                  <button class="btn-outline" [disabled]="t.guardando" (click)="cap.paso='escanear'">Cancelar</button>
+                  <button class="btn-primary" [disabled]="t.guardando" (click)="firmarYTerminar(firmaA, firmaB)">
+                    <span class="mini-ring light" *ngIf="t.guardando"></span>
+                    {{ t.guardando ? 'Guardando…' : '✍ Firmar y terminar' }}
+                  </button>
+                </div>
               </ng-container>
 
               <!-- Paso 3: el bien -->
@@ -3004,6 +3097,29 @@ interface FormatoDoc {
     .push-txt small{font-size:13px;color:#6d7b8e}
     .push-x{border:0;background:transparent;color:#9aa6b6;font-size:20px;cursor:pointer;padding:0 4px}
     .push-instalar{margin-top:12px;border:1px solid #d6e0ec;background:#fff;color:#244c78;font-family:inherit;font-size:14px;font-weight:700;border-radius:999px;padding:9px 16px;cursor:pointer}
+    .chk{display:flex;flex-direction:column;gap:10px;margin-top:6px}
+    .chk-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+    .chk-head strong{font-size:17px;color:#14243a}
+    .chk-head small{font-size:14px;color:#7d8a9b;font-weight:700}
+    .chk-list{display:flex;flex-direction:column;gap:6px}
+    .chk-item{display:flex;align-items:center;gap:10px;width:100%;border:1px solid #e6ebf2;background:#fff;border-radius:12px;padding:11px 12px;font-family:inherit;text-align:left;cursor:pointer}
+    .chk-item.st-pendiente{border-left:4px solid #f0a020}
+    .chk-item.st-ok,.chk-item.st-fuera{opacity:.78}
+    .chk-links{display:flex;flex-wrap:wrap;gap:4px 18px}
+    .chk-terminar{height:56px;font-size:16.5px;margin-top:4px}
+    .firma-tag{font-size:11.5px;font-weight:800;border-radius:999px;padding:3px 9px;white-space:nowrap}
+    .fe-FIRMADO{background:#e6f5ee;color:#21835a}
+    .fe-CON_DIFERENCIAS{background:#fdecee;color:#bd4b52}
+    .fe-REQUIERE_FIRMA{background:#fff4dc;color:#a8650f}
+    .cap-areas button .firma-tag{margin-left:auto}
+    .cap-options.una{grid-template-columns:1fr}
+    .term-pend{display:flex;flex-direction:column;gap:4px;font-size:13.5px;color:#41546b;max-height:180px;overflow:auto}
+    .firma-lbl{font-size:13px;font-weight:700;color:#41546b;margin-top:4px}
+    .firma-pad{position:relative;border:1.5px dashed #b9cbe0;border-radius:12px;background:#fbfcfe;touch-action:none}
+    .firma-pad canvas{display:block;width:100%;height:150px;touch-action:none;cursor:crosshair}
+    .firma-guia{position:absolute;inset:0;display:grid;place-items:center;color:#a9b6c6;font-size:14px;pointer-events:none}
+    .firma-borrar{position:absolute;right:8px;top:8px;border:0;background:#eef2f7;color:#41546b;border-radius:999px;padding:5px 11px;font-family:inherit;font-weight:700;cursor:pointer}
+    .firma-img{display:block;max-width:100%;height:110px;object-fit:contain;border:1px solid #e6ebf2;border-radius:12px;background:#fff}
     .etq-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:10px}
     .etq-stats div{background:#f6f8fb;border-radius:12px;padding:10px 12px}
     .etq-stats b{display:block;font-size:20px;color:#14243a}
@@ -6015,6 +6131,7 @@ export class AppComponent {
                  verClave: false, verLista: false, escaneando: false,
                  modo: 'persona', grupo: null, agregado: null, ofrecerNuevo: false, claveSugerida: '', desdeLista: false, cambios: false };
     this.capOpciones = { areas: [], personas: [], clasificaciones: [], marcas: [] };
+    this.cargarEstadoPersonas();
     this.http.get<any>(this.api + '/levantamientos/' + l.idLevantamiento + '/opciones').subscribe({
       next: o => this.capOpciones = { areas: [], personas: [], clasificaciones: [], marcas: [], ...(o || {}) },
       error: () => { /* sin opciones: el formulario de bien nuevo avisará */ }
@@ -6140,7 +6257,7 @@ export class AppComponent {
           const ag = c.agregado?.bien;
           if (ag && !ag.etiqueta) { this.asignarEtiquetaCap(codigo, ag); return; }
           c.etiquetaPorAsignar = codigo;
-          this.abrirAvanceCaptura('sinetiq');
+          if (!this.esChecklist) this.abrirAvanceCaptura('sinetiq');
           return;
         }
         if (r.estado === 'ASIGNADA' && r.clave) { this.abrirBuscarGeneral(r.clave); return; }
@@ -6194,7 +6311,8 @@ export class AppComponent {
     this.detenerEscaner();
     this.limpiarFotoCaptura();
     this.cap.bien = b;
-    this.cap.respuesta = '';
+    // El estado ya viene marcado (el primero, normalmente "Bueno"): un toque menos por bien
+    this.cap.respuesta = b.respuesta || (this.cap.lev?.pregunta?.opciones || [])[0] || '';
     this.cap.error = '';
     this.cap.ultimo = '';
     this.cap.agregado = null;
@@ -6388,12 +6506,157 @@ export class AppComponent {
           this.actualizarFotoEnInventario(b.id_bien, r.foto_mini, r.foto_url);
         }
         c.ultimo = b.clave + ' · ' + c.respuesta + (r?.fueraDeLugar ? ' · fuera de lugar' : '') + ' — listo, escanea el siguiente';
+        if (this.esChecklist && this.estadoPersona(c.grupo.id) && this.estadoPersona(c.grupo.id) !== 'EN_PROCESO') this.cargarEstadoPersonas();
         this.limpiarFotoCaptura();
         c.bien = null;
         c.paso = 'escanear';
         window.scrollTo({ top: 0 });
       },
       error: e => { c.guardando = false; c.error = this.mensajeError(e, 'No se pudo guardar. Revisa tu conexión e inténtalo de nuevo.'); }
+    });
+  }
+
+  // ----- Checklist por persona y firmas (arranque) -----
+
+  get esChecklist(): boolean {
+    return !!this.cap && this.cap.grupo?.modo === 'persona' && this.cap.grupo?.key !== 'sin';
+  }
+
+  get checklistGrupo(): any[] {
+    const orden: any = { pendiente: 0, no: 1, fuera: 2, ok: 3 };
+    return this.bienesGrupo.slice().sort((x: any, y: any) => orden[this.avEstado(x)] - orden[this.avEstado(y)]
+      || String(x.clave || '').localeCompare(String(y.clave || ''), 'es', { numeric: true }));
+  }
+
+  get hechosGrupo(): number {
+    return this.bienesGrupo.filter((b: any) => b.estatus).length;
+  }
+
+  esVehiculo(b: any): boolean {
+    return String(b?.clasificacion || '').toUpperCase().includes('TRANSPORTE');
+  }
+
+  nombreCorto(n: any): string {
+    const p = String(n || '').trim().split(/\s+/);
+    return p.length > 2 ? p.slice(0, 2).join(' ') : p.join(' ');
+  }
+
+  tocarChecklist(b: any): void {
+    if (this.cap.etiquetaPorAsignar) {
+      if (b.etiqueta) { this.notificar('info', 'Ese bien ya tiene etiqueta', b.clave + ' ya tiene la ' + b.etiqueta + '. Elige otro.'); return; }
+      this.asignarEtiquetaCap(this.cap.etiquetaPorAsignar, b);
+      return;
+    }
+    this.abrirBienCaptura(b);
+    this.cap.desdeLista = true;
+  }
+
+  private cargarEstadoPersonas(): void {
+    const c = this.cap;
+    if (!c) return;
+    this.http.get<any>(this.api + '/levantamientos/' + c.lev.idLevantamiento + '/personas-estado').subscribe({
+      next: r => { if (this.cap === c) c.estadosPersona = r || {}; },
+      error: () => {}
+    });
+  }
+
+  estadoPersona(id: any): string {
+    return this.cap?.estadosPersona?.[String(id)]?.estado || '';
+  }
+
+  textoEstadoPersona(e: string): string {
+    return ({ FIRMADO: '✍ Firmado', CON_DIFERENCIAS: '⚠ Con diferencias', REQUIERE_FIRMA: '↻ Firmar de nuevo', EN_PROCESO: '' } as any)[e] || '';
+  }
+
+  get firmaGuardada(): string {
+    try { return localStorage.getItem('dozzer_firma_' + this.email) || ''; } catch { return ''; }
+  }
+
+  abrirTerminarPersona(): void {
+    const c = this.cap;
+    const bienes = this.bienesGrupo;
+    c.term = {
+      revisados: bienes.filter((b: any) => b.estatus === 'REVISADO').length,
+      noEncontrados: bienes.filter((b: any) => b.estatus === 'NO_ENCONTRADO').length,
+      pendientes: bienes.filter((b: any) => !b.estatus),
+      marcarPendientes: true, verPend: false, conforme: true, observaciones: '',
+      trazos: { a: false, b: false }, usarGuardada: !!this.firmaGuardada, recordar: !this.firmaGuardada,
+      guardando: false, error: ''
+    };
+    if (!c.term.revisados) {
+      this.notificar('info', 'Sin bienes revisados', 'Revisa al menos un bien de esta persona para poder firmar su resguardo.');
+      c.term = null;
+      return;
+    }
+    this.detenerEscaner();
+    c.paso = 'terminar';
+    window.scrollTo({ top: 0 });
+  }
+
+  // ----- Firma con el dedo -----
+  private firmaPunto: any = {};
+
+  private puntoFirma(ev: PointerEvent, canvas: HTMLCanvasElement): [number, number] {
+    const r = canvas.getBoundingClientRect();
+    return [(ev.clientX - r.left) * canvas.width / r.width, (ev.clientY - r.top) * canvas.height / r.height];
+  }
+
+  firmaDown(ev: PointerEvent, canvas: HTMLCanvasElement, k: string): void {
+    ev.preventDefault();
+    try { canvas.setPointerCapture(ev.pointerId); } catch { /* */ }
+    this.firmaPunto[k] = this.puntoFirma(ev, canvas);
+    if (this.cap?.term) this.cap.term.trazos[k] = true;
+  }
+
+  firmaMove(ev: PointerEvent, canvas: HTMLCanvasElement, k: string): void {
+    const ant = this.firmaPunto[k];
+    if (!ant) return;
+    ev.preventDefault();
+    const p = this.puntoFirma(ev, canvas);
+    const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
+    ctx.strokeStyle = '#0d1b33'; ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(ant[0], ant[1]); ctx.lineTo(p[0], p[1]); ctx.stroke();
+    this.firmaPunto[k] = p;
+  }
+
+  firmaUp(k: string): void {
+    this.firmaPunto[k] = null;
+  }
+
+  borrarFirma(canvas: HTMLCanvasElement, k: string): void {
+    (canvas.getContext('2d') as CanvasRenderingContext2D).clearRect(0, 0, canvas.width, canvas.height);
+    if (this.cap?.term) this.cap.term.trazos[k] = false;
+  }
+
+  firmarYTerminar(canvasA: HTMLCanvasElement, canvasB: HTMLCanvasElement): void {
+    const c = this.cap, t = c?.term;
+    if (!t || t.guardando) return;
+    if (!t.conforme && !String(t.observaciones || '').trim()) { t.error = 'Escribe cuáles son las diferencias.'; return; }
+    if (t.conforme && !t.trazos.a) { t.error = 'Falta la firma de ' + this.nombreCorto(c.grupo?.nombre) + '.'; return; }
+    const usarGuardada = t.usarGuardada && !!this.firmaGuardada;
+    if (!usarGuardada && !t.trazos.b) { t.error = 'Falta tu firma.'; return; }
+    const firmaResponsable = usarGuardada ? this.firmaGuardada : canvasB.toDataURL('image/png');
+    if (!usarGuardada && t.recordar) { try { localStorage.setItem('dozzer_firma_' + this.email, firmaResponsable); } catch { /* */ } }
+    t.guardando = true; t.error = '';
+    const idPersona = c.grupo.id;
+    this.http.post<any>(this.api + '/levantamientos/' + c.lev.idLevantamiento + '/personas/' + idPersona + '/terminar', {
+      marcarPendientes: t.pendientes.length ? t.marcarPendientes : false,
+      conforme: t.conforme, observaciones: t.observaciones,
+      firmaResguardante: t.trazos.a ? canvasA.toDataURL('image/png') : null,
+      firmaResponsable
+    }).subscribe({
+      next: r => {
+        if (t.marcarPendientes) for (const b of t.pendientes) { b.estatus = 'NO_ENCONTRADO'; b.respuesta = null; }
+        c.estadosPersona = { ...(c.estadosPersona || {}), [String(idPersona)]: { estado: r.estado, idDocumento: r.idDocumento } };
+        const nombre = c.grupo?.nombre;
+        c.term = null;
+        c.grupo = null;
+        c.paso = 'area';
+        window.scrollTo({ top: 0 });
+        this.notificar('exito', 'Resguardo firmado', nombre + (r.estado === 'CON_DIFERENCIAS' ? ' · con diferencias anotadas.' : ' · listo.'), 4000,
+          { texto: '📄 Ver resguardo', fn: () => this.abrirDocumentoGuardado(r.idDocumento) });
+      },
+      error: e => { t.guardando = false; t.error = this.mensajeError(e, 'No se pudo guardar. Revisa tu conexión.'); }
     });
   }
 
@@ -7150,17 +7413,39 @@ export class AppComponent {
       y += 5;
     }
 
+    // Diferencias señaladas por el colaborador
+    const firma = d.firma || null;
+    if (firma && firma.conforme === false && firma.observaciones) {
+      const lineasObs = doc.splitTextToSize(String(firma.observaciones), W - 8);
+      const altoObs = 10 + lineasObs.length * 4;
+      if (y + altoObs > LIMITE) { doc.addPage(); encabezado(false); y = 44; }
+      doc.setFillColor(253, 236, 238); doc.roundedRect(X, y, W, altoObs, 2, 2, 'F');
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(189, 75, 82);
+      doc.text('EL COLABORADOR SEÑALÓ DIFERENCIAS', X + 4, y + 5.5);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...NAVY);
+      doc.text(lineasObs, X + 4, y + 10.5);
+      y += altoObs + 4;
+    }
+    if (d.requiereNuevaFirma && !firma) {
+      doc.setFont('helvetica', 'italic'); doc.setFontSize(7.5); doc.setTextColor(189, 75, 82);
+      doc.text('Los bienes cambiaron después de firmarse: este resguardo requiere firmarse de nuevo.', X, y); y += 5;
+    }
+
     // Firmas (si no caben, van en una hoja nueva)
     if (y + 50 > LIMITE + 8) { doc.addPage(); encabezado(false); y = 44; }
     y += 4;
     seccion('FIRMAS', y);
-    const espacioFirma = (fx: number, fy: number, w: number, nombre: string, rol: string) => {
-      doc.setDrawColor(...LINEA); doc.setLineWidth(0.3);
-      (doc as any).setLineDashPattern([1.2, 1.2], 0);
-      doc.roundedRect(fx + 4, fy, w - 8, 22, 2, 2);
-      (doc as any).setLineDashPattern([], 0);
-      doc.setFont('helvetica', 'italic'); doc.setFontSize(7); doc.setTextColor(170, 178, 190);
-      doc.text('Espacio para firma', fx + w / 2, fy + 12, { align: 'center' });
+    const espacioFirma = (fx: number, fy: number, w: number, nombre: string, rol: string, imagen?: string) => {
+      if (imagen) {
+        try { doc.addImage(imagen, 'PNG', fx + 8, fy, w - 16, (w - 16) * 220 / 600 > 24 ? 24 : (w - 16) * 220 / 600); } catch { /* firma ilegible */ }
+      } else {
+        doc.setDrawColor(...LINEA); doc.setLineWidth(0.3);
+        (doc as any).setLineDashPattern([1.2, 1.2], 0);
+        doc.roundedRect(fx + 4, fy, w - 8, 22, 2, 2);
+        (doc as any).setLineDashPattern([], 0);
+        doc.setFont('helvetica', 'italic'); doc.setFontSize(7); doc.setTextColor(170, 178, 190);
+        doc.text('Espacio para firma', fx + w / 2, fy + 12, { align: 'center' });
+      }
       doc.setDrawColor(...NAVY); doc.setLineWidth(0.35);
       doc.line(fx + 4, fy + 26, fx + w - 4, fy + 26);
       doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...NAVY);
@@ -7168,8 +7453,13 @@ export class AppComponent {
       doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...GRIS);
       doc.text(rol, fx + w / 2, fy + 34.5, { align: 'center' });
     };
-    espacioFirma(X + 4, y + 5, 80, per.nombre || '', 'Nombre y firma del resguardante');
-    espacioFirma(X + 92, y + 5, 80, 'Ing. ' + (d.recursosNombre || 'Juan Carlos Zuno Muñiz'), 'Nombre y firma del ' + String(d.recursosCargo || 'Jefe de recursos materiales').toLowerCase());
+    espacioFirma(X + 4, y + 5, 80, per.nombre || '', 'Nombre y firma del resguardante', firma?.resguardante);
+    espacioFirma(X + 92, y + 5, 80, firma?.responsableNombre || ('Ing. ' + (d.recursosNombre || 'Juan Carlos Zuno Muñiz')),
+      'Nombre y firma del ' + String(d.recursosCargo || 'Jefe de recursos materiales').toLowerCase(), firma?.responsable);
+    if (firma?.fecha) {
+      doc.setFont('helvetica', 'italic'); doc.setFontSize(7); doc.setTextColor(...GRIS);
+      doc.text('Firmado en DOZZER el ' + firma.fecha + (firma.conforme === false ? ' · con diferencias señaladas' : ' · de conformidad'), X + W / 2, y + 47, { align: 'center' });
+    }
 
     // Marca de agua y pie en todas las hojas
     const paginas = doc.getNumberOfPages();
