@@ -1691,7 +1691,7 @@ interface FormatoDoc {
 
                     <div class="lev-actions" *ngIf="l.puedoAdministrar">
                       <button class="btn-danger" *ngIf="l.estado==='EN_CURSO'" (click)="cerrarLevantamiento(l)">Cerrar levantamiento</button>
-                      <button class="btn-eliminar-lev" *ngIf="l.estado==='EN_CURSO'" (click)="eliminarLevantamiento(l)">🗑 Eliminar inventario</button>
+                      <button class="btn-eliminar-lev" *ngIf="l.puedoBorrar" (click)="eliminarLevantamiento(l)">{{ l.estado==='CERRADO' ? '🗑 Borrar (temporal, pruebas)' : '🗑 Eliminar inventario' }}</button>
                     </div>
 
                     <button class="lev-more" (click)="levDetalle = levDetalle===l.idLevantamiento ? null : l.idLevantamiento">
@@ -6004,10 +6004,11 @@ export class AppComponent {
     const fotos = l.fotosNuevas || 0;
     this.abrirDialogo({
       tipo: 'peligro', icono: '🗑',
-      titulo: '¿Eliminar este inventario?',
+      titulo: l.estado === 'CERRADO' ? '¿Borrar este inventario CERRADO?' : '¿Eliminar este inventario?',
       mensaje: 'Se borrará el inventario de ' + (l.sede || 'la sede') + ' ' + (l.anio || '') +
         ' con sus ' + (l.capturados || 0) + ' bienes revisados, sus actas' +
         (fotos > 0 ? ' y las ' + fotos + ' fotos que se tomaron en él (también de Cloudinary). Esos bienes volverán a pedir foto.' : '.') +
+        (l.estado === 'CERRADO' ? ' También se borran su acta de cierre y los resguardos firmados (los anteriores vuelven a quedar vigentes). Las etiquetas pegadas se conservan. Esta opción es solo para pruebas.' : '') +
         ' Esta acción no se puede deshacer.',
       textoConfirmar: 'Sí, eliminar todo',
       accion: terminar => {
