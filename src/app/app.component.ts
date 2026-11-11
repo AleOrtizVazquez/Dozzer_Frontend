@@ -149,6 +149,7 @@ interface FormatoDoc {
             <span class="mini-ring light" *ngIf="loading"></span>
             {{ loading ? 'ENTRANDO…' : 'ENTRAR' }}
           </button>
+          <p class="login-lento" *ngIf="loginLento">Despertando el servidor… la primera entrada del día puede tardar unos segundos más.</p>
 
           <button type="button" class="lg-forgot" (click)="abrirRecuperacion()">¿Olvidaste tu contraseña?</button>
 
@@ -246,6 +247,18 @@ interface FormatoDoc {
               {{ pwdGuardando ? 'Guardando...' : 'Guardar contraseña' }}
             </button>
           </div>
+        </div>
+      </div>
+
+      <!-- MANUAL DE USUARIO -->
+      <div class="manual-backdrop" *ngIf="manualAbierto" (click)="manualAbierto=false">
+        <div class="manual-card" (click)="$event.stopPropagation()">
+          <div class="manual-head">
+            <strong>📘 Manual de usuario</strong>
+            <a href="manual.html" target="_blank" rel="noopener">Abrir aparte ↗</a>
+            <button class="close-button" (click)="manualAbierto=false">×</button>
+          </div>
+          <iframe src="manual.html" title="Manual de usuario"></iframe>
         </div>
       </div>
 
@@ -495,6 +508,7 @@ interface FormatoDoc {
                   <span class="more-ico">✎</span>
                   <div><strong>Cambiar mi contraseña</strong><small>Actualiza tu acceso</small></div>
                 </button>
+                <a class="user-menu-ayuda" (click)="menuUsuario=false; manualAbierto=true">📘 Manual de usuario</a>
                 <button class="user-menu-exit" (click)="menuUsuario=false; logout()">
                   <span class="more-ico">↪</span>
                   <div><strong>Cerrar sesión</strong></div>
@@ -2626,6 +2640,16 @@ interface FormatoDoc {
     .user-menu button strong{display:block;font-size:14px;color:#25364c}
     .user-menu button small{display:block;font-size:12px;color:#8d99a9;margin-top:2px}
     .user-menu-exit strong{color:#bd4b52!important}
+    .user-menu-ayuda{display:block;padding:6px 12px 8px;font-size:12.5px;color:#8d99a9;cursor:pointer;text-decoration:none;border-top:1px solid #f0f3f7;margin-top:4px}
+    .user-menu-ayuda:hover{color:#244c78}
+    .manual-backdrop{position:fixed;top:0;right:0;bottom:0;left:0;inset:0;z-index:150;background:#15243b88;display:flex;align-items:center;justify-content:center;padding:16px}
+    .manual-card{width:min(900px,100%);height:min(92vh,100%);background:#fff;border-radius:16px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 24px 80px #15243b40}
+    .manual-head{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid #edf0f4}
+    .manual-head strong{font-size:15px;color:#14243a}
+    .manual-head a{margin-left:auto;font-size:13px;font-weight:700;color:#2d5d93;text-decoration:none}
+    .manual-card iframe{flex:1;width:100%;border:0}
+    .login-lento{margin:10px 0 0;font-size:13px;color:#7a4b0c;background:#fff7ec;border-radius:10px;padding:8px 12px;text-align:center}
+    @media(max-width:600px){.manual-backdrop{padding:0}.manual-card{height:100%;border-radius:0}}
     .user-menu-exit .more-ico{background:#fdeced;color:#c2414b}
     .topbar-right{margin-left:auto;display:flex;align-items:center;gap:9px}
     .online-dot{width:8px;height:8px;border-radius:50%;background:#25a878}
@@ -3816,6 +3840,8 @@ export class AppComponent {
   temporalCopiada = false;
   menuMasInventario = false;
   menuUsuario = false;
+  manualAbierto = false;
+  loginLento = false;
   // App instalable y avisos al celular (Web Push)
   pushEstado: 'cargando' | 'no-soportado' | 'sin-https' | 'instalar-ios' | 'bloqueado' | 'inactivo' | 'activo' = 'cargando';
   pushProcesando = false;
@@ -4006,6 +4032,7 @@ export class AppComponent {
   ];
 
   constructor(private http: HttpClient, private sanitizer: DomSanitizer) {
+    this.despertarServidor();
     this.prepararApp();
     if (this.logged && !this.mustChangePassword) {
       this.loadAll();
@@ -4015,6 +4042,14 @@ export class AppComponent {
   // =========================
   // APP INSTALABLE Y AVISOS AL CELULAR
   // =========================
+
+  // El servidor gratuito se duerme sin uso: se le avisa al abrir la app para que esté listo al entrar
+  private despertarServidor(): void {
+    try { fetch(this.api + '/salud', { cache: 'no-store' }).catch(() => {}); } catch { /* sin red */ }
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') { try { fetch(this.api + '/salud', { cache: 'no-store' }).catch(() => {}); } catch { /* */ } }
+    });
+  }
 
   private leerLocal(k: string): string | null {
     try { return localStorage.getItem(k); } catch { return null; }
@@ -4384,6 +4419,8 @@ export class AppComponent {
   doLogin(): void {
     this.error = '';
     this.loading = true;
+    this.loginLento = false;
+    const lento = setTimeout(() => { if (this.loading) this.loginLento = true; }, 4000);
 
     this.http.post<any>(this.api + '/auth/login', this.login).subscribe({
       next: r => {
@@ -4412,11 +4449,13 @@ export class AppComponent {
         this.logged = true;
         this.email = r.correo;
         this.loading = false;
+        clearTimeout(lento); this.loginLento = false;
         this.login.password = '';
         if (!this.mustChangePassword) this.loadAll();
       },
       error: e => {
         this.loading = false;
+        clearTimeout(lento); this.loginLento = false;
         this.error = e.error?.error || 'No fue posible iniciar sesión';
       }
     });
