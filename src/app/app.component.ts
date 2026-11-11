@@ -1819,7 +1819,7 @@ interface FormatoDoc {
                 </div>
 
                 <div class="cap-scanner" *ngIf="cap.escaneando">
-                  <video #camQr playsinline muted></video>
+                  <video #camQr playsinline muted autoplay (click)="camQr?.nativeElement?.play()"></video>
                   <span class="cap-frame"></span>
                   <button class="btn-outline" (click)="detenerEscaner()">Cancelar</button>
                 </div>
@@ -5835,34 +5835,55 @@ export class AppComponent {
   async iniciarEscaner(): Promise<void> {
     this.cap.error = '';
     try {
-      this.camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
-    } catch {
-      this.cap.error = 'No se pudo abrir la cámara. Revisa el permiso del navegador o usa "Leer QR desde una foto".';
+      this.camStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false
+      });
+    } catch (e: any) {
+      this.cap.error = e?.name === 'NotAllowedError'
+        ? 'DOZZER no tiene permiso para usar la cámara. Actívalo en los ajustes del celular (Ajustes › DOZZER o Safari › Cámara) o usa "Leer QR desde una foto".'
+        : 'No se pudo abrir la cámara. Usa "Leer QR desde una foto".';
       return;
     }
     this.cap.escaneando = true;
-    setTimeout(() => {
-      const video = this.camQr?.nativeElement;
-      if (!video || !this.camStream) return;
-      video.srcObject = this.camStream;
-      video.play().catch(() => {});
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d', { willReadFrequently: true } as any) as CanvasRenderingContext2D;
-      const leer = () => {
-        if (!this.cap?.escaneando) return;
-        if (video.readyState === video.HAVE_ENOUGH_DATA) {
-          const escala = Math.min(1, 640 / (video.videoWidth || 640));
-          canvas.width = Math.round(video.videoWidth * escala);
-          canvas.height = Math.round(video.videoHeight * escala);
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const qr = jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' });
-          if (qr?.data) { this.alLeerQr(qr.data); return; }
-        }
-        this.camTimer = setTimeout(leer, 180);
-      };
-      leer();
-    });
+    // Espera a que el cuadro de video exista en pantalla (aparece al activar el escáner)
+    let video: HTMLVideoElement | undefined;
+    for (let i = 0; i < 30 && !video; i++) {
+      await new Promise(r => setTimeout(r, 50));
+      video = this.camQr?.nativeElement;
+    }
+    if (!video || !this.camStream) { this.detenerEscaner(); this.cap.error = 'No se pudo mostrar la cámara. Usa "Leer QR desde una foto".'; return; }
+    // iPhone: el video solo se reproduce solo si está silenciado y en línea (estas propiedades deben ir antes del stream)
+    video.muted = true;
+    video.setAttribute('muted', '');
+    video.setAttribute('playsinline', '');
+    video.setAttribute('autoplay', '');
+    video.srcObject = this.camStream;
+    try { await video.play(); } catch { /* algunos iPhone arrancan con el autoplay */ }
+    const inicio = Date.now();
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true } as any) as CanvasRenderingContext2D;
+    const v = video;
+    const leer = () => {
+      if (!this.cap?.escaneando) return;
+      if (v.readyState >= v.HAVE_CURRENT_DATA && v.videoWidth) {
+        const escala = Math.min(1, 640 / v.videoWidth);
+        canvas.width = Math.round(v.videoWidth * escala);
+        canvas.height = Math.round(v.videoHeight * escala);
+        ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
+        const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const qr = jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' });
+        if (qr?.data) { this.alLeerQr(qr.data); return; }
+      } else if (Date.now() - inicio > 6000) {
+        // La cámara nunca mandó imagen (se queda en negro): se cierra y se ofrece la otra opción
+        this.detenerEscaner();
+        this.cap.error = 'La cámara no respondió. Ciérrala y vuelve a intentar, o usa "Leer QR desde una foto".';
+        return;
+      } else if (v.paused) {
+        v.play().catch(() => {});
+      }
+      this.camTimer = setTimeout(leer, 180);
+    };
+    leer();
   }
 
   detenerEscaner(): void {
