@@ -201,6 +201,11 @@ export class IcoComponent { @Input() n = ''; }
 
           <button type="button" class="lg-forgot" (click)="abrirRecuperacion()">¿Olvidaste tu contraseña?</button>
 
+          <div class="lg-instalar" *ngIf="!appInstalada && (instalarPrompt || esIOS)">
+            <button type="button" *ngIf="instalarPrompt" (click)="instalarApp()"><ico n="download"></ico> Instalar DOZZER como app</button>
+            <p *ngIf="!instalarPrompt && esIOS"><ico n="download"></ico> Para instalarla en iPhone: toca Compartir <b>⬆</b> y luego <b>Agregar a inicio</b>.</p>
+          </div>
+
           </ng-container>
 
           <!-- RECUPERAR CONTRASEÑA -->
@@ -2641,6 +2646,11 @@ export class IcoComponent { @Input() n = ''; }
     .column-picker>.btn-outline{display:inline-flex;align-items:center;gap:7px}
     .column-picker>.btn-outline>ico{width:17px;height:17px}
     .clasif-menu{width:300px}
+    .lg-instalar{margin-top:18px;padding-top:16px;border-top:1px solid #eef1f5;text-align:center}
+    .lg-instalar button{display:inline-flex;align-items:center;gap:8px;border:1px solid #d6e0ec;background:#fff;color:#244c78;font-size:14px;font-weight:700;border-radius:999px;padding:10px 18px;cursor:pointer;transition:background .15s,border-color .15s}
+    .lg-instalar button:hover{background:#f3f7fc;border-color:#b9cbe0}
+    .lg-instalar ico{width:17px;height:17px}
+    .lg-instalar p{margin:0;font-size:13px;color:#6b7a8d;line-height:1.5}
     .inv-toolbar .table-actions{display:flex;flex-direction:row;align-items:center;gap:8px;flex-wrap:nowrap}
     .filters-menu select{height:auto!important;min-height:42px;padding:9px 11px!important;line-height:1.35}
     .clasif-list{display:flex;flex-direction:column;padding:4px 8px 10px;max-height:60vh;overflow-y:auto}
@@ -4373,6 +4383,12 @@ export class AppComponent {
   ocultarAvisoPush(): void {
     this.avisoPushOculto = true;
     try { localStorage.setItem('dozzer_push_oculto', '1'); } catch { /* opcional */ }
+  }
+
+  get esIOS(): boolean { return /iPhone|iPad|iPod/i.test(navigator.userAgent); }
+
+  get appInstalada(): boolean {
+    return !!(window.matchMedia?.('(display-mode: standalone)').matches || (navigator as any).standalone === true);
   }
 
   async instalarApp(): Promise<void> {
