@@ -1,8 +1,38 @@
-// Service worker de DOZZER: recibe los avisos (Web Push) aunque la app esté cerrada.
-// No guarda nada en caché: la app siempre se carga del servidor.
+// Service worker de DOZZER:
+// - Guarda una copia de la app (página, código, íconos) para que abra aunque no haya señal.
+//   Siempre intenta primero la versión de internet; la copia solo se usa sin conexión.
+// - Recibe los avisos (Web Push) aunque la app esté cerrada.
+// Los datos (API en Render) y las fotos (Cloudinary) no pasan por aquí: los maneja la app.
+
+const CACHE = 'dozzer-app-v1';
 
 self.addEventListener('install', () => self.skipWaiting());
-self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
+self.addEventListener('activate', e => e.waitUntil((async () => {
+  for (const k of await caches.keys()) if (k !== CACHE) await caches.delete(k);
+  await self.clients.claim();
+})()));
+
+self.addEventListener('fetch', e => {
+  const req = e.request;
+  if (req.method !== 'GET') return;
+  const url = new URL(req.url);
+  if (url.origin !== self.location.origin) return;
+  const llave = req.mode === 'navigate' ? '/' : req;
+  e.respondWith((async () => {
+    try {
+      const r = await fetch(req);
+      if (r.ok) {
+        const copia = r.clone();
+        caches.open(CACHE).then(c => c.put(llave, copia)).catch(() => {});
+      }
+      return r;
+    } catch (err) {
+      const guardada = await caches.match(llave);
+      if (guardada) return guardada;
+      throw err;
+    }
+  })());
+});
 
 self.addEventListener('push', e => {
   let d = {};

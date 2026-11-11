@@ -81,7 +81,7 @@ interface FormatoDoc {
 
       <button class="nav-item" *ngIf="verInventarioAnual" [class.active]="section==='anual'" (click)="menuCollapsed=true; section='anual'; anualVista='lista'; loadLevantamientos()">
         <span class="nav-icon">✓</span>
-        <span>Levantamiento</span>
+        <span>Inventario</span>
       </button>
 
       <button class="nav-item" [class.active]="section==='solicitudes'" (click)="menuCollapsed=true; section='solicitudes'; loadSolicitudes()">
@@ -1334,28 +1334,31 @@ interface FormatoDoc {
               </div>
             </div>
 
-            <!-- INDICADORES -->
-            <div class="stats-grid">
-              <button class="stat-card stat-button" [class.stat-selected]="tabSolicitudes==='PENDIENTE'" (click)="tabSolicitudes='PENDIENTE'"
-                      [class.stat-alerta]="vistaSolicitudes==='autorizacion' && conteoSolicitudes('PENDIENTE') > 0">
-                <div class="stat-top"><span>Pendientes</span><span class="stat-icon orange">◷</span></div>
-                <strong>{{ conteoSolicitudes('PENDIENTE') }}</strong>
-                <small>{{ vistaSolicitudes==='autorizacion' ? 'Esperan tu revisión' : 'En espera de revisión' }}</small>
+            <!-- INDICADORES (tarjetas como en Bienes) -->
+            <div class="aut-tiles">
+              <button class="aut-tile t-pend" [class.sel]="tabSolicitudes==='PENDIENTE'" [class.alerta]="vistaSolicitudes==='autorizacion' && conteoSolicitudes('PENDIENTE') > 0" (click)="tabSolicitudes='PENDIENTE'">
+                <svg class="tile-bg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                <span class="aut-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+                <span class="aut-num">{{ conteoSolicitudes('PENDIENTE') }}</span>
+                <span class="aut-txt"><strong>Pendientes</strong><small>{{ vistaSolicitudes==='autorizacion' ? 'Esperan tu revisión' : 'En espera de revisión' }}</small></span>
               </button>
-              <button class="stat-card stat-button" [class.stat-selected]="tabSolicitudes==='APROBADA'" (click)="tabSolicitudes='APROBADA'">
-                <div class="stat-top"><span>Aprobadas</span><span class="stat-icon green">✓</span></div>
-                <strong>{{ conteoSolicitudes('APROBADA') }}</strong>
-                <small>Aplicadas al inventario</small>
+              <button class="aut-tile t-aprob" [class.sel]="tabSolicitudes==='APROBADA'" (click)="tabSolicitudes='APROBADA'">
+                <svg class="tile-bg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5L16 9.5"/></svg>
+                <span class="aut-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5L16 9.5"/></svg></span>
+                <span class="aut-num">{{ conteoSolicitudes('APROBADA') }}</span>
+                <span class="aut-txt"><strong>Aprobadas</strong><small>Aplicadas al inventario</small></span>
               </button>
-              <button class="stat-card stat-button" [class.stat-selected]="tabSolicitudes==='RECHAZADA'" (click)="tabSolicitudes='RECHAZADA'">
-                <div class="stat-top"><span>Rechazadas</span><span class="stat-icon red">✕</span></div>
-                <strong>{{ conteoSolicitudes('RECHAZADA') }}</strong>
-                <small>Con motivo de rechazo</small>
+              <button class="aut-tile t-rech" [class.sel]="tabSolicitudes==='RECHAZADA'" (click)="tabSolicitudes='RECHAZADA'">
+                <svg class="tile-bg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/></svg>
+                <span class="aut-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/></svg></span>
+                <span class="aut-num">{{ conteoSolicitudes('RECHAZADA') }}</span>
+                <span class="aut-txt"><strong>Rechazadas</strong><small>Con motivo de rechazo</small></span>
               </button>
-              <button class="stat-card stat-button" [class.stat-selected]="tabSolicitudes==='TODAS'" (click)="tabSolicitudes='TODAS'">
-                <div class="stat-top"><span>Total</span><span class="stat-icon blue">▣</span></div>
-                <strong>{{ solicitudes.length }}</strong>
-                <small>Solicitudes registradas</small>
+              <button class="aut-tile t-todas" [class.sel]="tabSolicitudes==='TODAS'" (click)="tabSolicitudes='TODAS'">
+                <svg class="tile-bg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></svg>
+                <span class="aut-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></svg></span>
+                <span class="aut-num">{{ solicitudes.length }}</span>
+                <span class="aut-txt"><strong>Todas</strong><small>Solicitudes registradas</small></span>
               </button>
             </div>
 
@@ -1636,10 +1639,11 @@ interface FormatoDoc {
             <ng-container *ngIf="anualVista==='lista'">
               <div class="inv-head">
                 <div>
-                  <h1>Levantamiento de inventario</h1>
+                  <h1>Inventario</h1>
                   <p class="inv-resumen">Por sede y por persona: escanea cada bien y se arman solos los resguardos y el acta de cierre.</p>
                 </div>
                 <div class="heading-actions">
+                  <button class="sync-chip" *ngIf="cola.total || !enLinea" [ngClass]="'sync-' + estadoSync" (click)="tocarSync()">{{ textoSync }}</button>
                   <button class="btn-outline" [disabled]="levCargando" (click)="loadLevantamientos()">⟳ Actualizar</button>
                   <button class="btn-primary" *ngIf="isAdmin" (click)="abrirNuevoLevantamiento()">＋ Nuevo levantamiento</button>
                 </div>
@@ -1828,6 +1832,8 @@ interface FormatoDoc {
                 <strong>Inventario {{ cap.lev.anio }} · {{ cap.lev.sede }}</strong>
                 <span class="lev-bar"><span [style.width.%]="capPct"></span></span>
                 <small>{{ capRevisados | number }} de {{ cap.bienes.length | number }} revisados</small>
+                <button class="sync-chip" [ngClass]="'sync-' + estadoSync" (click)="tocarSync()">{{ textoSync }}</button>
+                <div class="sync-aviso" *ngIf="cap.offlineDesde">📴 Trabajando con la copia guardada en este celular ({{ cap.offlineDesde | date:'dd/MM HH:mm' }}). Lo que captures se sube solo al volver la señal.</div>
                 <button class="cap-avance-btn" *ngIf="!cap.cargando && cap.paso!=='bien'" (click)="abrirAvanceCaptura()">📋 Ver avance</button>
               </div>
 
@@ -2042,6 +2048,27 @@ interface FormatoDoc {
                   ✗ No lo encuentro · marcar como no encontrado
                 </button>
               </ng-container>
+            </div>
+
+            <!-- ===== Cambios guardados en el celular que no se pudieron subir ===== -->
+            <div class="modal-backdrop" *ngIf="colaPanel">
+              <div class="modal-card wizard">
+                <div class="modal-header">
+                  <div><h2>Cambios en este celular</h2><p>{{ cola.total }} por subir{{ cola.errores ? ' · ' + cola.errores + ' con problema' : '' }}</p></div>
+                  <button class="close-button" (click)="colaPanel=null">×</button>
+                </div>
+                <div class="form-section">
+                  <p class="cap-hint" *ngIf="!colaPanel.items.length">No hay nada pendiente. 🎉</p>
+                  <div class="cola-item" *ngFor="let it of colaPanel.items" [class.err]="it.error">
+                    <div><b>{{ it.descripcion }}</b><small>{{ it.creado | date:'dd/MM HH:mm' }}{{ it.error ? ' · ' + it.error : ' · esperando señal' }}</small></div>
+                    <button class="btn-outline btn-small" *ngIf="it.error" (click)="descartarCola(it)">Descartar</button>
+                  </div>
+                </div>
+                <div class="modal-footer">
+                  <button class="btn-outline" (click)="colaPanel=null">Cerrar</button>
+                  <button class="btn-primary" [disabled]="!enLinea || sincronizando" (click)="reintentarCola()">{{ sincronizando ? 'Subiendo…' : 'Subir ahora' }}</button>
+                </div>
+              </div>
             </div>
 
             <!-- ===== Bien nuevo (durante la captura) ===== -->
@@ -3097,6 +3124,35 @@ interface FormatoDoc {
     .push-txt small{font-size:13px;color:#6d7b8e}
     .push-x{border:0;background:transparent;color:#9aa6b6;font-size:20px;cursor:pointer;padding:0 4px}
     .push-instalar{margin-top:12px;border:1px solid #d6e0ec;background:#fff;color:#244c78;font-family:inherit;font-size:14px;font-weight:700;border-radius:999px;padding:9px 16px;cursor:pointer}
+    .aut-tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:18px}
+    .aut-tile{position:relative;overflow:hidden;border:0;border-radius:18px;padding:18px 20px;text-align:left;font-family:inherit;color:#fff;cursor:pointer;display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto;gap:10px 14px;align-items:center;min-height:132px;box-shadow:0 8px 24px #17263d22;transition:transform .2s ease,box-shadow .2s ease;animation:fadeUp .4s ease both}
+    .aut-tile:hover{transform:translateY(-3px);box-shadow:0 14px 32px #17263d33}
+    .aut-tile.sel{box-shadow:0 0 0 3px #fff inset,0 10px 28px #17263d40}
+    .aut-tile .tile-bg{width:170px;height:170px;right:-26px;bottom:-34px}
+    .aut-ico{width:46px;height:46px;border-radius:14px;background:#ffffff24;border:1px solid #ffffff33;display:grid;place-items:center}
+    .aut-ico svg{width:26px;height:26px}
+    .aut-num{font-size:36px;font-weight:800;line-height:1;justify-self:end}
+    .aut-txt{grid-column:1 / -1}
+    .aut-txt strong{display:block;font-size:18px;font-weight:800}
+    .aut-txt small{display:block;font-size:13px;color:#ffffffc4;margin-top:2px}
+    .t-pend{background:linear-gradient(140deg,#8a4500,#e8890c)}
+    .t-aprob{background:linear-gradient(140deg,#0f4c3a,#21835a)}
+    .t-rech{background:linear-gradient(140deg,#6b1f2a,#c2414b)}
+    .t-todas{background:linear-gradient(140deg,#17304f,#2d5d93)}
+    .aut-tile.alerta .aut-num::after{content:'';display:inline-block;width:10px;height:10px;border-radius:50%;background:#fff;margin-left:6px;vertical-align:top;animation:autPulse 1.4s ease-in-out infinite}
+    @keyframes autPulse{0%,100%{opacity:1}50%{opacity:.25}}
+    @media(max-width:800px){.aut-tiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.aut-tile{min-height:112px;padding:14px}.aut-num{font-size:30px}.aut-txt strong{font-size:16px}}
+    .sync-chip{align-self:flex-start;border:1px solid #d6e0ec;background:#fff;font-family:inherit;font-size:13px;font-weight:700;border-radius:999px;padding:6px 12px;cursor:pointer}
+    .sync-ok{color:#21835a;border-color:#cfe9da;background:#f3faf6}
+    .sync-pendiente{color:#a8650f;border-color:#f3d6a8;background:#fff7ec}
+    .sync-offline{color:#55667c;border-color:#d6dde7;background:#eef1f5}
+    .sync-error{color:#bd4b52;border-color:#efc4c7;background:#fdf1f2}
+    .sync-aviso{font-size:13px;color:#55667c;background:#eef1f5;border-radius:10px;padding:8px 10px}
+    .cola-item{display:flex;align-items:center;gap:10px;justify-content:space-between;padding:10px 12px;border:1px solid #e6ebf2;border-radius:10px;margin-bottom:6px}
+    .cola-item div{display:flex;flex-direction:column;gap:2px;min-width:0}
+    .cola-item small{font-size:12.5px;color:#7d8a9b}
+    .cola-item.err{border-color:#efc4c7;background:#fdf6f6}
+    .cola-item.err small{color:#bd4b52}
     .chk{display:flex;flex-direction:column;gap:10px;margin-top:6px}
     .chk-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
     .chk-head strong{font-size:17px;color:#14243a}
@@ -3905,6 +3961,9 @@ export class AppComponent {
   }
 
   private prepararApp(): void {
+    window.addEventListener('online', () => { this.enLinea = true; this.procesarCola(); });
+    window.addEventListener('offline', () => { this.enLinea = false; });
+    setInterval(() => { if (this.cola.total && this.enLinea) this.procesarCola(); }, 30000);
     // Un aviso abrió la app con ?ir=autorizaciones|solicitudes
     try {
       const params = new URLSearchParams(window.location.search);
@@ -4153,7 +4212,7 @@ export class AppComponent {
   get sectionTitle(): string {
     return ({
       inicio: 'Inicio',
-      anual: 'Levantamiento de inventario',
+      anual: 'Inventario',
       bienes: 'Bienes',
       documentos: 'Documentos',
       solicitudes: 'Solicitudes',
@@ -4164,7 +4223,7 @@ export class AppComponent {
   get sectionLabel(): string {
     return ({
       inicio: 'INICIO',
-      anual: 'LEVANTAMIENTO',
+      anual: 'INVENTARIO',
       bienes: 'BIENES',
       documentos: 'DOCUMENTOS',
       solicitudes: 'SOLICITUDES',
@@ -4304,6 +4363,7 @@ export class AppComponent {
   }
 
   logout(): void {
+    if (this.cola.total && !confirm('Hay ' + this.cola.total + ' cambios guardados en este celular que aún no se suben. Si cierras sesión se subirán la próxima vez que entres con tu cuenta. ¿Cerrar sesión?')) return;
     this.quitarPushAlSalir();
     this.pushEstado = 'cargando';
     localStorage.removeItem('dozzer_token');
@@ -4352,6 +4412,7 @@ export class AppComponent {
 
   loadAll(): void {
     this.revisarPush();
+    this.contarCola().then(() => this.procesarCola());
     let etiqueta: string | null = null;
     try { etiqueta = sessionStorage.getItem('dozzer_etiqueta'); sessionStorage.removeItem('dozzer_etiqueta'); } catch { /* */ }
     if (etiqueta) setTimeout(() => this.abrirEtiquetaDesdeUrl(etiqueta!), 600);
@@ -5700,8 +5761,12 @@ export class AppComponent {
         this.levantamientos = rows || [];
         this.levCargando = false;
         if (this.levAbierto === null && this.levantamientos.length === 1) this.levAbierto = this.levantamientos[0].idLevantamiento;
+        this.idbPut('datos', this.levantamientos, 'levs-' + this.email);
       },
-      error: () => { this.levCargando = false; }
+      error: async () => {
+        this.levCargando = false;
+        if (!this.levantamientos.length) this.levantamientos = (await this.idbGet('datos', 'levs-' + this.email)) || [];
+      }
     });
   }
 
@@ -6132,13 +6197,29 @@ export class AppComponent {
                  modo: 'persona', grupo: null, agregado: null, ofrecerNuevo: false, claveSugerida: '', desdeLista: false, cambios: false };
     this.capOpciones = { areas: [], personas: [], clasificaciones: [], marcas: [] };
     this.cargarEstadoPersonas();
-    this.http.get<any>(this.api + '/levantamientos/' + l.idLevantamiento + '/opciones').subscribe({
-      next: o => this.capOpciones = { areas: [], personas: [], clasificaciones: [], marcas: [], ...(o || {}) },
-      error: () => { /* sin opciones: el formulario de bien nuevo avisará */ }
+    const c = this.cap, idLev = l.idLevantamiento;
+    this.http.get<any>(this.api + '/levantamientos/' + idLev + '/opciones').subscribe({
+      next: o => { this.capOpciones = { areas: [], personas: [], clasificaciones: [], marcas: [], ...(o || {}) }; this.idbPut('datos', this.capOpciones, 'opc-' + idLev); },
+      error: async () => { const o = await this.idbGet('datos', 'opc-' + idLev); if (o) this.capOpciones = o; }
     });
-    this.http.get<any[]>(this.api + '/levantamientos/' + l.idLevantamiento + '/bienes').subscribe({
-      next: rows => { this.cap.bienes = rows || []; this.cap.cargando = false; },
-      error: e => { this.cap.cargando = false; this.cap.error = this.mensajeError(e, 'No se pudieron cargar los bienes.'); }
+    this.http.get<any[]>(this.api + '/levantamientos/' + idLev + '/bienes').subscribe({
+      next: async rows => {
+        c.bienes = rows || [];
+        await this.aplicarColaLocal(c.bienes, idLev);   // lo capturado sin señal sigue viéndose como hecho
+        c.cargando = false;
+        this.idbPut('datos', { bienes: rows || [], fecha: new Date().toISOString() }, 'lev-' + idLev);
+      },
+      error: async e => {
+        const copia = await this.idbGet('datos', 'lev-' + idLev);
+        if (copia?.bienes) {
+          c.bienes = copia.bienes;
+          await this.aplicarColaLocal(c.bienes, idLev);
+          c.offlineDesde = copia.fecha;
+        } else {
+          c.error = this.mensajeError(e, 'No se pudieron cargar los bienes. Abre este inventario una vez con señal para poder trabajar sin internet.');
+        }
+        c.cargando = false;
+      }
     });
     window.scrollTo({ top: 0 });
   }
@@ -6263,23 +6344,35 @@ export class AppComponent {
         if (r.estado === 'ASIGNADA' && r.clave) { this.abrirBuscarGeneral(r.clave); return; }
         c.error = r.estado === 'ANULADA' ? 'La etiqueta ' + codigo + ' está anulada. Usa otra.' : 'La etiqueta ' + codigo + ' no existe en DOZZER.';
       },
-      error: e => c.error = this.mensajeError(e, 'No se pudo consultar la etiqueta.')
+      error: e => {
+        if (e?.status === 0 || !navigator.onLine) {
+          const ag = c.agregado?.bien;
+          if (ag && !ag.etiqueta) { this.asignarEtiquetaCap(codigo, ag); return; }
+          c.etiquetaPorAsignar = codigo;
+          if (!this.esChecklist) this.abrirAvanceCaptura('sinetiq');
+          return;
+        }
+        c.error = this.mensajeError(e, 'No se pudo consultar la etiqueta.');
+      }
     });
   }
 
   // Liga la etiqueta escaneada al bien y abre su captura
   asignarEtiquetaCap(codigo: string, b: any): void {
     const c = this.cap;
-    this.http.post<any>(this.api + '/etiquetas/' + encodeURIComponent(codigo) + '/asignar', { idBien: b.id_bien }).subscribe({
-      next: () => {
+    this.enviarOEncolar({
+      url: '/etiquetas/' + encodeURIComponent(codigo) + '/asignar', body: { idBien: b.id_bien }, idLev: c.lev.idLevantamiento,
+      tipo: 'etiqueta', idBien: b.id_bien, codigo, descripcion: 'Etiqueta ' + codigo + ' → ' + b.clave
+    }).then(res => {
+      if (!res.ok) { c.etiquetaPorAsignar = null; c.error = res.error || 'No se pudo asignar la etiqueta.'; this.av = null; return; }
+      {
         b.etiqueta = codigo;
         c.etiquetaPorAsignar = null;
         this.av = null;
         this.abrirBienCaptura(b);
         c.ultimo = '';
-        this.notificar('exito', 'Etiqueta asignada', codigo + ' → ' + b.clave + ' · ' + b.articulo, 2200);
-      },
-      error: e => { c.etiquetaPorAsignar = null; c.error = this.mensajeError(e, 'No se pudo asignar la etiqueta.'); this.av = null; }
+        this.notificar('exito', 'Etiqueta asignada', codigo + ' → ' + b.clave + ' · ' + b.articulo + (res.offline ? ' (se sube al volver la señal)' : ''), 2200);
+      }
     });
   }
 
@@ -6483,37 +6576,192 @@ export class AppComponent {
     if (url) this.fotoAmpliada = { url, titulo: [b.clave, b.articulo].filter((x: any) => !!x).join(' · ') };
   }
 
-  guardarCaptura(): void {
+  async guardarCaptura(): Promise<void> {
     const c = this.cap, b = c.bien;
     if (!b || c.guardando) return;
-    const fd = new FormData();
-    fd.append('idBien', String(b.id_bien));
-    fd.append('respuesta', c.respuesta);
-    if (c.area?.id) fd.append('idUbicacion', String(c.area.id));
-    if (!b.tiene_foto && c.foto) fd.append('foto', c.foto, 'foto.jpg');
+    const campos: any = { idBien: String(b.id_bien), respuesta: c.respuesta };
+    if (c.area?.id) campos.idUbicacion = String(c.area.id);
+    const foto = !b.tiene_foto && c.foto ? c.foto : null;
     c.guardando = true;
     c.error = '';
-    this.http.post<any>(this.api + '/levantamientos/' + c.lev.idLevantamiento + '/registros', fd).subscribe({
-      next: r => {
-        c.guardando = false;
-        b.respuesta = c.respuesta;
-        b.estatus = 'REVISADO';
-        b.fuera_de_lugar = !!r?.fueraDeLugar;
-        b.ubicacion_encontrada = r?.fueraDeLugar ? (c.area?.nombre || null) : null;
-        b.fecha_registro = new Date().toISOString();
-        if (r?.fotoNueva) {
-          b.tiene_foto = true; b.foto_mini = r.foto_mini; b.foto_url = r.foto_url;
-          this.actualizarFotoEnInventario(b.id_bien, r.foto_mini, r.foto_url);
-        }
-        c.ultimo = b.clave + ' · ' + c.respuesta + (r?.fueraDeLugar ? ' · fuera de lugar' : '') + ' — listo, escanea el siguiente';
-        if (this.esChecklist && this.estadoPersona(c.grupo.id) && this.estadoPersona(c.grupo.id) !== 'EN_PROCESO') this.cargarEstadoPersonas();
-        this.limpiarFotoCaptura();
-        c.bien = null;
-        c.paso = 'escanear';
-        window.scrollTo({ top: 0 });
-      },
-      error: e => { c.guardando = false; c.error = this.mensajeError(e, 'No se pudo guardar. Revisa tu conexión e inténtalo de nuevo.'); }
+    const res = await this.enviarOEncolar({
+      url: '/levantamientos/' + c.lev.idLevantamiento + '/registros', campos, foto, idLev: c.lev.idLevantamiento,
+      tipo: 'registrar', idBien: b.id_bien, respuesta: c.respuesta, descripcion: b.clave + ' · ' + c.respuesta
     });
+    c.guardando = false;
+    if (!res.ok) { c.error = res.error || 'No se pudo guardar.'; return; }
+    const r = res.r || {};
+    b.respuesta = c.respuesta;
+    b.estatus = 'REVISADO';
+    b.fuera_de_lugar = res.offline ? !!(c.area && b.id_ubicacion !== c.area.id) : !!r.fueraDeLugar;
+    b.ubicacion_encontrada = b.fuera_de_lugar ? (c.area?.nombre || null) : null;
+    b.fecha_registro = new Date().toISOString();
+    if (r.fotoNueva) {
+      b.tiene_foto = true; b.foto_mini = r.foto_mini; b.foto_url = r.foto_url;
+      this.actualizarFotoEnInventario(b.id_bien, r.foto_mini, r.foto_url);
+    } else if (res.offline && foto) {
+      b.tiene_foto = true; b.foto_mini = ''; b.foto_url = '';
+    }
+    c.ultimo = b.clave + ' · ' + c.respuesta + (b.fuera_de_lugar ? ' · fuera de lugar' : '') + (res.offline ? ' — guardado en el celular' : ' — listo, escanea el siguiente');
+    if (this.esChecklist && this.estadoPersona(c.grupo.id) && this.estadoPersona(c.grupo.id) !== 'EN_PROCESO') {
+      if (res.offline) c.estadosPersona[String(c.grupo.id)] = { ...c.estadosPersona[String(c.grupo.id)], estado: 'REQUIERE_FIRMA' };
+      else this.cargarEstadoPersonas();
+    }
+    if (!res.offline) this.limpiarFotoCaptura(); else { c.foto = null; c.fotoUrl = ''; }
+    c.bien = null;
+    c.paso = 'escanear';
+    window.scrollTo({ top: 0 });
+  }
+
+  // ----- Sin internet: copia local y cola de cambios -----
+
+  enLinea = navigator.onLine;
+  sincronizando = false;
+  cola = { total: 0, errores: 0 };
+  colaPanel: any = null;
+  private dbPromesa: Promise<IDBDatabase> | null = null;
+
+  private idb(): Promise<IDBDatabase> {
+    if (!this.dbPromesa) {
+      this.dbPromesa = new Promise((ok, mal) => {
+        const r = indexedDB.open('dozzer-offline', 1);
+        r.onupgradeneeded = () => {
+          const db = r.result;
+          if (!db.objectStoreNames.contains('datos')) db.createObjectStore('datos');
+          if (!db.objectStoreNames.contains('cola')) db.createObjectStore('cola', { keyPath: 'id', autoIncrement: true });
+        };
+        r.onsuccess = () => ok(r.result);
+        r.onerror = () => mal(r.error);
+      });
+    }
+    return this.dbPromesa;
+  }
+
+  private async idbTx<T>(store: string, modo: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest): Promise<T> {
+    try {
+      const db = await this.idb();
+      return await new Promise<T>((ok, mal) => {
+        const req = fn(db.transaction(store, modo).objectStore(store));
+        req.onsuccess = () => ok(req.result as T);
+        req.onerror = () => mal(req.error);
+      });
+    } catch { return undefined as any; }
+  }
+
+  idbPut(store: string, valor: any, llave?: any): Promise<any> {
+    return this.idbTx(store, 'readwrite', s => llave === undefined ? s.put(valor) : s.put(valor, llave));
+  }
+
+  idbGet(store: string, llave: any): Promise<any> {
+    return this.idbTx(store, 'readonly', s => s.get(llave));
+  }
+
+  private async colaDelUsuario(): Promise<any[]> {
+    const todos: any[] = (await this.idbTx<any[]>('cola', 'readonly', s => s.getAll())) || [];
+    return todos.filter(x => x.usuario === this.email).sort((a, b) => a.id - b.id);
+  }
+
+  private async contarCola(): Promise<void> {
+    const items = await this.colaDelUsuario();
+    this.cola = { total: items.length, errores: items.filter(x => x.error).length };
+  }
+
+  // Intenta enviar; si no hay señal (o se cae la conexión) lo guarda en el celular para subirlo después
+  private async enviarOEncolar(op: any): Promise<{ ok: boolean; offline: boolean; r?: any; error?: string }> {
+    if (!navigator.onLine) { await this.encolar(op); return { ok: true, offline: true }; }
+    try {
+      return { ok: true, offline: false, r: await this.ejecutarOp(op) };
+    } catch (e: any) {
+      if (e?.status === 0) { await this.encolar(op); return { ok: true, offline: true }; }
+      return { ok: false, offline: false, error: this.mensajeError(e, 'No se pudo guardar.') };
+    }
+  }
+
+  private ejecutarOp(op: any): Promise<any> {
+    if (op.campos) {
+      const fd = new FormData();
+      Object.entries(op.campos).forEach(([k, v]) => fd.append(k, String(v)));
+      if (op.foto) fd.append('foto', op.foto, 'foto.jpg');
+      return firstValueFrom(this.http.post<any>(this.api + op.url, fd));
+    }
+    return firstValueFrom(this.http.post<any>(this.api + op.url, op.body || {}));
+  }
+
+  private async encolar(op: any): Promise<void> {
+    await this.idbPut('cola', { ...op, usuario: this.email, creado: new Date().toISOString(), error: '' });
+    await this.contarCola();
+  }
+
+  // Sube en orden lo guardado sin señal. Un error de datos se marca y se sigue; sin señal se detiene.
+  async procesarCola(): Promise<void> {
+    if (this.sincronizando || !navigator.onLine || !this.logged) return;
+    this.sincronizando = true;
+    let subidos = 0;
+    try {
+      for (const op of await this.colaDelUsuario()) {
+        if (op.error) continue;
+        try {
+          await this.ejecutarOp(op);
+          await this.idbTx('cola', 'readwrite', s => s.delete(op.id));
+          subidos++;
+        } catch (e: any) {
+          if (e?.status === 0) break;
+          if (e?.status === 401) { this.notificar('error', 'Tu sesión venció', 'Vuelve a entrar para subir los cambios guardados en este celular.', 0); break; }
+          op.error = this.mensajeError(e, 'Rechazado por el servidor');
+          await this.idbPut('cola', op);
+        }
+      }
+    } finally {
+      this.sincronizando = false;
+      await this.contarCola();
+    }
+    if (subidos) {
+      this.notificar('exito', 'Cambios subidos', subidos + (subidos === 1 ? ' cambio guardado sin señal ya está' : ' cambios guardados sin señal ya están') + ' en DOZZER.', 3000);
+      if (this.cap) this.cargarEstadoPersonas();
+    }
+  }
+
+  // Al recargar la lista desde el servidor, se vuelven a aplicar los cambios que siguen en la cola
+  private async aplicarColaLocal(bienes: any[], idLev: number): Promise<void> {
+    const porId = new Map(bienes.map((b: any) => [b.id_bien, b]));
+    for (const op of await this.colaDelUsuario()) {
+      if (op.idLev !== idLev || op.error) continue;
+      const b: any = porId.get(op.idBien);
+      if (!b) continue;
+      if (op.tipo === 'registrar') { b.estatus = 'REVISADO'; b.respuesta = op.respuesta; if (op.foto) b.tiene_foto = true; }
+      if (op.tipo === 'noenc') { b.estatus = 'NO_ENCONTRADO'; b.respuesta = null; }
+      if (op.tipo === 'etiqueta') b.etiqueta = op.codigo;
+    }
+  }
+
+  get estadoSync(): 'ok' | 'pendiente' | 'offline' | 'error' {
+    if (this.cola.errores) return 'error';
+    if (!this.enLinea) return 'offline';
+    return this.cola.total ? 'pendiente' : 'ok';
+  }
+
+  get textoSync(): string {
+    const n = this.cola.total;
+    if (this.cola.errores) return '⚠ ' + this.cola.errores + ' con problema';
+    if (!this.enLinea) return '📴 Sin señal' + (n ? ' · ' + n + ' en el celular' : '');
+    if (this.sincronizando) return '⏳ Subiendo ' + n + '…';
+    return n ? '⏳ ' + n + ' por subir' : '☁ Todo guardado';
+  }
+
+  async tocarSync(): Promise<void> {
+    this.colaPanel = { items: await this.colaDelUsuario() };
+  }
+
+  async reintentarCola(): Promise<void> {
+    for (const op of await this.colaDelUsuario()) if (op.error) { op.error = ''; await this.idbPut('cola', op); }
+    await this.procesarCola();
+    this.colaPanel = { items: await this.colaDelUsuario() };
+  }
+
+  async descartarCola(op: any): Promise<void> {
+    await this.idbTx('cola', 'readwrite', s => s.delete(op.id));
+    await this.contarCola();
+    this.colaPanel = { items: await this.colaDelUsuario() };
   }
 
   // ----- Checklist por persona y firmas (arranque) -----
@@ -6639,24 +6887,28 @@ export class AppComponent {
     if (!usarGuardada && t.recordar) { try { localStorage.setItem('dozzer_firma_' + this.email, firmaResponsable); } catch { /* */ } }
     t.guardando = true; t.error = '';
     const idPersona = c.grupo.id;
-    this.http.post<any>(this.api + '/levantamientos/' + c.lev.idLevantamiento + '/personas/' + idPersona + '/terminar', {
-      marcarPendientes: t.pendientes.length ? t.marcarPendientes : false,
-      conforme: t.conforme, observaciones: t.observaciones,
-      firmaResguardante: t.trazos.a ? canvasA.toDataURL('image/png') : null,
-      firmaResponsable
-    }).subscribe({
-      next: r => {
-        if (t.marcarPendientes) for (const b of t.pendientes) { b.estatus = 'NO_ENCONTRADO'; b.respuesta = null; }
-        c.estadosPersona = { ...(c.estadosPersona || {}), [String(idPersona)]: { estado: r.estado, idDocumento: r.idDocumento } };
-        const nombre = c.grupo?.nombre;
-        c.term = null;
-        c.grupo = null;
-        c.paso = 'area';
-        window.scrollTo({ top: 0 });
-        this.notificar('exito', 'Resguardo firmado', nombre + (r.estado === 'CON_DIFERENCIAS' ? ' · con diferencias anotadas.' : ' · listo.'), 4000,
-          { texto: '📄 Ver resguardo', fn: () => this.abrirDocumentoGuardado(r.idDocumento) });
-      },
-      error: e => { t.guardando = false; t.error = this.mensajeError(e, 'No se pudo guardar. Revisa tu conexión.'); }
+    const nombre = c.grupo?.nombre;
+    this.enviarOEncolar({
+      url: '/levantamientos/' + c.lev.idLevantamiento + '/personas/' + idPersona + '/terminar', idLev: c.lev.idLevantamiento,
+      tipo: 'terminar', idPersona, descripcion: 'Firma del resguardo de ' + nombre,
+      body: {
+        marcarPendientes: t.pendientes.length ? t.marcarPendientes : false,
+        conforme: t.conforme, observaciones: t.observaciones,
+        firmaResguardante: t.trazos.a ? canvasA.toDataURL('image/png') : null,
+        firmaResponsable
+      }
+    }).then(res => {
+      if (!res.ok) { t.guardando = false; t.error = res.error || 'No se pudo guardar.'; return; }
+      const r = res.r || { estado: t.conforme ? 'FIRMADO' : 'CON_DIFERENCIAS' };
+      if (t.marcarPendientes) for (const b of t.pendientes) { b.estatus = 'NO_ENCONTRADO'; b.respuesta = null; }
+      c.estadosPersona = { ...(c.estadosPersona || {}), [String(idPersona)]: { estado: r.estado, idDocumento: r.idDocumento } };
+      c.term = null;
+      c.grupo = null;
+      c.paso = 'area';
+      window.scrollTo({ top: 0 });
+      if (res.offline) this.notificar('info', 'Firma guardada en el celular', nombre + ': se subirá sola en cuanto haya señal.', 4000);
+      else this.notificar('exito', 'Resguardo firmado', nombre + (r.estado === 'CON_DIFERENCIAS' ? ' · con diferencias anotadas.' : ' · listo.'), 4000,
+        { texto: '📄 Ver resguardo', fn: () => this.abrirDocumentoGuardado(r.idDocumento) });
     });
   }
 
@@ -6667,8 +6919,12 @@ export class AppComponent {
     if (!b || c.guardando) return;
     c.guardando = true;
     c.error = '';
-    this.http.post<any>(this.api + '/levantamientos/' + c.lev.idLevantamiento + '/no-encontrados', { idBien: b.id_bien }).subscribe({
-      next: () => {
+    this.enviarOEncolar({
+      url: '/levantamientos/' + c.lev.idLevantamiento + '/no-encontrados', body: { idBien: b.id_bien }, idLev: c.lev.idLevantamiento,
+      tipo: 'noenc', idBien: b.id_bien, descripcion: b.clave + ' · no encontrado'
+    }).then(res => {
+      if (!res.ok) { c.guardando = false; c.error = res.error || 'No se pudo marcar.'; return; }
+      {
         c.guardando = false;
         b.estatus = 'NO_ENCONTRADO';
         b.respuesta = null;
@@ -6677,16 +6933,16 @@ export class AppComponent {
         this.limpiarFotoCaptura();
         c.bien = null;
         c.paso = 'escanear';
-        c.ultimo = b.clave + ' · marcado como no encontrado';
-        this.abrirAvanceCaptura('pendientes');
-      },
-      error: e => { c.guardando = false; c.error = this.mensajeError(e, 'No se pudo marcar. Inténtalo de nuevo.'); }
+        c.ultimo = b.clave + ' · marcado como no encontrado' + (res.offline ? ' (guardado en el celular)' : '');
+        if (!this.esChecklist) this.abrirAvanceCaptura('pendientes');
+      }
     });
   }
 
   abrirNuevoBienCap(): void {
     const c = this.cap;
     if (!c) return;
+    if (!navigator.onLine) { this.notificar('info', 'Necesitas señal', 'Registrar un bien nuevo requiere internet. Anótalo y regístralo al volver la señal.'); return; }
     this.detenerEscaner();
     const g = c.grupo;
     this.capNuevo = {
@@ -6730,6 +6986,7 @@ export class AppComponent {
   }
 
   abrirBuscarGeneral(q = '', resultados?: any[]): void {
+    if (!navigator.onLine) { this.notificar('info', 'Necesitas señal', 'Buscar en otras sedes requiere internet.'); return; }
     this.detenerEscaner();
     this.capBuscar = { q, resultados: resultados || [], buscado: !!resultados, cargando: false, elegido: null,
                        idUbicacion: null, idPersona: null, guardando: false, error: '' };
