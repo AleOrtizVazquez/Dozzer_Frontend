@@ -1585,6 +1585,7 @@ interface FormatoDoc {
                       <button class="btn-primary" *ngIf="puedeCapturar(l)" (click)="iniciarCaptura(l)">▶ {{ l.capturados ? 'Continuar inventario' : 'Empezar inventario' }}</button>
                       <button class="btn-outline" *ngIf="!puedeCapturar(l)" (click)="abrirAvance(l)">📊 {{ l.estado==='CERRADO' ? 'Ver resultado' : 'Ver avance' }}</button>
                       <button class="btn-outline" *ngIf="l.puedoAdministrar && l.estado==='EN_CURSO'" (click)="cerrarLevantamiento(l)">✓ Cerrar inventario</button>
+                      <button class="btn-eliminar-lev" *ngIf="l.puedoBorrar || (l.puedoAdministrar && l.estado==='EN_CURSO')" (click)="eliminarLevantamiento(l)">🗑 Eliminar (solo pruebas)</button>
                     </div>
 
                     <div class="lev-docs">
@@ -1606,7 +1607,6 @@ interface FormatoDoc {
                         <div><dt>Participantes</dt><dd><span class="lev-person" *ngFor="let p of l.participantes">{{ p.nombre }} <small>{{ p.cargo }}</small></span></dd></div>
                         <div><dt>Revisión</dt><dd>{{ (l.noEncontrados || 0) | number }} no encontrados · {{ ((l.nuevos || 0) + (l.transferidos || 0)) | number }} nuevos o traídos · {{ l.fueraDeLugar | number }} fuera de lugar · {{ l.fotosNuevas | number }} fotos tomadas</dd></div>
                       </dl>
-                      <button class="btn-eliminar-lev" *ngIf="l.puedoBorrar || (l.puedoAdministrar && l.estado==='EN_CURSO')" (click)="eliminarLevantamiento(l)">{{ l.estado==='CERRADO' ? '🗑 Borrar (temporal, pruebas)' : '🗑 Eliminar inventario' }}</button>
                     </div>
                   </div>
                 </div>
