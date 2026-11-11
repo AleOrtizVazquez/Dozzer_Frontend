@@ -532,7 +532,26 @@ interface FormatoDoc {
           <!-- INVENTARIO -->
           <section *ngIf="section==='bienes'">
 
-            <div class="inv-head">
+            <!-- SALUDO (al entrar a Bienes) -->
+            <div class="saludo" *ngIf="vistaInv==='bienes' && origenVistaInv==='menu'">
+              <div class="saludo-txt">
+                <span class="saludo-chip">{{ saludoHora }} · {{ fechaHoy }}</span>
+                <h1>Hola, {{ primerNombre | titlecase }} <span class="saludo-mano">👋</span></h1>
+                <p>Bienvenido al sistema oficial de inventarios.</p>
+                <div class="saludo-datos" *ngIf="bienes.length; else saludoCargando">
+                  <span><b>{{ bienes.length | number }}</b> bienes</span>
+                  <span><b>{{ porcentaje(bienesBuenEstado) }}%</b> en buen estado</span>
+                  <span>{{ isAdmin ? 'Todas las sedes' : 'Tu sede' }}</span>
+                </div>
+                <ng-template #saludoCargando><div class="saludo-datos"><span>{{ bienesCargando ? 'Cargando tus bienes…' : 'Aún no hay bienes' }}</span></div></ng-template>
+              </div>
+              <div class="saludo-lado">
+                <img src="logo-dozzer.png" alt="DOZZER Construcción y Asesoría">
+                <button class="btn-primary" (click)="newBien()"><span>＋</span> Nuevo bien</button>
+              </div>
+            </div>
+
+            <div class="inv-head" *ngIf="!(vistaInv==='bienes' && origenVistaInv==='menu')">
               <div>
                 <button class="inv-back" *ngIf="vistaInv==='bienes' && origenVistaInv!=='menu'" (click)="volverInventario()">← {{ textoVolverInv }}</button>
                 <h1>{{ tituloVistaInv }}</h1>
@@ -2564,6 +2583,21 @@ interface FormatoDoc {
     .foto-cambiar.off{opacity:.6;pointer-events:none}
     .etq-pasos{margin:0 0 16px;padding:12px 14px 12px 34px;background:#f3f7fc;border-radius:12px;font-size:14px;color:#33465e;line-height:1.65}
     .lev-detail .btn-eliminar-lev{margin-top:12px}
+    .saludo{position:relative;overflow:hidden;display:flex;align-items:center;gap:24px;background:linear-gradient(120deg,#fff 55%,#edf3fb);border:1px solid #e5eaf1;border-radius:20px;padding:26px 30px 26px 34px;margin-bottom:18px;box-shadow:0 6px 24px #17263d0d;animation:fadeUp .45s ease both}
+    .saludo::before{content:'';position:absolute;left:0;top:0;bottom:0;width:5px;background:linear-gradient(#f5a04a,#e07a12)}
+    .saludo-txt{flex:1;min-width:0}
+    .saludo-chip{display:inline-block;font-size:13px;font-weight:700;color:#4f6f95;background:#eef3f9;padding:5px 12px;border-radius:999px}
+    .saludo h1{margin:12px 0 4px;font-size:30px;font-weight:800;letter-spacing:-.5px;color:#14243a}
+    .saludo-mano{display:inline-block;transform-origin:70% 70%;animation:saludar 1.8s ease .5s 1}
+    @keyframes saludar{0%,100%{transform:rotate(0)}15%,45%{transform:rotate(16deg)}30%,60%{transform:rotate(-8deg)}}
+    .saludo-txt>p{margin:0;color:#5b6879;font-size:15px}
+    .saludo-datos{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+    .saludo-datos span{font-size:13.5px;color:#4a5d75;background:#fff;border:1px solid #e3e9f1;border-radius:999px;padding:5px 12px}
+    .saludo-datos b{color:#14243a}
+    .saludo-lado{display:flex;flex-direction:column;align-items:flex-end;gap:16px;flex-shrink:0}
+    .saludo-lado img{width:190px;height:auto}
+    @media(max-width:700px){.saludo{flex-direction:column-reverse;align-items:stretch;padding:18px 18px 18px 22px;gap:14px}.saludo h1{font-size:25px}.saludo-lado{flex-direction:row;align-items:center;justify-content:space-between}.saludo-lado img{width:118px}}
+    @media (prefers-reduced-motion:reduce){.saludo,.saludo-mano{animation:none}}
     @media(max-width:700px){.solo-pc{display:none!important}.vista-seg{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.vista-seg button{flex-shrink:0}}
     .user-menu-ayuda{display:block;padding:6px 12px 8px;font-size:12.5px;color:#8d99a9;cursor:pointer;text-decoration:none;border-top:1px solid #f0f3f7;margin-top:4px}
     .user-menu-ayuda:hover{color:#244c78}
