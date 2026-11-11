@@ -567,9 +567,9 @@ interface FormatoDoc {
                   </button>
                   <div class="picker-backdrop" *ngIf="menuMasInventario" (click)="menuMasInventario=false"></div>
                   <div class="more-menu" *ngIf="menuMasInventario">
-                    <button [disabled]="!bienes.length" (click)="menuMasInventario=false; abrirModalEtiquetas()">
-                      <span class="more-ico">⎙</span>
-                      <div><strong>Imprimir etiquetas QR</strong><small>De los bienes filtrados o de la página</small></div>
+                    <button *ngIf="isAdmin" (click)="menuMasInventario=false; abrirEtiquetas()">
+                      <span class="more-ico">🏷</span>
+                      <div><strong>Etiquetas QR en blanco</strong><small>Calcular, generar e imprimir hojas</small></div>
                     </button>
                     <button *ngIf="isAdmin" (click)="menuMasInventario=false; openExcel()">
                       <span class="more-ico">▤</span>
@@ -922,83 +922,79 @@ interface FormatoDoc {
               </div>
             </ng-container>
 
-            <!-- IMPRESIÓN DE ETIQUETAS QR POR LOTE -->
-            <div class="modal-backdrop" *ngIf="modalEtiquetas">
-              <div class="modal-card large-modal">
+            <!-- ETIQUETAS QR EN BLANCO -->
+            <div class="modal-backdrop" *ngIf="etq">
+              <div class="modal-card wizard">
                 <div class="modal-header">
                   <div>
-                    <h2>Imprimir etiquetas QR</h2>
-                    <p>Genera una hoja lista para imprimir en papel carta o en hojas de etiquetas adhesivas.</p>
+                    <h2>🏷 Etiquetas QR en blanco</h2>
+                    <p>Hoja carta adhesiva de 30 etiquetas (tipo Avery 5160). Se pegan en cualquier bien y se ligan al escanearlas.</p>
                   </div>
-                  <button class="close-button" (click)="modalEtiquetas=false">×</button>
+                  <button class="close-button" [disabled]="etq.generando" (click)="etq=null">×</button>
                 </div>
-
-                <div class="label-config">
-                  <div class="label-options">
-                    <h3>¿Qué bienes?</h3>
-                    <label class="option-card" [class.selected]="etiquetasAlcance==='filtrados'">
-                      <input type="radio" name="alcance" value="filtrados" [(ngModel)]="etiquetasAlcance" (ngModelChange)="generarQrMuestra()">
-                      <div>
-                        <strong>Bienes filtrados</strong>
-                        <small>{{ bienesVista.length | number }} bienes{{ hayFiltrosBienes ? ' según tus filtros actuales' : ' (todo el inventario)' }}</small>
-                      </div>
-                    </label>
-                    <label class="option-card" [class.selected]="etiquetasAlcance==='pagina'">
-                      <input type="radio" name="alcance" value="pagina" [(ngModel)]="etiquetasAlcance" (ngModelChange)="generarQrMuestra()">
-                      <div>
-                        <strong>Página actual</strong>
-                        <small>{{ paginaBienes.length }} bienes visibles en la tabla</small>
-                      </div>
-                    </label>
-
-                    <h3>Tamaño de etiqueta</h3>
-                    <label class="option-card" [class.selected]="etiquetasFormato==='estandar'">
-                      <input type="radio" name="formato" value="estandar" [(ngModel)]="etiquetasFormato" (ngModelChange)="generarQrMuestra()">
-                      <div>
-                        <strong>Estándar · 10 por hoja</strong>
-                        <small>2 columnas, 9.5 × 5 cm. Recomendada para mobiliario y equipo.</small>
-                      </div>
-                    </label>
-                    <label class="option-card" [class.selected]="etiquetasFormato==='compacta'">
-                      <input type="radio" name="formato" value="compacta" [(ngModel)]="etiquetasFormato" (ngModelChange)="generarQrMuestra()">
-                      <div>
-                        <strong>Compacta · 24 por hoja</strong>
-                        <small>3 columnas, 6.4 × 3.3 cm. Para equipo pequeño o herramienta.</small>
-                      </div>
-                    </label>
-
-                    <div class="warning-box" *ngIf="fichaQrDePrueba">
-                      <strong>Dirección de prueba</strong>
-                      <p>Las etiquetas abrirán la ficha desde {{ fichaQrHost }}, que solo funciona en la red de la oficina. No imprimas las etiquetas definitivas hasta configurar la dirección pública.</p>
+                <div class="form-section">
+                  <div class="cap-loading" *ngIf="etq.cargando"><div class="loader-ring"></div><strong>Calculando…</strong></div>
+                  <ng-container *ngIf="!etq.cargando && etq.resumen as r">
+                    <div class="etq-stats">
+                      <div><b>{{ r.total | number }}</b><small>Impresas</small></div>
+                      <div><b>{{ r.asignadas | number }}</b><small>Pegadas</small></div>
+                      <div><b>{{ r.libres | number }}</b><small>Sin pegar</small></div>
                     </div>
 
-                    <div class="warning-box" *ngIf="etiquetasSeleccion.length > 600">
-                      <strong>Son muchas etiquetas</strong>
-                      <p>Se generarán {{ etiquetasSeleccion.length | number }} etiquetas ({{ hojasEtiquetas | number }} hojas). Puede tardar unos segundos; considera filtrar por sede o clasificación.</p>
+                    <button class="lev-more" (click)="etq.verSedes = !etq.verSedes">{{ etq.verSedes ? '▴' : '▾' }} Bienes sin etiqueta por sede ({{ etqFaltan | number }})</button>
+                    <div class="etq-sedes" *ngIf="etq.verSedes">
+                      <div *ngFor="let x of r.porSede"><span>{{ x.sede }}</span><b>{{ x.sin_etiqueta | number }}</b><small>≈ {{ hojasPara(x.sin_etiqueta) }} hojas</small></div>
                     </div>
-                  </div>
 
-                  <div class="label-preview-wrap">
-                    <h3>Vista previa</h3>
-                    <div class="label-preview" [class.compacta]="etiquetasFormato==='compacta'" *ngIf="etiquetasSeleccion[0] as p">
-                      <img class="lp-qr" *ngIf="qrMuestra" [src]="qrMuestra" alt="QR de muestra">
-                      <div class="lp-info">
-                        <div class="lp-brand"><span>D</span> DOZZER</div>
-                        <div class="lp-clave">{{ p.clave }}</div>
-                        <div class="lp-articulo">{{ p.articulo }}</div>
-                        <div class="lp-meta" *ngIf="etiquetasFormato==='estandar'">{{ ubicacionEtiqueta(p) }}</div>
-                        <div class="lp-id">ID {{ idCortoQr(p.codigo_qr) }}</div>
-                      </div>
+                    <label>¿Cuántas hojas vas a imprimir?</label>
+                    <div class="etq-hojas">
+                      <button class="btn-outline" (click)="etq.hojas = mathMax(1, etq.hojas - 1)">−</button>
+                      <input type="number" min="1" max="30" [(ngModel)]="etq.hojas">
+                      <button class="btn-outline" (click)="etq.hojas = mathMin(30, etq.hojas + 1)">＋</button>
                     </div>
-                    <p class="preview-note">{{ etiquetasSeleccion.length | number }} etiquetas · {{ hojasEtiquetas | number }} hoja(s) tamaño carta.
-                      En el cuadro de impresión elige <b>escala 100%</b> y <b>sin márgenes</b> o "Predeterminado".<br>El QR guarda los datos actuales del bien; si después se editan, reimprime su etiqueta.</p>
-                  </div>
+                    <p class="cap-hint">
+                      = {{ etq.hojas * 30 | number }} etiquetas, de <b>{{ codigoEtiqueta(r.ultimo + 1) }}</b> a <b>{{ codigoEtiqueta(r.ultimo + etq.hojas * 30) }}</b>.
+                      Para terminar todo faltan ≈ <b>{{ hojasSugeridas | number }} hojas</b> (incluye 5% extra); imprímelas por partes de hasta 30.
+                    </p>
+                    <div class="wiz-summary">En la impresora elige <b>tamaño carta</b>, <b>escala 100%</b> y <b>sin márgenes</b>. Haz primero una prueba en hoja normal y empálmala con la adhesiva.</div>
+                    <button class="lev-more" *ngIf="r.libres" [disabled]="etq.generando" (click)="reimprimirLibres()">⎙ Volver a imprimir las {{ mathMin(r.libres, 900) | number }} que siguen sin pegar</button>
+                  </ng-container>
                 </div>
-
+                <div class="inline-error" *ngIf="etq.error" style="margin:0 24px 12px">{{ etq.error }}</div>
                 <div class="modal-footer">
-                  <button class="btn-outline" (click)="modalEtiquetas=false">Cancelar</button>
-                  <button class="btn-primary" [disabled]="!etiquetasSeleccion.length || generandoEtiquetas" (click)="imprimirEtiquetas(etiquetasSeleccion)">
-                    {{ generandoEtiquetas ? 'Generando...' : '⎙ Generar e imprimir ' + (etiquetasSeleccion.length | number) + ' etiquetas' }}
+                  <button class="btn-outline" [disabled]="etq.generando" (click)="etq=null">Cerrar</button>
+                  <button class="btn-primary" [disabled]="etq.cargando || etq.generando || !(etq.hojas >= 1)" (click)="generarEtiquetas()">
+                    <span class="mini-ring light" *ngIf="etq.generando"></span>
+                    {{ etq.generando ? 'Generando…' : '⎙ Generar e imprimir ' + (etq.hojas || 0) + (etq.hojas === 1 ? ' hoja' : ' hojas') }}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- ASIGNAR ETIQUETA A UN BIEN (desde su ficha) -->
+            <div class="modal-backdrop" *ngIf="etqAsignar">
+              <div class="modal-card wizard">
+                <div class="modal-header">
+                  <div>
+                    <h2>🏷 Asignar etiqueta</h2>
+                    <p><b>{{ etqAsignar.bien.clave }}</b> · {{ etqAsignar.bien.articulo }}</p>
+                  </div>
+                  <button class="close-button" [disabled]="etqAsignar.guardando" (click)="etqAsignar=null">×</button>
+                </div>
+                <div class="form-section">
+                  <label>Código de la etiqueta que pegaste</label>
+                  <div class="cap-clave">
+                    <input [(ngModel)]="etqAsignar.codigo" placeholder="Ej. DZ-000123" (keyup.enter)="confirmarAsignarEtiqueta()">
+                    <label class="btn-outline etq-foto">📷<input type="file" accept="image/*" capture="environment" (change)="leerEtiquetaDeFoto($event)" hidden></label>
+                  </div>
+                  <p class="cap-hint">Escribe el código impreso o toma foto del QR.</p>
+                  <label class="cm-check" *ngIf="etqAsignar.bien.etiqueta"><input type="checkbox" [(ngModel)]="etqAsignar.reemplazar"> Reemplazar la etiqueta {{ etqAsignar.bien.etiqueta }} (quedará anulada)</label>
+                </div>
+                <div class="inline-error" *ngIf="etqAsignar.error" style="margin:0 24px 12px">{{ etqAsignar.error }}</div>
+                <div class="modal-footer">
+                  <button class="btn-outline" [disabled]="etqAsignar.guardando" (click)="etqAsignar=null">Cancelar</button>
+                  <button class="btn-primary" [disabled]="etqAsignar.guardando || !etqAsignar.codigo" (click)="confirmarAsignarEtiqueta()">
+                    <span class="mini-ring light" *ngIf="etqAsignar.guardando"></span> Asignar
                   </button>
                 </div>
               </div>
@@ -1069,13 +1065,25 @@ interface FormatoDoc {
                   <div class="qr-block">
                     <div class="qr-frame">
                       <img *ngIf="qrPreview" [src]="qrPreview" alt="Código QR del bien">
-                      <span *ngIf="!qrPreview" class="mini-ring"></span>
+                      <span *ngIf="!qrPreview && b.etiqueta" class="mini-ring"></span>
+                      <span *ngIf="!b.etiqueta" class="etq-vacia">🏷</span>
                     </div>
                     <div class="qr-info">
-                      <small>ID permanente</small>
-                      <strong class="qr-id">{{ idCortoQr(b.codigo_qr) }}</strong>
-                      <p>Al escanearlo se abre una ficha con los datos del bien, sin iniciar sesión. Si editas el bien, reimprime la etiqueta para actualizarlos.</p>
-                      <button class="btn-outline btn-small" [disabled]="!b.codigo_qr" (click)="imprimirEtiquetas([b])">⎙ Imprimir etiqueta</button>
+                      <ng-container *ngIf="b.etiqueta">
+                        <small>Etiqueta pegada</small>
+                        <strong class="qr-id">{{ b.etiqueta }}</strong>
+                        <p>El QR solo lleva este código. Al escanearlo con DOZZER se abre este bien.</p>
+                        <div class="etq-btns">
+                          <button class="btn-outline btn-small" (click)="imprimirCodigos([b.etiqueta])">⎙ Reimprimir</button>
+                          <button class="btn-outline btn-small" *ngIf="isAdmin" (click)="abrirAsignarEtiqueta(b)">Cambiar</button>
+                        </div>
+                      </ng-container>
+                      <ng-container *ngIf="!b.etiqueta">
+                        <small>Sin etiqueta</small>
+                        <strong class="qr-id">—</strong>
+                        <p>Pega una etiqueta en blanco y asígnala aquí, o escanéala durante el levantamiento.</p>
+                        <button class="btn-outline btn-small" *ngIf="isAdmin" (click)="abrirAsignarEtiqueta(b)">🏷 Asignar etiqueta</button>
+                      </ng-container>
                     </div>
                   </div>
                 </div>
@@ -1716,6 +1724,11 @@ interface FormatoDoc {
               <div class="inline-error" *ngIf="av.error">{{ av.error }}</div>
 
               <ng-container *ngIf="!av.cargando">
+                <div class="av-aviso etq-aviso" *ngIf="av.enCaptura && cap?.etiquetaPorAsignar">
+                  <b>🏷 Etiqueta nueva {{ cap.etiquetaPorAsignar }}</b>
+                  <span>Toca el bien al que se la pegaste.</span>
+                  <button class="btn-outline btn-small" (click)="cap.etiquetaPorAsignar=null; cerrarAvance()">Cancelar</button>
+                </div>
                 <div class="av-aviso" *ngIf="av.antesDeCerrar">
                   <b>Antes de cerrar: faltan {{ av.vista.cuentas.pendientes | number }} bienes por revisar.</b>
                   <span>Revísalos por persona o por área. Si cierras así, quedarán como "no localizados" en el acta.</span>
@@ -1850,10 +1863,9 @@ interface FormatoDoc {
                 <div class="cap-agregado" *ngIf="cap.agregado as ag">
                   <b>{{ ag.tipo==='nuevo' ? '✓ Bien nuevo registrado' : '✓ Bien traído a ' + cap.lev.sede }}</b>
                   <span><b class="chip-key">{{ ag.bien.clave }}</b> {{ ag.bien.articulo }}</span>
-                  <small>Imprime su etiqueta, pégala y escanéala; o continúa directo con la foto y el estado.</small>
+                  <small>{{ ag.bien.etiqueta ? 'Etiqueta ' + ag.bien.etiqueta + ' asignada.' : 'Pégale una etiqueta en blanco y escanéala: se le asigna sola.' }}</small>
                   <div class="cap-agregado-btns">
-                    <button class="btn-outline" [disabled]="generandoEtiquetas" (click)="imprimirEtiquetas([ag.bien])">🖨 Imprimir etiqueta</button>
-                    <button class="btn-primary" (click)="abrirBienCaptura(ag.bien)">Continuar →</button>
+                    <button class="btn-primary" (click)="abrirBienCaptura(ag.bien)">Continuar con foto y estado →</button>
                   </div>
                 </div>
 
@@ -1881,7 +1893,7 @@ interface FormatoDoc {
 
                   <div class="cap-tools">
                     <button (click)="abrirAvanceCaptura('pendientes')"><span>📋</span><b>{{ pendientesGrupo.length | number }}</b><small>Pendientes</small></button>
-                    <button [disabled]="!bienesGrupo.length || generandoEtiquetas" (click)="imprimirEtiquetas(bienesGrupo)"><span>🖨</span><b>{{ bienesGrupo.length | number }}</b><small>Etiquetas</small></button>
+                    <button (click)="abrirAvanceCaptura('sinetiq')"><span>🏷</span><b>{{ sinEtiquetaGrupo | number }}</b><small>Sin etiqueta</small></button>
                     <button (click)="abrirNuevoBienCap()"><span>＋</span><b>Nuevo</b><small>Bien que no está</small></button>
                     <button (click)="abrirBuscarGeneral()"><span>🔍</span><b>Buscar</b><small>En todas las sedes</small></button>
                   </div>
@@ -1896,6 +1908,7 @@ interface FormatoDoc {
                   <small>{{ [b.marca, b.modelo].filter(esTexto).join(' · ') }}</small>
                   <small>📍 Registrado en: {{ b.ubicacion || 'Sin ubicación' }}</small>
                   <small>👤 {{ b.persona || 'Sin resguardante' }}</small>
+                  <small>🏷 {{ b.etiqueta || 'Sin etiqueta: escanea una en blanco para asignarla' }}</small>
                   <div class="cap-warn" *ngIf="cap.area && b.id_ubicacion !== cap.area.id">⚠ Está registrado en otra área: se marcará como fuera de lugar.</div>
                   <div class="cap-info" *ngIf="b.estatus==='REVISADO'">Ya se revisó antes ({{ b.respuesta }}). Si guardas, se actualiza.</div>
                   <div class="cap-info" *ngIf="b.estatus==='NO_ENCONTRADO'">Estaba marcado como no encontrado. Si lo guardas, queda revisado.</div>
@@ -2795,7 +2808,7 @@ interface FormatoDoc {
     .av-aviso{display:flex;flex-direction:column;gap:8px;background:#fff7ec;border:1px solid #f3d6a8;border-radius:14px;padding:14px 16px;color:#7a4b0c;font-size:14px}
     .av-aviso b{font-size:15px}
     .av-aviso .btn-danger{align-self:flex-start}
-    .av-chips{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}
+    .av-chips{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px}
     .av-chips .f-noenc b{color:#bd4b52}
     .seg{display:inline-flex;align-self:flex-start;background:#e9eef5;border-radius:999px;padding:4px;gap:4px}
     .seg button{border:0;background:transparent;font-family:inherit;font-size:14px;font-weight:700;color:#55667c;border-radius:999px;padding:8px 14px;cursor:pointer}
@@ -2991,6 +3004,20 @@ interface FormatoDoc {
     .push-txt small{font-size:13px;color:#6d7b8e}
     .push-x{border:0;background:transparent;color:#9aa6b6;font-size:20px;cursor:pointer;padding:0 4px}
     .push-instalar{margin-top:12px;border:1px solid #d6e0ec;background:#fff;color:#244c78;font-family:inherit;font-size:14px;font-weight:700;border-radius:999px;padding:9px 16px;cursor:pointer}
+    .etq-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:10px}
+    .etq-stats div{background:#f6f8fb;border-radius:12px;padding:10px 12px}
+    .etq-stats b{display:block;font-size:20px;color:#14243a}
+    .etq-stats small{font-size:12.5px;color:#7d8a9b}
+    .etq-sedes{display:flex;flex-direction:column;gap:4px;margin:4px 0 10px}
+    .etq-sedes div{display:grid;grid-template-columns:1fr auto 90px;gap:10px;font-size:14px;padding:6px 10px;background:#f9fafc;border-radius:8px}
+    .etq-sedes small{color:#7d8a9b;text-align:right}
+    .etq-hojas{display:flex;gap:8px;align-items:center;margin-bottom:6px}
+    .etq-hojas input{width:90px;height:44px;text-align:center;font-size:18px!important;font-weight:800}
+    .etq-hojas button{width:44px;height:44px;font-size:20px;padding:0}
+    .etq-btns{display:flex;gap:8px;flex-wrap:wrap}
+    .etq-vacia{font-size:42px;opacity:.35}
+    .etq-foto{display:inline-flex;align-items:center;justify-content:center;width:52px;cursor:pointer}
+    .etq-aviso{background:#f1edfb!important;border-color:#ddd3f5!important;color:#4b3590!important}
     .cm-aviso{display:flex;align-items:center;gap:12px;margin:12px auto 0;max-width:460px;text-align:left;background:#fff;border:1px solid #dfe7f1;border-radius:16px;padding:12px 14px 12px 16px;animation:fadeUp .5s .25s ease both}
     .cm-n{font-weight:800}
     .cm-n.vencida{color:#bd4b52}
@@ -3448,7 +3475,8 @@ export class AppComponent {
     { key: 'noenc', label: 'No encontrados', ico: '✗' },
     { key: 'revisados', label: 'Revisados', ico: '✓' },
     { key: 'fuera', label: 'Fuera de lugar', ico: '⚠' },
-    { key: 'sinfoto', label: 'Sin foto', ico: '📷' }
+    { key: 'sinfoto', label: 'Sin foto', ico: '📷' },
+    { key: 'sinetiq', label: 'Sin etiqueta', ico: '🏷' }
   ];
   levNuevo: any = null;
   levGuardando = false;
@@ -3763,10 +3791,16 @@ export class AppComponent {
   private prepararApp(): void {
     // Un aviso abrió la app con ?ir=autorizaciones|solicitudes
     try {
-      const ir = new URLSearchParams(window.location.search).get('ir');
+      const params = new URLSearchParams(window.location.search);
+      const ir = params.get('ir');
       if (ir) {
         history.replaceState(null, '', window.location.pathname);
         setTimeout(() => this.irDesdeAviso(ir));
+      }
+      const etiqueta = this.codigoDeTexto(params.get('e') || '');
+      if (etiqueta) {
+        history.replaceState(null, '', window.location.pathname);
+        try { sessionStorage.setItem('dozzer_etiqueta', etiqueta); } catch { /* */ }
       }
     } catch { /* sin parámetros */ }
     window.addEventListener('beforeinstallprompt', (e: any) => { e.preventDefault(); this.instalarPrompt = e; });
@@ -4202,6 +4236,9 @@ export class AppComponent {
 
   loadAll(): void {
     this.revisarPush();
+    let etiqueta: string | null = null;
+    try { etiqueta = sessionStorage.getItem('dozzer_etiqueta'); sessionStorage.removeItem('dozzer_etiqueta'); } catch { /* */ }
+    if (etiqueta) setTimeout(() => this.abrirEtiquetaDesdeUrl(etiqueta!), 600);
     this.loadLevantamientos();
     this.loadBienes();
     Object.keys(this.catalogs).forEach(k => this.loadCatalog(k));
@@ -4615,7 +4652,7 @@ export class AppComponent {
       next: v => {
         this.bienes = (v || []).map(b => ({
           ...b,
-          _busqueda: [b.clave, b.articulo, b.modelo, b.marca, b.numero_serie, b.responsable, b.usuario_directo,
+          _busqueda: [b.clave, b.etiqueta, b.articulo, b.modelo, b.marca, b.numero_serie, b.responsable, b.usuario_directo,
                       b.ubicacion, b.sede, b.clasificacion, b.subcategoria, b.color]
             .filter(x => x !== null && x !== undefined).join(' ').toLowerCase()
         }));
@@ -4851,6 +4888,177 @@ export class AppComponent {
     this.aplicarFiltrosBienes();
   }
 
+  // ----- Etiquetas QR en blanco -----
+
+  etq: any = null;
+  etqAsignar: any = null;
+  mathMax = Math.max;
+  mathMin = Math.min;
+
+  codigoEtiqueta(n: number): string {
+    return 'DZ-' + String(Math.max(0, n || 0)).padStart(6, '0');
+  }
+
+  // El QR lleva solo la dirección de DOZZER con el código (sin datos del bien)
+  urlEtiqueta(codigo: string): string {
+    return window.location.origin + '/?e=' + codigo;
+  }
+
+  // "…/?e=DZ-000123", "DZ-000123" o "dz123" → "DZ-000123"
+  codigoDeTexto(t: string): string {
+    let v = String(t || '').trim();
+    try { if (/^https?:\/\//i.test(v)) v = new URL(v).searchParams.get('e') || ''; } catch { v = ''; }
+    const m = v.toUpperCase().replace(/[^A-Z0-9]/g, '').match(/^DZ(\d{1,9})$/);
+    return m ? this.codigoEtiqueta(parseInt(m[1], 10)) : '';
+  }
+
+  hojasPara(n: number): number {
+    return Math.ceil(Math.max(0, n || 0) / 30);
+  }
+
+  get etqFaltan(): number {
+    return (this.etq?.resumen?.porSede || []).reduce((t: number, x: any) => t + (x.sin_etiqueta || 0), 0);
+  }
+
+  // Lo que falta por pegar menos lo ya impreso sin pegar, con 5% extra por etiquetas dañadas
+  get hojasSugeridas(): number {
+    const r = this.etq?.resumen;
+    if (!r) return 0;
+    return this.hojasPara(Math.max(0, this.etqFaltan - (r.libres || 0)) * 1.05);
+  }
+
+  abrirEtiquetas(): void {
+    this.etq = { cargando: true, generando: false, error: '', resumen: null, hojas: 1, verSedes: false };
+    this.http.get<any>(this.api + '/etiquetas/resumen').subscribe({
+      next: r => {
+        this.etq.resumen = r;
+        this.etq.cargando = false;
+        this.etq.hojas = Math.max(1, Math.min(30, this.hojasSugeridas));
+      },
+      error: e => { this.etq.cargando = false; this.etq.error = this.mensajeError(e, 'No se pudo calcular.'); }
+    });
+  }
+
+  generarEtiquetas(): void {
+    const e = this.etq;
+    const hojas = Math.floor(Number(e.hojas));
+    if (!(hojas >= 1 && hojas <= 30)) { e.error = 'Imprime entre 1 y 30 hojas por vez.'; return; }
+    const ventana = window.open('', '_blank');
+    if (!ventana) { e.error = 'El navegador bloqueó la ventana de impresión. Permite ventanas emergentes para DOZZER.'; return; }
+    ventana.document.write('<p style="font-family:Arial;padding:30px;color:#41546b">Generando etiquetas...</p>');
+    e.generando = true; e.error = '';
+    this.http.post<any>(this.api + '/etiquetas/lote', { cantidad: hojas * 30 }).subscribe({
+      next: async r => {
+        await this.imprimirCodigos(r.codigos || [], ventana);
+        e.generando = false;
+        this.abrirEtiquetas();
+      },
+      error: err => { ventana.close(); e.generando = false; e.error = this.mensajeError(err, 'No se generaron las etiquetas.'); }
+    });
+  }
+
+  reimprimirLibres(): void {
+    const ventana = window.open('', '_blank');
+    if (!ventana) { this.etq.error = 'El navegador bloqueó la ventana de impresión.'; return; }
+    this.etq.generando = true;
+    this.http.get<string[]>(this.api + '/etiquetas/libres', { params: { limite: 900 } }).subscribe({
+      next: async cods => { await this.imprimirCodigos(cods || [], ventana); this.etq.generando = false; },
+      error: err => { ventana.close(); this.etq.generando = false; this.etq.error = this.mensajeError(err, 'No se pudo.'); }
+    });
+  }
+
+  // Hoja carta de 30 etiquetas (3 × 10, 2.625" × 1", tipo Avery 5160)
+  async imprimirCodigos(codigos: string[], ventanaAbierta?: Window | null): Promise<void> {
+    if (!codigos.length) return;
+    const ventana = ventanaAbierta || window.open('', '_blank');
+    if (!ventana) { this.notificar('error', 'Ventana bloqueada', 'Permite ventanas emergentes para DOZZER e inténtalo de nuevo.', 0); return; }
+    const e = (v: any) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as any)[c]);
+    const etiquetas: string[] = [];
+    for (let i = 0; i < codigos.length; i++) {
+      const svg = await QRCode.toString(this.urlEtiqueta(codigos[i]), { type: 'svg', errorCorrectionLevel: 'M', margin: 0, color: { dark: '#000000' } });
+      const pos = i % 30, col = pos % 3, fila = Math.floor(pos / 3);
+      etiquetas.push((pos === 0 && i > 0 ? '</div><div class="hoja">' : '') +
+        '<div class="et" style="left:' + (0.1875 + col * 2.75) + 'in;top:' + (0.5 + fila) + 'in">' +
+        '<div class="qr">' + svg + '</div><div class="tx"><div class="mk">DOZZER</div><div class="cod">' + e(codigos[i]) + '</div>' +
+        '<div class="pie">Propiedad de DOZZER Construcción y Asesoría</div></div></div>');
+    }
+    ventana.document.open();
+    ventana.document.write('<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Etiquetas DOZZER ' + e(codigos[0]) + ' a ' + e(codigos[codigos.length - 1]) + '</title><style>' +
+      '@page{size:letter;margin:0}*{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;color:#111;-webkit-print-color-adjust:exact;print-color-adjust:exact}' +
+      '.hoja{position:relative;width:8.5in;height:11in;page-break-after:always;overflow:hidden}.hoja:last-child{page-break-after:auto}' +
+      '.et{position:absolute;width:2.625in;height:1in;padding:0.08in 0.1in;display:flex;align-items:center;gap:0.09in}' +
+      '.qr{width:0.84in;height:0.84in;flex-shrink:0}.qr svg{width:100%;height:100%;display:block}' +
+      '.tx{min-width:0;display:flex;flex-direction:column;gap:0.02in}.mk{font-size:7.5pt;font-weight:800;letter-spacing:1.4pt;color:#17263d}' +
+      '.cod{font-family:"Courier New",monospace;font-size:13.5pt;font-weight:800;letter-spacing:0.3pt}.pie{font-size:5pt;color:#555;line-height:1.2}' +
+      '.barra{position:sticky;top:0;z-index:2;background:#17263d;color:#fff;padding:10px 16px;font-size:13px;display:flex;justify-content:space-between;align-items:center}' +
+      '.barra button{background:#fff;color:#17263d;border:0;border-radius:6px;padding:7px 14px;font-weight:700;cursor:pointer}@media print{.barra{display:none}}' +
+      '</style></head><body><div class="barra"><span>' + codigos.length + ' etiquetas · ' + Math.ceil(codigos.length / 30) + ' hoja(s) · ' + e(codigos[0]) + ' a ' + e(codigos[codigos.length - 1]) +
+      '</span><button onclick="window.print()">Imprimir</button></div><div class="hoja">' + etiquetas.join('') + '</div></body></html>');
+    ventana.document.close();
+    ventana.focus();
+    setTimeout(() => ventana.print(), 400);
+  }
+
+  abrirAsignarEtiqueta(b: any): void {
+    this.etqAsignar = { bien: b, codigo: '', reemplazar: false, guardando: false, error: '' };
+  }
+
+  async leerEtiquetaDeFoto(ev: Event): Promise<void> {
+    const input = ev.target as HTMLInputElement;
+    const archivo = input.files?.[0];
+    input.value = '';
+    if (!archivo || !this.etqAsignar) return;
+    try {
+      const img = await this.cargarImagen(archivo);
+      const escala = Math.min(1, 1400 / Math.max(img.width, img.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * escala); canvas.height = Math.round(img.height * escala);
+      const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      const qr = jsQR(ctx.getImageData(0, 0, canvas.width, canvas.height).data, canvas.width, canvas.height);
+      const cod = qr?.data ? this.codigoDeTexto(qr.data) : '';
+      if (cod) { this.etqAsignar.codigo = cod; this.etqAsignar.error = ''; }
+      else this.etqAsignar.error = 'No se encontró un QR de etiqueta DOZZER en la foto.';
+    } catch { this.etqAsignar.error = 'No se pudo leer la foto.'; }
+  }
+
+  confirmarAsignarEtiqueta(): void {
+    const a = this.etqAsignar;
+    const cod = this.codigoDeTexto(a?.codigo);
+    if (!cod) { a.error = 'Escribe un código válido, por ejemplo DZ-000123.'; return; }
+    a.guardando = true; a.error = '';
+    this.http.post<any>(this.api + '/etiquetas/' + encodeURIComponent(cod) + '/asignar', { idBien: a.bien.id_bien, reemplazar: !!a.reemplazar }).subscribe({
+      next: () => {
+        a.bien.etiqueta = cod;
+        const enLista = this.bienes.find(x => x.id_bien === a.bien.id_bien);
+        if (enLista) enLista.etiqueta = cod;
+        this.etqAsignar = null;
+        if (this.bienSeleccionado?.id_bien === a.bien.id_bien) this.abrirBien(this.bienSeleccionado);
+        this.notificar('exito', 'Etiqueta asignada', cod + ' → ' + a.bien.clave, 2500);
+      },
+      error: e => { a.guardando = false; a.error = this.mensajeError(e, 'No se pudo asignar.'); }
+    });
+  }
+
+  // Se abrió DOZZER escaneando una etiqueta con la cámara del celular (…/?e=DZ-000123)
+  private abrirEtiquetaDesdeUrl(codigo: string): void {
+    this.http.get<any>(this.api + '/etiquetas/' + encodeURIComponent(codigo)).subscribe({
+      next: r => {
+        if (r.estado === 'ASIGNADA' && r.idBien) {
+          this.section = 'bienes';
+          const b = this.bienes.find(x => x.id_bien === r.idBien);
+          if (b) this.abrirBien(b);
+          else this.http.get<any>(this.api + '/bienes/' + r.idBien).subscribe({ next: x => this.abrirBien(x), error: () => {} });
+          return;
+        }
+        const msg: any = { LIBRE: 'Esta etiqueta todavía no está pegada en ningún bien. Asígnala desde la ficha del bien o en el levantamiento.',
+          ANULADA: 'Esta etiqueta fue anulada.', NO_EXISTE: 'Este código no es una etiqueta de DOZZER.' };
+        this.notificar('info', 'Etiqueta ' + codigo, r.estado === 'ASIGNADA' ? 'Es de un bien de otra sede.' : (msg[r.estado] || ''), 0);
+      },
+      error: () => {}
+    });
+  }
+
   // ----- Calibración y mantenimiento -----
 
   // vencida | proxima (30 días) | ok | sin (sin fecha)
@@ -4960,8 +5168,8 @@ export class AppComponent {
     this.bienSeleccionado = b;
     this.qrPreview = '';
     this.refrescarFotoBien(b);
-    if (!b?.codigo_qr) return;
-    QRCode.toDataURL(this.contenidoQr(b), { errorCorrectionLevel: 'M', margin: 1, width: 220, color: { dark: '#17263d' } })
+    if (!b?.etiqueta) return;
+    QRCode.toDataURL(this.urlEtiqueta(b.etiqueta), { errorCorrectionLevel: 'M', margin: 1, width: 220, color: { dark: '#17263d' } })
       .then(url => { if (this.bienSeleccionado?.id_bien === b.id_bien) this.qrPreview = url; })
       .catch(() => this.qrPreview = '');
   }
@@ -5648,6 +5856,7 @@ export class AppComponent {
       case 'noenc': return b.estatus === 'NO_ENCONTRADO';
       case 'fuera': return b.estatus === 'REVISADO' && !!b.fuera_de_lugar;
       case 'sinfoto': return !b.tiene_foto;
+      case 'sinetiq': return !b.etiqueta;
       default: return true;
     }
   }
@@ -5678,7 +5887,7 @@ export class AppComponent {
     const av = this.av;
     if (!av) return;
     const porPersona = av.agrupar === 'persona';
-    const cuentas: any = { todos: 0, pendientes: 0, revisados: 0, noenc: 0, fuera: 0, sinfoto: 0 };
+    const cuentas: any = { todos: 0, pendientes: 0, revisados: 0, noenc: 0, fuera: 0, sinfoto: 0, sinetiq: 0 };
     const mapa = new Map<any, any>();
     for (const b of av.bienes) {
       for (const f of Object.keys(cuentas)) if (this.avCoincide(b, f)) cuentas[f]++;
@@ -5706,7 +5915,7 @@ export class AppComponent {
     const q = String(av.busqueda || '').toLowerCase().trim();
     const resultados = q
       ? av.bienes.filter((b: any) => this.avCoincide(b, av.filtro)
-          && [b.clave, b.articulo, b.numero_serie, b.marca, b.modelo, b.persona].some(x => String(x || '').toLowerCase().includes(q))).slice(0, 60)
+          && [b.clave, b.articulo, b.numero_serie, b.marca, b.modelo, b.persona, b.etiqueta].some(x => String(x || '').toLowerCase().includes(q))).slice(0, 60)
       : [];
     const total = av.bienes.length, revisados = cuentas.revisados;
     av.vista = { total, revisados, pct: total ? Math.round((revisados / total) * 100) : 0, cuentas, areas, resultados };
@@ -5715,6 +5924,11 @@ export class AppComponent {
   avTocarBien(b: any): void {
     if (this.av.enCaptura) {
       if (this.cap?.lev?.estado !== 'EN_CURSO') return;
+      if (this.cap.etiquetaPorAsignar) {
+        if (b.etiqueta) { this.notificar('info', 'Ese bien ya tiene etiqueta', b.clave + ' ya tiene la ' + b.etiqueta + '. Elige otro.'); return; }
+        this.asignarEtiquetaCap(this.cap.etiquetaPorAsignar, b);
+        return;
+      }
       this.av = null;
       this.abrirBienCaptura(b);
       this.cap.desdeLista = true;
@@ -5882,16 +6096,19 @@ export class AppComponent {
 
   // Identifica el bien con lo que traiga el QR (enlace de la ficha, texto o la clave)
   private identificarBien(texto: string): any {
-    const { id, clave } = this.datosQr(texto);
+    const { id, clave, etiqueta } = this.datosQr(texto);
     const lista = this.cap.bienes;
+    if (etiqueta) return lista.find((b: any) => b.etiqueta === etiqueta) || null;
     return (id && lista.find((b: any) => String(b.codigo_qr || '').replace(/-/g, '').substring(0, 8).toUpperCase() === id))
       || (clave && lista.find((b: any) => String(b.clave || '').toUpperCase() === clave.toUpperCase()))
       || null;
   }
 
-  private datosQr(texto: string): { id: string; clave: string } {
+  private datosQr(texto: string): { id: string; clave: string; etiqueta: string } {
     const t = String(texto || '').trim();
     let id = '', clave = '';
+    const etiqueta = this.codigoDeTexto(t);
+    if (etiqueta) return { id: '', clave: '', etiqueta };
     const hash = t.includes('#') ? t.split('#')[1] : t.includes('?') ? t.split('?')[1] : '';
     if (hash) {
       try { const ps = new URLSearchParams(hash); id = (ps.get('i') || '').toUpperCase(); clave = ps.get('c') || ''; } catch { /* no es enlace */ }
@@ -5901,13 +6118,56 @@ export class AppComponent {
       if (m) clave = m[1].trim();
     }
     if (!id && !clave) clave = t;
-    return { id, clave };
+    return { id, clave, etiqueta: '' };
   }
 
   private alLeerQr(texto: string): void {
     const b = this.identificarBien(texto);
     if (b) { this.abrirBienCaptura(b); return; }
+    const { etiqueta } = this.datosQr(texto);
+    if (etiqueta) { this.etiquetaEscaneada(etiqueta); return; }
     this.buscarFueraDeSede(texto);
+  }
+
+  // Etiqueta que no está en la lista de la sede: libre (se asigna), de otra sede (se ofrece traer) o inexistente
+  private etiquetaEscaneada(codigo: string): void {
+    const c = this.cap;
+    c.error = ''; c.ultimo = ''; c.ofrecerNuevo = false;
+    this.http.get<any>(this.api + '/etiquetas/' + encodeURIComponent(codigo)).subscribe({
+      next: r => {
+        if (r.estado === 'LIBRE') {
+          // Bien recién agregado sin etiqueta: se le asigna directo
+          const ag = c.agregado?.bien;
+          if (ag && !ag.etiqueta) { this.asignarEtiquetaCap(codigo, ag); return; }
+          c.etiquetaPorAsignar = codigo;
+          this.abrirAvanceCaptura('sinetiq');
+          return;
+        }
+        if (r.estado === 'ASIGNADA' && r.clave) { this.abrirBuscarGeneral(r.clave); return; }
+        c.error = r.estado === 'ANULADA' ? 'La etiqueta ' + codigo + ' está anulada. Usa otra.' : 'La etiqueta ' + codigo + ' no existe en DOZZER.';
+      },
+      error: e => c.error = this.mensajeError(e, 'No se pudo consultar la etiqueta.')
+    });
+  }
+
+  // Liga la etiqueta escaneada al bien y abre su captura
+  asignarEtiquetaCap(codigo: string, b: any): void {
+    const c = this.cap;
+    this.http.post<any>(this.api + '/etiquetas/' + encodeURIComponent(codigo) + '/asignar', { idBien: b.id_bien }).subscribe({
+      next: () => {
+        b.etiqueta = codigo;
+        c.etiquetaPorAsignar = null;
+        this.av = null;
+        this.abrirBienCaptura(b);
+        c.ultimo = '';
+        this.notificar('exito', 'Etiqueta asignada', codigo + ' → ' + b.clave + ' · ' + b.articulo, 2200);
+      },
+      error: e => { c.etiquetaPorAsignar = null; c.error = this.mensajeError(e, 'No se pudo asignar la etiqueta.'); this.av = null; }
+    });
+  }
+
+  get sinEtiquetaGrupo(): number {
+    return this.bienesGrupo.filter((b: any) => !b.etiqueta).length;
   }
 
   // No está en esta sede: se busca en todas; si aparece en otra se ofrece traerlo, si no, registrarlo como nuevo
