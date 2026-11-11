@@ -307,6 +307,21 @@ export class IcoComponent { @Input() n = ''; }
         </div>
       </div>
 
+      <!-- AL INICIAR SESIÓN: OFRECER NOTIFICACIONES -->
+      <div class="modal-backdrop push-preg-fondo" *ngIf="logged && pushPregunta && !bienvenida" (click)="pushPregunta=false">
+        <div class="push-preg" (click)="$event.stopPropagation()">
+          <span class="push-preg-ico"><ico n="bell"></ico></span>
+          <h2>¿Activar notificaciones?</h2>
+          <p>{{ isAdmin || canAuthorize ? 'Te avisamos en este celular cuando haya autorizaciones pendientes.' : 'Te avisamos cuando aprueben o rechacen tus solicitudes.' }}</p>
+          <p class="push-preg-ios" *ngIf="pushEstado==='instalar-ios'">En iPhone primero instala DOZZER: toca Compartir <b>⬆</b> → <b>Agregar a inicio</b> y ábrela desde ese ícono.</p>
+          <div class="push-preg-btns">
+            <button class="btn-outline" (click)="pushPregunta=false">Ahora no</button>
+            <button class="btn-primary" *ngIf="pushEstado==='inactivo'" [disabled]="pushProcesando" (click)="pushPregunta=false; activarPush()">Activar</button>
+          </div>
+          <small>Puedes cambiarlo cuando quieras en el menú ☰ → Notificaciones.</small>
+        </div>
+      </div>
+
       <!-- AVISO: ETIQUETA ESCANEADA -->
       <div class="escaneo-ok" *ngIf="escaneoOk"><span class="escaneo-ok-ico"><ico n="check"></ico></span><span><b>Escaneada</b><small>{{ escaneoOk }}</small></span></div>
 
@@ -2698,6 +2713,16 @@ export class IcoComponent { @Input() n = ''; }
     .column-picker>.btn-outline{display:inline-flex;align-items:center;gap:7px}
     .column-picker>.btn-outline>ico{width:17px;height:17px}
     .clasif-menu{width:300px}
+    .push-preg-fondo{z-index:300}
+    .push-preg{width:min(400px,100%);background:#fff;border-radius:22px;padding:28px 24px 20px;text-align:center;box-shadow:0 24px 70px #15243b40;animation:fadeUp .3s ease both}
+    .push-preg-ico{width:64px;height:64px;border-radius:20px;margin:0 auto 16px;display:grid;place-items:center;color:#fff;background:linear-gradient(140deg,#17304f,#2d5d93);box-shadow:0 10px 24px #2d5d9340}
+    .push-preg-ico ico{width:30px;height:30px}
+    .push-preg h2{margin:0 0 8px;font-size:21px;font-weight:800;color:#14243a}
+    .push-preg p{margin:0 0 10px;font-size:15px;line-height:1.55;color:#4b5a6d}
+    .push-preg .push-preg-ios{font-size:13.5px;background:#f4f8fd;border-radius:12px;padding:10px 12px}
+    .push-preg-btns{display:flex;gap:10px;margin:18px 0 12px}
+    .push-preg-btns button{flex:1;height:46px}
+    .push-preg small{font-size:12.5px;color:#8a96a6}
     .ver-acta{display:flex;align-items:center;gap:12px;width:100%;margin:0 0 16px;border:1px solid #d6e2f0;background:#f4f8fd;border-radius:14px;padding:12px 14px;text-align:left;cursor:pointer;transition:background .15s,border-color .15s}
     .ver-acta:hover{background:#eaf2fb;border-color:#b9cde4}
     .ver-acta-ico{width:38px;height:38px;border-radius:11px;background:#fff;color:#2d5d93;display:grid;place-items:center;flex-shrink:0;box-shadow:0 2px 8px #17263d12}
@@ -4086,6 +4111,7 @@ export class AppComponent {
   manualAbierto = false;
   formMas = false;
   bienAbierto: any = null;
+  pushPregunta = false;
   escaneoOk = '';
   private escaneoTimer: any;
   private audioCtx: any = null;
@@ -4720,6 +4746,7 @@ export class AppComponent {
           try { localStorage.removeItem('dozzer_ui_' + this.email); } catch { /* */ }
           this.section = 'bienes'; this.vistaInv = 'bienes'; this.origenVistaInv = 'menu';
           this.loadAll(); this.mostrarBienvenida(true);
+          this.ofrecerAvisos(0);
         }
       },
       error: e => {
@@ -4846,6 +4873,15 @@ export class AppComponent {
     this.bienvenida = true;
     clearTimeout(this.bienvenidaTimer);
     this.bienvenidaTimer = setTimeout(() => this.bienvenida = false, 3200);
+  }
+
+  // Al iniciar sesión se ofrecen los avisos (si este dispositivo aún no los tiene)
+  private ofrecerAvisos(intento: number): void {
+    setTimeout(() => {
+      if (!this.logged || this.mustChangePassword) return;
+      if (this.pushEstado === 'cargando' && intento < 8) { this.ofrecerAvisos(intento + 1); return; }
+      if (this.pushEstado === 'inactivo' || this.pushEstado === 'instalar-ios') this.pushPregunta = true;
+    }, intento === 0 ? 3500 : 1000);
   }
 
   puedeCapturar(l: any): boolean {
