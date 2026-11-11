@@ -1819,7 +1819,7 @@ interface FormatoDoc {
                 </div>
 
                 <div class="cap-scanner" *ngIf="cap.escaneando">
-                  <video #camQr playsinline muted autoplay (click)="camQr?.nativeElement?.play()"></video>
+                  <video #camQr playsinline muted autoplay (click)="camQr.play()"></video>
                   <span class="cap-frame"></span>
                   <button class="btn-outline" (click)="detenerEscaner()">Cancelar</button>
                 </div>
