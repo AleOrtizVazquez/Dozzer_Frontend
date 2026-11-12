@@ -1769,7 +1769,7 @@ export class IcoComponent { @Input() n = ''; }
                     <small>Inventario {{ l.anio }} · {{ semestre(l) }} · {{ pctLev(l) }}% revisado</small>
                   </div>
                   <div class="lv-ics">
-                    <button (click)="abrirAvance(l)" title="Ver resultado"><ico n="chart"></ico><span>Resultado</span></button>
+                    <button (click)="abrirResultado(l)" title="Ver resultado"><ico n="chart"></ico><span>Resultado</span></button>
                     <button *ngIf="l.idDocumentoInicio" (click)="abrirDocumentoGuardado(l.idDocumentoInicio)" title="Acta de inicio"><ico n="flag"></ico><span>Inicio</span></button>
                     <button *ngIf="l.idDocumentoCierre" (click)="abrirDocumentoGuardado(l.idDocumentoCierre)" title="Acta de cierre"><ico n="file"></ico><span>Cierre</span></button>
                     <button *ngIf="l.resguardos" (click)="verResguardosLev(l)" [title]="l.resguardos + ' resguardos'"><ico n="idcard"></ico><span>Resguardos</span></button>
@@ -1778,6 +1778,109 @@ export class IcoComponent { @Input() n = ''; }
                 </div>
               </section>
             </ng-container>
+
+            <!-- ===== Resultado de un inventario cerrado ===== -->
+            <div class="res" *ngIf="anualVista==='resultado' && res as R">
+              <button class="doc-back" (click)="salirResultado()">← Inventarios</button>
+              <div class="res-head">
+                <div>
+                  <span class="res-ok" *ngIf="R.recien"><ico n="check"></ico> Inventario cerrado</span>
+                  <h1>{{ R.lev.sede | titlecase }}</h1>
+                  <p>Inventario {{ R.lev.anio }} · {{ semestre(R.lev) }}</p>
+                </div>
+                <div class="res-docs">
+                  <button class="btn-outline btn-small" *ngIf="R.lev.idDocumentoCierre" (click)="abrirDocumentoGuardado(R.lev.idDocumentoCierre)"><ico n="file"></ico> Acta de cierre</button>
+                  <button class="btn-outline btn-small" *ngIf="R.lev.idDocumentoInicio" (click)="abrirDocumentoGuardado(R.lev.idDocumentoInicio)"><ico n="flag"></ico> Acta de inicio</button>
+                </div>
+              </div>
+
+              <div class="cap-loading" *ngIf="R.cargando"><div class="loader-ring"></div><strong>Preparando el resultado…</strong></div>
+              <div class="inline-error" *ngIf="R.error">{{ R.error }}</div>
+
+              <ng-container *ngIf="!R.cargando && R.total">
+                <!-- Cómo quedó: barra 100% por estado -->
+                <section class="res-card">
+                  <div class="res-hero">
+                    <b>{{ R.pctLoc }}%</b>
+                    <span>de los bienes se localizaron<small>{{ (R.cuentas.ok + R.cuentas.fuera) | number }} de {{ R.total | number }}</small></span>
+                  </div>
+                  <div class="res-bar" role="img" [attr.aria-label]="'En su lugar ' + R.cuentas.ok + ', fuera de lugar ' + R.cuentas.fuera + ', no localizados ' + R.cuentas.no">
+                    <ng-container *ngFor="let e of R.estados">
+                      <button *ngIf="e.n" class="res-seg" [ngClass]="'rs-' + e.k" [style.flex-grow]="e.n" [class.apagado]="R.filtro?.tipo==='estado' && R.filtro?.v!==e.k"
+                              (click)="filtrarRes('estado', e.k)" (mouseenter)="R.tip = e" (mouseleave)="R.tip = null">
+                      </button>
+                    </ng-container>
+                  </div>
+                  <div class="res-tip" *ngIf="R.tip as t"><b>{{ t.n | number }}</b> {{ t.t.toLowerCase() }} · {{ t.pct }}%</div>
+                  <div class="res-leyenda">
+                    <button *ngFor="let e of R.estados" [class.on]="R.filtro?.tipo==='estado' && R.filtro?.v===e.k" [disabled]="!e.n" (click)="filtrarRes('estado', e.k)">
+                      <i [ngClass]="'rs-' + e.k">{{ e.ico }}</i>
+                      <span>{{ e.t }}</span>
+                      <b>{{ e.n | number }}</b>
+                      <small>{{ e.pct }}%</small>
+                    </button>
+                  </div>
+                  <div class="res-mini">
+                    <div><b>{{ R.nuevos | number }}</b><small>Bienes nuevos</small></div>
+                    <div><b>{{ R.traidos | number }}</b><small>Traídos de otra sede</small></div>
+                    <div><b>{{ R.fotos | number }}</b><small>Con foto</small></div>
+                    <div><b>{{ R.firmados }} / {{ R.personas.length }}</b><small>Resguardos firmados</small></div>
+                  </div>
+                </section>
+
+                <!-- Estado físico de lo revisado -->
+                <section class="res-card" *ngIf="R.respuestas.length">
+                  <h3>{{ R.lev.pregunta?.texto || '¿En qué estado está el bien?' }}</h3>
+                  <div class="res-resp">
+                    <button *ngFor="let x of R.respuestas" [class.on]="R.filtro?.tipo==='resp' && R.filtro?.v===x.t" [class.apagado]="R.filtro?.tipo==='resp' && R.filtro?.v!==x.t" (click)="filtrarRes('resp', x.t)">
+                      <span class="rr-t">{{ x.t }}</span>
+                      <span class="rr-bar"><i [style.width.%]="x.ancho"></i></span>
+                      <b>{{ x.n | number }}</b>
+                    </button>
+                  </div>
+                </section>
+
+                <!-- Por persona: compacto; al tocar se ven sus datos -->
+                <section class="res-card">
+                  <div class="res-ph">
+                    <h3>Por persona</h3>
+                    <button class="res-filtro" *ngIf="R.filtro" (click)="R.filtro = null">{{ R.filtro.texto }} <ico n="x"></ico></button>
+                  </div>
+                  <div class="res-buscar" *ngIf="R.personas.length > 6">
+                    <ico n="search"></ico><input [(ngModel)]="R.q" placeholder="Buscar persona">
+                  </div>
+                  <div class="res-per">
+                    <div class="rp" *ngFor="let p of personasRes; trackBy: trackKey" [class.abierta]="R.abierta===p.key">
+                      <button class="rp-top" (click)="R.abierta = R.abierta===p.key ? null : p.key">
+                        <span class="rp-av">{{ inicialesDe(p.nombre) }}</span>
+                        <span class="rp-txt">
+                          <b>{{ p.nombre | titlecase }}</b>
+                          <span class="rp-bar"><i class="rs-ok" [style.flex-grow]="p.ok"></i><i class="rs-fuera" [style.flex-grow]="p.fuera"></i><i class="rs-no" [style.flex-grow]="p.no"></i></span>
+                        </span>
+                        <span class="rp-n"><b>{{ R.filtro ? p.coinciden : (p.ok + p.fuera) }}</b>/{{ p.total }}</span>
+                        <ico class="rp-chev" n="chev"></ico>
+                      </button>
+                      <div class="rp-body" *ngIf="R.abierta===p.key">
+                        <div class="rp-datos">
+                          <span><i class="rs-ok">✓</i>{{ p.ok }} en su lugar</span>
+                          <span *ngIf="p.fuera"><i class="rs-fuera">⚠</i>{{ p.fuera }} fuera de lugar</span>
+                          <span *ngIf="p.no"><i class="rs-no">✗</i>{{ p.no }} no localizados</span>
+                          <span class="rp-firma" [ngClass]="'fe-' + (p.firma || 'NADA')">{{ p.firma==='FIRMADO' ? '✍ Resguardo firmado' : p.firma==='CON_DIFERENCIAS' ? '⚠ Firmado con diferencias' : 'Sin firma' }}</span>
+                        </div>
+                        <button class="btn-outline btn-small" *ngIf="p.id" (click)="verResguardoRes(p)"><ico n="idcard"></ico> Ver su resguardo</button>
+                        <div class="rp-bienes">
+                          <div class="rb" *ngFor="let b of bienesDePersonaRes(p)">
+                            <i [ngClass]="'rs-' + estadoRes(b)">{{ estadoRes(b)==='ok' ? '✓' : estadoRes(b)==='fuera' ? '⚠' : '✗' }}</i>
+                            <span><b>{{ b.articulo | titlecase }}</b><small>{{ b.clave }}<ng-container *ngIf="b.respuesta"> · {{ b.respuesta }}</ng-container><ng-container *ngIf="b.fuera_de_lugar && b.ubicacion_encontrada"> · en {{ b.ubicacion_encontrada | titlecase }}</ng-container></small></span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <p class="cal-hint" *ngIf="!personasRes.length">Nadie coincide.</p>
+                  </div>
+                </section>
+              </ng-container>
+            </div>
 
             <!-- ===== Avance (monitoreo): resumen -> areas -> bienes ===== -->
             <div class="cap av" *ngIf="av">
@@ -1980,6 +2083,11 @@ export class IcoComponent { @Input() n = ''; }
                     <em>{{ g.hechos }} de {{ g.total }} revisados</em>
                   </span>
                   <ico class="cap-sig-go" n="chev"></ico>
+                </button>
+
+                <button class="cap-finalizar" *ngIf="cap.lev.puedoAdministrar && cap.bienes.length && pendientesSede" (click)="finalizarInventario(cap.lev, pendientesSede, cap.bienes.length, true)">
+                  <ico n="flag"></ico>
+                  <span><b>Finalizar inventario</b><small>Si ya no vas a revisar más bienes</small></span>
                 </button>
 
                 <button class="cap-otros" (click)="cap.verTodos = !cap.verTodos">
@@ -3181,6 +3289,88 @@ export class IcoComponent { @Input() n = ''; }
     .cap-fin .btn-primary{display:inline-flex;align-items:center;gap:6px}
     .cap-fin .btn-primary ico{width:16px;height:16px}
     .chk-terminar.arriba{margin:0 0 12px!important;width:100%}
+    .cap-finalizar{display:flex;align-items:center;gap:12px;width:100%;border:1.5px dashed #e3c7a0;background:#fffaf2;border-radius:16px;padding:12px 14px;margin:2px 0 4px;text-align:left;cursor:pointer;font-family:inherit;color:#8a5a12}
+    .cap-finalizar ico{width:20px;height:20px;flex-shrink:0}
+    .cap-finalizar span{display:flex;flex-direction:column}
+    .cap-finalizar b{font-size:14.5px;color:#7a4d0c}.cap-finalizar small{font-size:12.5px;color:#9a7444}
+    .cap-finalizar:hover{background:#fff4e2}
+    /* Resultado */
+    .res{display:flex;flex-direction:column;gap:14px;max-width:820px}
+    .res-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+    .res-head h1{margin:2px 0 0;font-size:28px;letter-spacing:-.02em;color:#14243a}
+    .res-head p{margin:2px 0 0;color:#6b7a8d;font-size:14.5px}
+    .res-ok{display:inline-flex;align-items:center;gap:6px;background:#e8f6ee;color:#1d7a4f;font-weight:700;font-size:13px;border-radius:999px;padding:5px 12px}
+    .res-ok ico{width:15px;height:15px}
+    .res-docs{display:flex;gap:8px;flex-wrap:wrap}
+    .res-docs .btn-outline{display:inline-flex;align-items:center;gap:6px}
+    .res-docs ico{width:15px;height:15px}
+    .res-card{background:#fff;border:1px solid #e3e9f1;border-radius:20px;padding:18px;display:flex;flex-direction:column;gap:12px}
+    .res-card h3{margin:0;font-size:15.5px;color:#14243a}
+    .res-hero{display:flex;align-items:center;gap:14px}
+    .res-hero>b{font-size:46px;line-height:1;font-weight:800;color:#14243a;letter-spacing:-.03em}
+    .res-hero span{display:flex;flex-direction:column;font-size:15px;color:#41546b;font-weight:600}
+    .res-hero small{font-size:13px;color:#7b889a;font-weight:500}
+    .res-bar{display:flex;gap:2px;height:22px;border-radius:6px;overflow:hidden;background:#fff}
+    .res-seg{border:0;padding:0;min-width:6px;cursor:pointer;transition:opacity .15s}
+    .res-seg.apagado,.res-resp button.apagado{opacity:.28}
+    .res-tip{font-size:13px;color:#41546b;margin-top:-4px}
+    .rs-ok{background:#2f9e6b}.rs-fuera{background:#b87514}.rs-no{background:#c8454d}
+    .res-leyenda{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+    .res-leyenda button{display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto;column-gap:8px;align-items:center;text-align:left;border:1.5px solid #e6ecf3;background:#fff;border-radius:14px;padding:10px 12px;cursor:pointer;font-family:inherit}
+    .res-leyenda button:disabled{opacity:.5;cursor:default}
+    .res-leyenda button.on{border-color:#244c78;box-shadow:0 0 0 3px #244c7820}
+    .res-leyenda i{grid-row:span 2;width:28px;height:28px;border-radius:50%;color:#fff;display:grid;place-items:center;font-style:normal;font-size:13px;font-weight:800}
+    .res-leyenda span{font-size:12.5px;color:#55667b;font-weight:600}
+    .res-leyenda b{font-size:19px;color:#14243a;line-height:1.1}
+    .res-leyenda small{display:none}
+    .res-mini{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;border-top:1px solid #edf1f6;padding-top:12px}
+    .res-mini div{display:flex;flex-direction:column}
+    .res-mini b{font-size:18px;color:#14243a}.res-mini small{font-size:12px;color:#7b889a}
+    .res-resp{display:flex;flex-direction:column;gap:6px}
+    .res-resp button{display:grid;grid-template-columns:110px 1fr 48px;align-items:center;gap:10px;border:0;background:transparent;padding:6px 4px;border-radius:10px;cursor:pointer;font-family:inherit;text-align:left;transition:background .15s,opacity .15s}
+    .res-resp button:hover,.res-resp button.on{background:#f1f6fc}
+    .rr-t{font-size:14px;color:#25364c;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .rr-bar{height:14px;background:#f1f4f8;border-radius:0 4px 4px 0}
+    .rr-bar i{display:block;height:100%;background:#2d5d93;border-radius:0 4px 4px 0}
+    .res-resp b{font-size:14px;color:#14243a;text-align:right}
+    .res-ph{display:flex;align-items:center;justify-content:space-between;gap:10px}
+    .res-filtro{display:inline-flex;align-items:center;gap:6px;border:0;background:#e5eef8;color:#244c78;font-weight:700;font-size:12.5px;border-radius:999px;padding:6px 10px;cursor:pointer;font-family:inherit}
+    .res-filtro ico{width:13px;height:13px}
+    .res-buscar{display:flex;align-items:center;gap:8px;background:#f6f8fb;border-radius:12px;padding:0 12px}
+    .res-buscar ico{width:16px;height:16px;color:#8a97a8}
+    .res-buscar input{border:0!important;background:transparent;height:42px;flex:1;box-shadow:none!important;margin:0!important;padding:0!important;outline:0}
+    .res-per{display:flex;flex-direction:column;gap:6px}
+    .rp{border:1.5px solid #edf1f6;border-radius:14px;overflow:hidden}
+    .rp.abierta{border-color:#cfdcec}
+    .rp-top{display:flex;align-items:center;gap:12px;width:100%;padding:10px 12px;background:#fff;border:0;cursor:pointer;text-align:left;font-family:inherit}
+    .rp-av{width:36px;height:36px;border-radius:50%;background:#e5eef8;color:#244c78;display:grid;place-items:center;font-size:12.5px;font-weight:800;flex-shrink:0}
+    .rp-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+    .rp-txt b{font-size:14.5px;color:#14243a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .rp-bar{display:flex;gap:2px;height:6px;border-radius:3px;overflow:hidden;max-width:260px}
+    .rp-bar i{display:block;min-width:0}
+    .rp-n{font-size:13px;color:#7b889a;flex-shrink:0}.rp-n b{color:#14243a;font-size:15px}
+    .rp-chev{width:16px;height:16px;color:#9aa7b7;transition:transform .2s}
+    .rp.abierta .rp-chev{transform:rotate(180deg)}
+    .rp-body{padding:4px 14px 14px 60px;display:flex;flex-direction:column;gap:10px;background:#fafcfe}
+    .rp-datos{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:#41546b}
+    .rp-datos span{display:inline-flex;align-items:center;gap:6px}
+    .rp-datos i,.rb i{width:20px;height:20px;border-radius:50%;color:#fff;display:inline-grid;place-items:center;font-style:normal;font-size:11px;font-weight:800;flex-shrink:0}
+    .rp-firma{font-weight:700}
+    .rp-firma.fe-FIRMADO{color:#1d7a4f}.rp-firma.fe-CON_DIFERENCIAS{color:#a8650f}.rp-firma.fe-NADA,.rp-firma.fe-{color:#8a97a8}
+    .rp-body .btn-outline{align-self:flex-start;display:inline-flex;align-items:center;gap:6px}
+    .rp-body .btn-outline ico{width:15px;height:15px}
+    .rp-bienes{display:flex;flex-direction:column;gap:6px}
+    .rb{display:flex;align-items:center;gap:10px}
+    .rb span{display:flex;flex-direction:column;min-width:0}
+    .rb b{font-size:13.5px;color:#25364c;font-weight:600}.rb small{font-size:12px;color:#7b889a}
+    @media(max-width:700px){
+      .res-leyenda{grid-template-columns:1fr}
+      .res-leyenda button{grid-template-columns:auto 1fr auto;grid-template-rows:auto}
+      .res-leyenda i{grid-row:auto}
+      .res-mini{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:12px}
+      .res-resp button{grid-template-columns:90px 1fr 40px}
+      .rp-body{padding-left:14px}
+    }
     .ni-res{border:1.5px solid #e6ecf3;border-radius:16px;overflow:hidden;background:#fff}
     .ni-fila+.ni-fila{border-top:1px solid #edf1f6}
     .ni-fila-top{display:flex;align-items:center;gap:12px;width:100%;padding:12px 14px;background:transparent;border:0;cursor:pointer;text-align:left;font-family:inherit;font-size:14.5px;color:#14243a}
@@ -4520,7 +4710,7 @@ export class AppComponent {
   levCargando = false;
   levAbierto: any = null;
   levDetalle: any = null;
-  anualVista: 'lista' | 'captura' | 'avance' | 'cierre' = 'lista';
+  anualVista: 'lista' | 'captura' | 'avance' | 'cierre' | 'resultado' = 'lista';
   cierre: any = null;
   // Captura: "bien nuevo", "buscar en todas las sedes" y opciones de la sede (áreas, personas, catálogos)
   capNuevo: any = null;
@@ -5356,6 +5546,7 @@ export class AppComponent {
       if (this.cap) { this.salirCaptura(); return; }
       if (this.av) { this.detenerTimerAvance(); this.av = null; }
       this.cierre = null;
+      this.res = null;
       this.anualVista = 'lista';
       this.loadLevantamientos();
       return;
@@ -7315,13 +7506,136 @@ export class AppComponent {
     });
   }
 
+  // ----- Resultado de un inventario cerrado -----
+  res: any = null;
+
+  abrirResultado(l: any, recien = false): void {
+    this.detenerTimerAvance();
+    this.av = null;
+    this.anualVista = 'resultado';
+    const R: any = this.res = { lev: l, recien, cargando: true, error: '', total: 0, filtro: null, abierta: null, q: '', tip: null,
+      cuentas: { ok: 0, fuera: 0, no: 0 }, estados: [], respuestas: [], personas: [], bienes: [], nuevos: 0, traidos: 0, fotos: 0, firmados: 0, pctLoc: 0 };
+    let estados: any = {};
+    let bienes: any[] | null = null;
+    const listo = () => { if (bienes && this.res === R) this.calcularResultado(R, bienes, estados); };
+    this.http.get<any>(this.api + '/levantamientos/' + l.idLevantamiento + '/personas-estado').subscribe({
+      next: e => { estados = e || {}; R.estadosOk = true; if (R.bienesOk) listo(); },
+      error: () => { R.estadosOk = true; if (R.bienesOk) listo(); }
+    });
+    this.http.get<any[]>(this.api + '/levantamientos/' + l.idLevantamiento + '/bienes').subscribe({
+      next: rows => { bienes = rows || []; R.bienesOk = true; if (R.estadosOk) listo(); },
+      error: e => { R.cargando = false; R.error = this.mensajeError(e, 'No se pudo cargar el resultado.'); }
+    });
+    window.scrollTo({ top: 0 });
+  }
+
+  salirResultado(): void {
+    this.res = null;
+    this.anualVista = 'lista';
+  }
+
+  // Cerrado: lo que no se revisó cuenta como no localizado
+  estadoRes(b: any): 'ok' | 'fuera' | 'no' {
+    const e = this.avEstado(b);
+    return e === 'ok' || e === 'fuera' ? e : 'no';
+  }
+
+  private calcularResultado(R: any, bienes: any[], estados: any): void {
+    R.bienes = bienes;
+    R.total = bienes.length;
+    const c: any = { ok: 0, fuera: 0, no: 0 };
+    const resp = new Map<string, number>();
+    const per = new Map<any, any>();
+    for (const b of bienes) {
+      const e = this.estadoRes(b);
+      c[e]++;
+      if (b.estatus === 'REVISADO' && b.respuesta) resp.set(b.respuesta, (resp.get(b.respuesta) || 0) + 1);
+      if (b.origen === 'NUEVO') R.nuevos++;
+      if (b.origen === 'TRANSFERIDO') R.traidos++;
+      if (b.tiene_foto) R.fotos++;
+      const key = b.id_persona ?? 'sin';
+      const p = per.get(key) || { key, id: b.id_persona ?? null, nombre: b.persona || 'Sin resguardante', total: 0, ok: 0, fuera: 0, no: 0,
+        firma: b.id_persona != null ? estados[String(b.id_persona)]?.estado || '' : '', idDocumento: b.id_persona != null ? estados[String(b.id_persona)]?.idDocumento : null };
+      p.total++; p[e]++;
+      per.set(key, p);
+    }
+    R.cuentas = c;
+    const pct = (n: number) => R.total ? Math.round((n / R.total) * 1000) / 10 : 0;
+    R.pctLoc = R.total ? Math.round(((c.ok + c.fuera) / R.total) * 100) : 0;
+    R.estados = [
+      { k: 'ok', t: 'En su lugar', ico: '✓', n: c.ok, pct: pct(c.ok) },
+      { k: 'fuera', t: 'Fuera de lugar', ico: '⚠', n: c.fuera, pct: pct(c.fuera) },
+      { k: 'no', t: 'No localizados', ico: '✗', n: c.no, pct: pct(c.no) }
+    ];
+    const opciones: string[] = R.lev.pregunta?.opciones || [];
+    const max = Math.max(1, ...Array.from(resp.values()));
+    R.respuestas = Array.from(resp.entries())
+      .sort((a, b) => (opciones.indexOf(a[0]) + 1 || 99) - (opciones.indexOf(b[0]) + 1 || 99))
+      .map(([t, n]) => ({ t, n, ancho: Math.max(2, (n / max) * 100) }));
+    R.personas = Array.from(per.values())
+      .sort((a, b) => Number(a.key === 'sin') - Number(b.key === 'sin') || a.nombre.localeCompare(b.nombre, 'es'));
+    R.firmados = R.personas.filter((p: any) => ['FIRMADO', 'CON_DIFERENCIAS'].includes(p.firma)).length;
+    R.cargando = false;
+  }
+
+  filtrarRes(tipo: 'estado' | 'resp', v: string): void {
+    const R = this.res;
+    if (R.filtro?.tipo === tipo && R.filtro?.v === v) { R.filtro = null; return; }
+    const texto = tipo === 'estado' ? (R.estados.find((e: any) => e.k === v)?.t || v) : v;
+    R.filtro = { tipo, v, texto };
+    R.abierta = null;
+  }
+
+  private coincideRes(b: any): boolean {
+    const f = this.res?.filtro;
+    if (!f) return true;
+    return f.tipo === 'estado' ? this.estadoRes(b) === f.v : (b.estatus === 'REVISADO' && b.respuesta === f.v);
+  }
+
+  get personasRes(): any[] {
+    const R = this.res;
+    if (!R) return [];
+    const q = String(R.q || '').toLowerCase().trim();
+    return R.personas
+      .filter((p: any) => !q || p.nombre.toLowerCase().includes(q))
+      .map((p: any) => R.filtro ? { ...p, coinciden: R.bienes.filter((b: any) => (b.id_persona ?? 'sin') === p.key && this.coincideRes(b)).length } : p)
+      .filter((p: any) => !R.filtro || p.coinciden > 0);
+  }
+
+  bienesDePersonaRes(p: any): any[] {
+    const orden: any = { no: 0, fuera: 1, ok: 2 };
+    return this.res.bienes
+      .filter((b: any) => (b.id_persona ?? 'sin') === p.key && this.coincideRes(b))
+      .sort((x: any, y: any) => orden[this.estadoRes(x)] - orden[this.estadoRes(y)] || String(x.clave || '').localeCompare(String(y.clave || ''), 'es', { numeric: true }));
+  }
+
+  trackKey(_: number, p: any): any { return p.key; }
+
+  verResguardoRes(p: any): void {
+    if (p.idDocumento) this.abrirDocumentoGuardado(p.idDocumento);
+    else this.abrirResguardo(this.res.lev, p.id);
+  }
+
   cerrarLevantamiento(l: any, yaRevisoPendientes = false): void {
     const faltan = this.pendientesLev(l);
-    if (faltan > 0 && !yaRevisoPendientes) {
-      this.abrirAvance(l, { filtro: 'pendientes', antesDeCerrar: true });
-      return;
-    }
+    if (faltan > 0 && !yaRevisoPendientes) { this.finalizarInventario(l, faltan, l.totalBienes || 0, false); return; }
     this.abrirCierre(l);
+  }
+
+  // Terminar el inventario aunque falten bienes: se advierte qué pasa con los que no se revisaron
+  finalizarInventario(l: any, faltan: number, total: number, desdeCaptura: boolean): void {
+    this.abrirDialogo({
+      tipo: 'peligro', icono: '🏁',
+      titulo: '¿Seguro que quieres finalizar el inventario?',
+      mensaje: 'Faltan ' + faltan.toLocaleString('es-MX') + ' de ' + total.toLocaleString('es-MX') + ' bienes por revisar. '
+        + 'Si finalizas ahora, quedarán como NO LOCALIZADOS en el acta de cierre y ya no se podrá capturar en este inventario.',
+      nota: 'En el siguiente paso firman los participantes el acta de cierre. Hasta que firmen, puedes cancelar y seguir revisando.',
+      textoConfirmar: 'Sí, finalizar', textoCancelar: 'Seguir revisando',
+      accion: terminar => {
+        terminar();
+        if (desdeCaptura) this.cerrarDesdeCaptura(); else this.abrirCierre(l);
+      }
+    });
   }
 
   // Pantalla de cierre: resumen, resguardos sin firmar y firmas de los participantes del acta
@@ -7359,11 +7673,9 @@ export class AppComponent {
     this.http.post<any>(this.api + '/levantamientos/' + z.lev.idLevantamiento + '/cerrar', { firmas }).subscribe({
       next: r => {
         this.cierre = null;
-        this.anualVista = 'lista';
         this.loadLevantamientos();
-        window.scrollTo({ top: 0 });
-        this.notificar('exito', 'Inventario cerrado', 'Se emitieron el acta de cierre y los resguardos.', 4000,
-          { texto: '📄 Ver acta de cierre', fn: () => this.abrirDocumentoGuardado(r.idDocumentoCierre) });
+        try { localStorage.removeItem('dozzer_capg_' + this.email + '_' + z.lev.idLevantamiento); } catch { /* */ }
+        this.abrirResultado({ ...z.lev, ...(r || {}) }, true);
       },
       error: e => { z.guardando = false; z.error = this.mensajeError(e, 'No se pudo cerrar el inventario.'); }
     });
