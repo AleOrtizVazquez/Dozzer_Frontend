@@ -1701,6 +1701,7 @@ export class IcoComponent { @Input() n = ''; }
                 <div class="av-aviso etq-aviso" *ngIf="av.enCaptura && cap?.etiquetaPorAsignar">
                   <b>🏷 Etiqueta nueva {{ cap.etiquetaPorAsignar }}</b>
                   <span>Toca el bien al que se la pegaste.</span>
+                  <button class="btn-primary btn-small" (click)="nuevoConEtiqueta()">＋ Es un bien nuevo</button>
                   <button class="btn-outline btn-small" (click)="cap.etiquetaPorAsignar=null; cerrarAvance()">Cancelar</button>
                 </div>
                 <div class="av-aviso" *ngIf="av.antesDeCerrar">
@@ -1938,6 +1939,7 @@ export class IcoComponent { @Input() n = ''; }
                   <div class="av-aviso etq-aviso" *ngIf="cap.etiquetaPorAsignar">
                     <b>🏷 Etiqueta nueva {{ cap.etiquetaPorAsignar }}</b>
                     <span>Toca el bien al que se la pegaste.</span>
+                    <button class="btn-primary btn-small" (click)="nuevoConEtiqueta()">＋ Es un bien nuevo</button>
                     <button class="btn-outline btn-small" (click)="cap.etiquetaPorAsignar=null">Cancelar</button>
                   </div>
                   <div class="chk-head">
@@ -2109,6 +2111,28 @@ export class IcoComponent { @Input() n = ''; }
                   <button class="close-button" [disabled]="capNuevo.guardando" (click)="capNuevo=null">×</button>
                 </div>
                 <div class="form-section">
+                  <div class="nb-etq" [class.lista]="capNuevo.etiqueta">
+                    <span class="nb-etq-ico"><ico [n]="capNuevo.etiqueta ? 'check' : 'qr'"></ico></span>
+                    <div class="nb-etq-txt" *ngIf="capNuevo.etiqueta">
+                      <b>Etiqueta {{ capNuevo.etiqueta }}</b>
+                      <small>Queda ligada a este bien al registrarlo.</small>
+                    </div>
+                    <div class="nb-etq-txt" *ngIf="!capNuevo.etiqueta">
+                      <b>1. Pega una etiqueta en blanco</b>
+                      <small>Y léela aquí: será la identificación del bien, no hay que imprimir nada.</small>
+                    </div>
+                    <button type="button" class="btn-outline btn-small" *ngIf="capNuevo.etiqueta" (click)="capNuevo.etiqueta=''">Cambiar</button>
+                  </div>
+                  <div class="nb-etq-leer" *ngIf="!capNuevo.etiqueta">
+                    <label class="btn-primary nb-etq-btn">
+                      <ico n="camera"></ico> {{ capNuevo.leyendo ? 'Leyendo…' : 'Leer la etiqueta' }}
+                      <input type="file" accept="image/*" capture="environment" (change)="leerEtiquetaNuevo($event)" hidden>
+                    </label>
+                    <div class="cap-clave">
+                      <input [(ngModel)]="capNuevo.etqTexto" placeholder="o escribe el código (DZ-000123)" (keyup.enter)="usarEtiquetaNuevo(capNuevo.etqTexto)">
+                      <button type="button" class="btn-outline" (click)="usarEtiquetaNuevo(capNuevo.etqTexto)">Usar</button>
+                    </div>
+                  </div>
                   <label>¿Qué es? *</label>
                   <input [(ngModel)]="capNuevo.articulo" maxlength="200" placeholder="Ej. Silla ejecutiva">
                   <label>Área *</label>
@@ -2713,6 +2737,17 @@ export class IcoComponent { @Input() n = ''; }
     .column-picker>.btn-outline{display:inline-flex;align-items:center;gap:7px}
     .column-picker>.btn-outline>ico{width:17px;height:17px}
     .clasif-menu{width:300px}
+    .nb-etq{display:flex;align-items:center;gap:12px;border:1.5px dashed #c9d6e6;background:#f8fafd;border-radius:14px;padding:12px 14px;margin-bottom:10px}
+    .nb-etq.lista{border-style:solid;border-color:#bfe3cf;background:#eef9f2}
+    .nb-etq-ico{width:40px;height:40px;border-radius:12px;background:#fff;color:#2d5d93;display:grid;place-items:center;flex-shrink:0;box-shadow:0 2px 8px #17263d12}
+    .nb-etq.lista .nb-etq-ico{color:#14804f}
+    .nb-etq-ico ico{width:21px;height:21px}
+    .nb-etq-txt{flex:1;display:flex;flex-direction:column;gap:2px;min-width:0}
+    .nb-etq-txt b{font-size:14.5px;color:#14243a}
+    .nb-etq-txt small{font-size:12.5px;color:#6b7a8d}
+    .nb-etq-leer{display:flex;flex-direction:column;gap:8px;margin-bottom:6px}
+    .nb-etq-btn{display:inline-flex!important;align-items:center;justify-content:center;gap:8px;height:46px;margin:0!important;color:#fff!important;font-size:15px!important;cursor:pointer}
+    .nb-etq-btn ico{width:19px;height:19px}
     .push-preg-fondo{z-index:300}
     .push-preg{width:min(400px,100%);background:#fff;border-radius:22px;padding:28px 24px 20px;text-align:center;box-shadow:0 24px 70px #15243b40;animation:fadeUp .3s ease both}
     .push-preg-ico{width:64px;height:64px;border-radius:20px;margin:0 auto 16px;display:grid;place-items:center;color:#fff;background:linear-gradient(140deg,#17304f,#2d5d93);box-shadow:0 10px 24px #2d5d9340}
@@ -7649,7 +7684,7 @@ export class AppComponent {
     });
   }
 
-  abrirNuevoBienCap(): void {
+  abrirNuevoBienCap(etiqueta = ''): void {
     const c = this.cap;
     if (!c) return;
     if (!navigator.onLine) { this.notificar('info', 'Necesitas señal', 'Registrar un bien nuevo requiere internet. Anótalo y regístralo al volver la señal.'); return; }
@@ -7658,13 +7693,66 @@ export class AppComponent {
     this.capNuevo = {
       articulo: '', idUbicacion: g?.modo === 'area' ? g.id : null, idPersona: g?.modo === 'persona' ? g.id : null,
       idClasificacion: null, idMarca: null, modelo: '', numeroSerie: '', caracteristicas: '',
-      clave: c.claveSugerida || '', mas: !!c.claveSugerida, guardando: false, error: ''
+      clave: c.claveSugerida || '', mas: !!c.claveSugerida, guardando: false, error: '',
+      etiqueta, etqTexto: '', leyendo: false
     };
+  }
+
+  // Etiqueta en blanco recién escaneada que no es de ningún bien de la lista: es un bien nuevo
+  nuevoConEtiqueta(): void {
+    const codigo = this.cap?.etiquetaPorAsignar;
+    if (!codigo) return;
+    this.cap.etiquetaPorAsignar = null;
+    if (this.av) this.cerrarAvance();
+    this.abrirNuevoBienCap(codigo);
+  }
+
+  async leerEtiquetaNuevo(ev: Event): Promise<void> {
+    const input = ev.target as HTMLInputElement;
+    const archivo = input.files?.[0];
+    input.value = '';
+    const n = this.capNuevo;
+    if (!archivo || !n) return;
+    n.leyendo = true; n.error = '';
+    try {
+      const bmp = await this.cargarImagen(archivo);
+      const escala = Math.min(1, 1400 / Math.max(bmp.width, bmp.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(bmp.width * escala); canvas.height = Math.round(bmp.height * escala);
+      const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
+      ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+      const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const qr = jsQR(img.data, img.width, img.height, { inversionAttempts: 'attemptBoth' });
+      n.leyendo = false;
+      if (!qr?.data) { n.error = 'No se encontró el QR en la foto. Acércate más y que salga enfocado.'; return; }
+      this.avisarEscaneo(qr.data);
+      this.usarEtiquetaNuevo(qr.data);
+    } catch {
+      n.leyendo = false; n.error = 'No se pudo leer la foto.';
+    }
+  }
+
+  // Solo se aceptan etiquetas en blanco (libres)
+  usarEtiquetaNuevo(texto: string): void {
+    const n = this.capNuevo;
+    if (!n) return;
+    const codigo = this.codigoDeTexto(String(texto || '')) || this.datosQr(String(texto || '')).etiqueta;
+    if (!codigo) { n.error = 'Ese no es un código de etiqueta DOZZER (DZ-000123).'; return; }
+    n.error = '';
+    this.http.get<any>(this.api + '/etiquetas/' + encodeURIComponent(codigo)).subscribe({
+      next: r => {
+        if (r.estado === 'LIBRE') { n.etiqueta = codigo; n.etqTexto = ''; return; }
+        n.error = r.estado === 'ASIGNADA' ? 'La etiqueta ' + codigo + ' ya es de otro bien' + (r.clave ? ' (' + r.clave + ')' : '') + '. Usa una en blanco.'
+                : r.estado === 'ANULADA' ? 'La etiqueta ' + codigo + ' está anulada. Usa otra.' : 'La etiqueta ' + codigo + ' no existe en DOZZER.';
+      },
+      error: e => n.error = this.mensajeError(e, 'No se pudo consultar la etiqueta.')
+    });
   }
 
   guardarNuevoBienCap(): void {
     const n = this.capNuevo, c = this.cap;
     if (!n || !c || n.guardando) return;
+    if (!n.etiqueta) { n.error = 'Primero pega una etiqueta en blanco al bien y léela.'; return; }
     if (!String(n.articulo || '').trim()) { n.error = 'Escribe qué es el bien.'; return; }
     if (!n.idUbicacion) { n.error = 'Elige el área donde queda el bien.'; return; }
     n.guardando = true;
@@ -7675,9 +7763,15 @@ export class AppComponent {
     };
     this.http.post<any>(this.api + '/levantamientos/' + c.lev.idLevantamiento + '/bienes-nuevos', datos).subscribe({
       next: r => {
+        const codigo = n.etiqueta;
         this.capNuevo = null;
         c.bienes.unshift(r);
         this.despuesDeAgregar(r, 'nuevo');
+        // La etiqueta que pegaron queda ligada al bien recién registrado
+        this.http.post<any>(this.api + '/etiquetas/' + encodeURIComponent(codigo) + '/asignar', { idBien: r.id_bien }).subscribe({
+          next: () => { r.etiqueta = codigo; },
+          error: e => this.notificar('error', 'El bien se registró, pero la etiqueta no se ligó', this.mensajeError(e, 'Escanéala de nuevo y toca el bien.'), 0)
+        });
       },
       error: e => { n.guardando = false; n.error = this.mensajeError(e, 'No se pudo registrar el bien.'); }
     });
