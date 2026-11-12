@@ -1735,13 +1735,13 @@ export class IcoComponent { @Input() n = ''; }
                     <div class="lv-bar"><span [style.width.%]="pctLev(l)"></span></div>
                   </div>
 
-                  <button class="btn-primary lv-main" *ngIf="puedeCapturar(l)" (click)="iniciarCaptura(l)"><ico n="play"></ico> {{ l.capturados ? 'Continuar inventario' : 'Empezar inventario' }}</button>
+                  <button class="btn-primary lv-main" *ngIf="l.puedoAdministrar && l.totalBienes && !pendientesLev(l)" (click)="abrirCierre(l)"><ico n="lock"></ico> Cerrar inventario</button>
+                  <button class="lv-main" [ngClass]="l.puedoAdministrar && l.totalBienes && !pendientesLev(l) ? 'btn-outline' : 'btn-primary'" *ngIf="puedeCapturar(l)" (click)="iniciarCaptura(l)"><ico n="play"></ico> {{ l.capturados ? 'Continuar inventario' : 'Empezar inventario' }}</button>
                   <button class="btn-outline lv-main" *ngIf="!puedeCapturar(l)" (click)="abrirAvance(l)"><ico n="chart"></ico> Ver avance</button>
 
                   <div class="lv-pie">
                     <div class="lv-ics">
                       <button *ngIf="l.idDocumentoInicio" (click)="abrirActaInicio(l)" [title]="l.inicioFirmado || !l.puedoAdministrar ? 'Acta de inicio' : 'Acta de inicio: falta firmarla'" [class.pendiente]="l.puedoAdministrar && !l.inicioFirmado"><ico n="flag"></ico><span>Inicio</span></button>
-                      <button *ngIf="l.idDocumentoCierre" (click)="abrirDocumentoGuardado(l.idDocumentoCierre)" title="Acta de cierre (borrador)"><ico n="file"></ico><span>Cierre</span></button>
                       <button *ngIf="l.resguardos" (click)="verResguardosLev(l)" [title]="l.resguardos + ' resguardos'"><ico n="idcard"></ico><span>Resguardos</span></button>
                       <button [class.on]="levDetalle===l.idLevantamiento" (click)="levDetalle = levDetalle===l.idLevantamiento ? null : l.idLevantamiento" title="Detalles"><ico n="info"></ico><span>Detalles</span></button>
                     </div>
@@ -1960,19 +1960,42 @@ export class IcoComponent { @Input() n = ''; }
               <ng-container *ngIf="!cap.cargando && cap.paso==='area'">
                 <h2 class="cap-q">{{ cap.modo==='persona' ? '¿De quién son los bienes que vas a revisar?' : '¿En qué área estás?' }}</h2>
                 <div class="seg">
-                  <button [class.on]="cap.modo==='persona'" (click)="cap.modo='persona'; cap.busquedaArea=''">👤 Por persona</button>
-                  <button [class.on]="cap.modo==='area'" (click)="cap.modo='area'; cap.busquedaArea=''">📍 Por área</button>
+                  <button [class.on]="cap.modo==='persona'" (click)="cap.modo='persona'; cap.busquedaArea=''; cap.verTodos=false">👤 Por persona</button>
+                  <button [class.on]="cap.modo==='area'" (click)="cap.modo='area'; cap.busquedaArea=''; cap.verTodos=false">📍 Por área</button>
                 </div>
                 <p class="cap-hint" *ngIf="cap.modo==='area'">Así sabremos si algún bien está fuera de su lugar.</p>
-                <input class="cap-search" [(ngModel)]="cap.busquedaArea" [placeholder]="cap.modo==='persona' ? 'Buscar persona...' : 'Buscar área...'">
-                <div class="cap-areas">
-                  <button *ngFor="let g of gruposCaptura" [class.done]="g.hechos===g.total" (click)="elegirGrupo(g)">
-                    <span>{{ g.nombre }}</span>
-                    <span class="firma-tag" *ngIf="cap.modo==='persona' && estadoPersona(g.id) as e" [ngClass]="'fe-' + e">{{ textoEstadoPersona(e) }}</span>
-                    <small>{{ g.hechos }} / {{ g.total }}</small>
-                  </button>
-                  <p class="cap-hint" *ngIf="!gruposCaptura.length">Sin resultados.</p>
+                <!-- Todo revisado: cerrar el inventario desde aquí -->
+                <div class="cap-fin" *ngIf="cap.bienes.length && !pendientesSede">
+                  <span class="cap-fin-ico"><ico n="check"></ico></span>
+                  <div><b>¡Ya revisaste todos los bienes de {{ cap.lev.sede | titlecase }}!</b>
+                    <small>{{ cap.lev.puedoAdministrar ? 'Solo falta cerrar el inventario y firmar el acta de cierre.' : 'Avísale al administrador para que cierre el inventario.' }}</small></div>
+                  <button class="btn-primary" *ngIf="cap.lev.puedoAdministrar" (click)="cerrarDesdeCaptura()"><ico n="lock"></ico> Cerrar inventario</button>
                 </div>
+
+                <button class="cap-sig" *ngIf="grupoSugerido as g" (click)="elegirGrupo(g)">
+                  <span class="cap-sig-av">{{ cap.modo==='persona' ? inicialesDe(g.nombre) : '📍' }}</span>
+                  <span class="cap-sig-txt">
+                    <small>{{ g.hechos ? 'Sigue con' : 'Empieza con' }}</small>
+                    <b>{{ g.nombre | titlecase }}</b>
+                    <em>{{ g.hechos }} de {{ g.total }} revisados</em>
+                  </span>
+                  <ico class="cap-sig-go" n="chev"></ico>
+                </button>
+
+                <button class="cap-otros" (click)="cap.verTodos = !cap.verTodos">
+                  {{ cap.verTodos ? '▴ Ocultar la lista' : (grupoSugerido ? '▾ Elegir otra ' + (cap.modo==='persona' ? 'persona' : 'área') : '▾ Ver ' + (cap.modo==='persona' ? 'las personas' : 'las áreas')) + ' (' + totalGrupos + ')' }}
+                </button>
+                <ng-container *ngIf="cap.verTodos">
+                  <input class="cap-search" [(ngModel)]="cap.busquedaArea" [placeholder]="cap.modo==='persona' ? 'Buscar persona...' : 'Buscar área...'">
+                  <div class="cap-areas">
+                    <button *ngFor="let g of gruposCaptura" [class.done]="g.hechos===g.total" (click)="elegirGrupo(g)">
+                      <span>{{ g.nombre }}</span>
+                      <span class="firma-tag" *ngIf="cap.modo==='persona' && estadoPersona(g.id) as e" [ngClass]="'fe-' + e">{{ textoEstadoPersona(e) }}</span>
+                      <small>{{ g.hechos }} / {{ g.total }}</small>
+                    </button>
+                    <p class="cap-hint" *ngIf="!gruposCaptura.length">Sin resultados.</p>
+                  </div>
+                </ng-container>
                 <div class="chk-links">
                   <button class="lev-more" (click)="elegirGrupo(null)">Ver todos los bienes de la sede</button>
                   <button class="lev-more" (click)="abrirAvanceCaptura()">📊 Resumen y pendientes (PDF)</button>
@@ -2026,6 +2049,7 @@ export class IcoComponent { @Input() n = ''; }
 
                 <!-- Checklist de la persona: sus bienes, primero los pendientes -->
                 <div class="chk" *ngIf="esChecklist">
+                  <button class="btn-primary chk-terminar arriba" *ngIf="cap.grupo.modo==='persona' && !pendientesGrupo.length && !['FIRMADO','CON_DIFERENCIAS'].includes(estadoPersona(cap.grupo.id))" (click)="abrirTerminarPersona()">✍ Terminar con {{ nombreCorto(cap.grupo.nombre) }}</button>
                   <div class="chk-head">
                     <strong>{{ cap.grupo.modo==='persona' ? 'Bienes de ' + nombreCorto(cap.grupo.nombre) : cap.grupo.nombre }}</strong>
                     <small>{{ hechosGrupo }} de {{ bienesGrupo.length }}</small>
@@ -2052,6 +2076,7 @@ export class IcoComponent { @Input() n = ''; }
               <!-- Terminar con la persona: pendientes, conformidad y firmas -->
               <ng-container *ngIf="!cap.cargando && cap.paso==='terminar' && cap.term as t">
                 <button class="doc-back" [disabled]="t.guardando" (click)="cap.paso='escanear'">← Volver a la lista</button>
+                <div class="cap-ok" *ngIf="!t.pendientes.length">✓ Ya revisaste todos sus bienes. Solo falta la firma.</div>
                 <h2 class="cap-q">Terminar con {{ cap.grupo?.nombre }}</h2>
                 <div class="etq-stats">
                   <div><b>{{ t.revisados }}</b><small>Revisados</small></div>
@@ -2431,11 +2456,14 @@ export class IcoComponent { @Input() n = ''; }
                     <div class="ni-paso" [class.listo]="levNuevo.idUsuarioCapturista"><span class="ni-n"><ico *ngIf="levNuevo.idUsuarioCapturista" n="check"></ico><ng-container *ngIf="!levNuevo.idUsuarioCapturista">2</ng-container></span><b>¿Quién va a capturar con el celular?</b></div>
                     <div class="ni-personas">
                       <span class="cal-hint" *ngIf="!candidatos.length && !levError">Cargando personas…</span>
-                      <button class="ni-per" *ngFor="let c of candidatos" [class.on]="levNuevo.idUsuarioCapturista===c.idUsuario" (click)="levNuevo.idUsuarioCapturista=c.idUsuario">
+                      <button class="ni-per" *ngFor="let c of candidatosVisibles" [class.on]="levNuevo.idUsuarioCapturista===c.idUsuario" (click)="levNuevo.idUsuarioCapturista=c.idUsuario">
                         <span class="adm-av" [class.admin]="levNuevo.idUsuarioCapturista===c.idUsuario">{{ inicialesDe(c.nombre || c.correo) }}</span>
                         <span><b>{{ (nombreCorto(c.nombre) | titlecase) || c.correo }}</b><small>{{ esYo(c) ? 'Tú' : c.rol }}</small></span>
                       </button>
                     </div>
+                    <button class="ni-mas" *ngIf="candidatos.length > 2" (click)="levNuevo.verTodosCap = !levNuevo.verTodosCap">
+                      {{ levNuevo.verTodosCap ? '▴ Ver menos' : '▾ Otra persona (' + (candidatos.length - 2) + ' más)' }}
+                    </button>
 
                     <div class="ni-paso listo"><span class="ni-n"><ico n="check"></ico></span><b>Ya está listo · revisa si quieres</b></div>
                     <div class="ni-res">
@@ -3134,6 +3162,25 @@ export class IcoComponent { @Input() n = ''; }
     .ni-per>span:last-child{display:flex;flex-direction:column}
     .ni-per b{font-size:14px;color:#14243a}.ni-per small{font-size:11.5px;color:#6b7a8d}
     .ni-per.on{border-color:#2d6a4f;background:#eef9f2}
+    .ni-personas{margin-bottom:6px!important}
+    .ni-mas{align-self:flex-start;border:0;background:transparent;color:#244c78;font-weight:700;font-size:13.5px;padding:4px 2px 14px;cursor:pointer;font-family:inherit}
+    .cap-sig{display:flex;align-items:center;gap:14px;width:100%;border:1.5px solid #cfe0f2;background:linear-gradient(180deg,#fff,#f5f9fe);border-radius:18px;padding:16px;margin:4px 0 6px;text-align:left;cursor:pointer;font-family:inherit;box-shadow:0 4px 14px #17263d0d}
+    .cap-sig:hover{border-color:#244c78}
+    .cap-sig-av{width:50px;height:50px;border-radius:50%;background:#244c78;color:#fff;display:grid;place-items:center;font-weight:800;font-size:17px;flex-shrink:0}
+    .cap-sig-txt{flex:1;display:flex;flex-direction:column;min-width:0}
+    .cap-sig-txt small{font-size:12px;font-weight:700;color:#2d6a4f;text-transform:uppercase;letter-spacing:.04em}
+    .cap-sig-txt b{font-size:17px;color:#14243a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .cap-sig-txt em{font-style:normal;font-size:13px;color:#6b7a8d}
+    .cap-sig-go{width:20px;height:20px;color:#244c78;transform:rotate(-90deg)}
+    .cap-otros{align-self:flex-start;border:0;background:transparent;color:#244c78;font-weight:700;font-size:14px;padding:8px 2px;cursor:pointer;font-family:inherit}
+    .cap-fin{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#eef9f2;border:1.5px solid #bfe3cf;border-radius:18px;padding:14px 16px;margin:4px 0 8px}
+    .cap-fin>div{flex:1;min-width:180px;display:flex;flex-direction:column;gap:2px}
+    .cap-fin b{color:#14243a;font-size:15px}.cap-fin small{color:#4d6b5b;font-size:13px}
+    .cap-fin-ico{width:40px;height:40px;border-radius:50%;background:#2d6a4f;color:#fff;display:grid;place-items:center;flex-shrink:0}
+    .cap-fin-ico ico{width:20px;height:20px}
+    .cap-fin .btn-primary{display:inline-flex;align-items:center;gap:6px}
+    .cap-fin .btn-primary ico{width:16px;height:16px}
+    .chk-terminar.arriba{margin:0 0 12px!important;width:100%}
     .ni-res{border:1.5px solid #e6ecf3;border-radius:16px;overflow:hidden;background:#fff}
     .ni-fila+.ni-fila{border-top:1px solid #edf1f6}
     .ni-fila-top{display:flex;align-items:center;gap:12px;width:100%;padding:12px 14px;background:transparent;border:0;cursor:pointer;text-align:left;font-family:inherit;font-size:14.5px;color:#14243a}
@@ -7040,6 +7087,15 @@ export class AppComponent {
     return (this.levNuevo?.participantes || []).filter((p: any) => String(p.nombre || '').trim());
   }
 
+  // Se muestran 2 (la elegida primero); las demás al desplegar
+  get candidatosVisibles(): any[] {
+    const n = this.levNuevo;
+    if (!n || n.verTodosCap) return this.candidatos;
+    const sel = this.candidatos.find(c => c.idUsuario === n.idUsuarioCapturista);
+    const resto = this.candidatos.filter(c => c !== sel);
+    return (sel ? [sel, ...resto] : resto).slice(0, 2);
+  }
+
   esYo(c: any): boolean { return String(c?.correo || '').toLowerCase() === String(this.email || '').toLowerCase(); }
 
   elegirSedeLev(s: any): void {
@@ -7593,6 +7649,11 @@ export class AppComponent {
                  verClave: false, verLista: false, escaneando: false,
                  modo: 'persona', grupo: null, agregado: null, ofrecerNuevo: false, claveSugerida: '', desdeLista: false, cambios: false };
     this.capOpciones = { areas: [], personas: [], clasificaciones: [], marcas: [] };
+    // Regresa a la persona o área donde te quedaste
+    try {
+      const g = JSON.parse(localStorage.getItem(this.claveGrupoGuardado()) || 'null');
+      if (g && (g.modo === 'persona' || g.modo === 'area')) { this.cap.modo = g.modo; this.elegirGrupo(g); }
+    } catch { /* sin copia */ }
     this.cargarEstadoPersonas();
     const c = this.cap, idLev = l.idLevantamiento;
     // La copia guardada en el dispositivo se muestra al instante; la del servidor la actualiza al llegar
@@ -7668,8 +7729,47 @@ export class AppComponent {
       .sort((a, b) => Number(a.key === 'sin') - Number(b.key === 'sin') || a.nombre.localeCompare(b.nombre, 'es'));
   }
 
+  get totalGrupos(): number {
+    if (!this.cap) return 0;
+    const porPersona = this.cap.modo === 'persona';
+    return new Set(this.cap.bienes.map((b: any) => (porPersona ? b.id_persona : b.id_ubicacion) ?? 'sin')).size;
+  }
+
+  get pendientesSede(): number {
+    return this.cap ? this.cap.bienes.filter((b: any) => !b.estatus).length : 0;
+  }
+
+  // La persona (o área) con la que conviene seguir: la que quedó a medias, si no la siguiente sin terminar
+  get grupoSugerido(): any {
+    if (!this.cap || this.cap.busquedaArea) return null;
+    const porPersona = this.cap.modo === 'persona';
+    const grupos = this.gruposCaptura;
+    const firmado = (g: any) => porPersona && ['FIRMADO', 'CON_DIFERENCIAS'].includes(this.estadoPersona(g.id));
+    const abiertos = grupos.filter(g => !firmado(g) && (g.hechos < g.total || (porPersona && g.hechos === g.total)));
+    return abiertos.find(g => g.hechos > 0 && g.hechos < g.total)
+      || abiertos.find(g => g.hechos < g.total)
+      || abiertos.find(g => porPersona && g.key !== 'sin')
+      || null;
+  }
+
+  private claveGrupoGuardado(): string {
+    return 'dozzer_capg_' + this.email + '_' + this.cap?.lev?.idLevantamiento;
+  }
+
+  cerrarDesdeCaptura(): void {
+    const l = this.cap?.lev;
+    if (!l) return;
+    this.salirCaptura();
+    this.abrirCierre(l);
+  }
+
   // g = persona o área elegida; null = toda la sede
   elegirGrupo(g: any): void {
+    try {
+      if (g) localStorage.setItem(this.claveGrupoGuardado(), JSON.stringify({ key: g.key, id: g.id, nombre: g.nombre, modo: this.cap.modo }));
+      else localStorage.removeItem(this.claveGrupoGuardado());
+    } catch { /* sin almacenamiento */ }
+    this.cap.verTodos = false;
     this.cap.grupo = g ? { ...g, modo: this.cap.modo } : null;
     this.cap.area = g && this.cap.modo === 'area' ? { id: g.id, nombre: g.nombre } : null;
     this.cap.paso = 'escanear';
@@ -8068,6 +8168,21 @@ export class AppComponent {
     c.bien = null;
     c.paso = 'escanear';
     window.scrollTo({ top: 0 });
+    this.siYaTerminoGrupo();
+  }
+
+  // Ya no le quedan bienes por revisar a la persona (o al área): se pasa directo a terminar
+  private siYaTerminoGrupo(): void {
+    const c = this.cap;
+    if (!c?.grupo || this.pendientesGrupo.length) return;
+    if (c.grupo.modo === 'persona') {
+      if (['FIRMADO', 'CON_DIFERENCIAS'].includes(this.estadoPersona(c.grupo.id))) return;
+      this.abrirTerminarPersona();
+      return;
+    }
+    c.ultimo = c.grupo.nombre + ': área completa, todos sus bienes quedaron revisados.';
+    try { localStorage.removeItem(this.claveGrupoGuardado()); } catch { /* */ }
+    c.grupo = null; c.area = null; c.paso = 'area';
   }
 
   // ----- Sin internet: copia local y cola de cambios -----
@@ -8369,6 +8484,7 @@ export class AppComponent {
       c.term = null;
       c.grupo = null;
       c.paso = 'area';
+      try { localStorage.removeItem(this.claveGrupoGuardado()); } catch { /* */ }
       window.scrollTo({ top: 0 });
       if (res.offline) this.notificar('info', 'Firma guardada en el celular', nombre + ': se subirá sola en cuanto haya señal.', 4000);
       else this.notificar('exito', 'Resguardo firmado', nombre + (r.estado === 'CON_DIFERENCIAS' ? ' · con diferencias anotadas.' : ' · listo.'), 4000,
@@ -8399,6 +8515,7 @@ export class AppComponent {
         c.paso = 'escanear';
         c.ultimo = b.clave + ' · marcado como no encontrado' + (res.offline ? ' (guardado en el celular)' : '');
         if (!this.esChecklist) this.abrirAvanceCaptura('pendientes');
+        else this.siYaTerminoGrupo();
       }
     });
   }
