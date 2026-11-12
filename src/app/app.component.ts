@@ -94,6 +94,7 @@ interface FormatoDoc {
       <ng-container *ngSwitchCase="'wrench'"><path d="M15 4.5a4.5 4.5 0 0 0 4.6 5.8L11 19a2.1 2.1 0 1 1-3-3l8.7-8.6A4.5 4.5 0 0 0 15 4.5z"/></ng-container>
       <ng-container *ngSwitchCase="'idcard'"><rect x="3" y="5" width="18" height="14" rx="2.2"/><circle cx="9" cy="11" r="2.2"/><path d="M5.6 16.2c.6-1.6 1.9-2.4 3.4-2.4s2.8.8 3.4 2.4M14.5 10h4M14.5 13.5h3"/></ng-container>
       <ng-container *ngSwitchCase="'flag'"><path d="M5.5 21V4"/><path d="M5.5 4.5h11l-2.2 4 2.2 4h-11"/></ng-container>
+      <ng-container *ngSwitchCase="'lista'"><rect x="4.5" y="3.5" width="15" height="17" rx="2.5"/><path d="M8.5 8.5h7M8.5 12h7M8.5 15.5h4"/></ng-container>
       <ng-container *ngSwitchCase="'cart'"><path d="M3 4h2.2l2.3 11h10.8l2-7.5H6.4"/><circle cx="9.5" cy="19" r="1.4"/><circle cx="17" cy="19" r="1.4"/></ng-container>
       <ng-container *ngSwitchCase="'printer'"><path d="M7 9V3.5h10V9"/><rect x="3.5" y="9" width="17" height="8" rx="2"/><path d="M7 14h10v6.5H7z"/></ng-container>
       <ng-container *ngSwitchCase="'chart'"><path d="M4 20h16"/><path d="M7 16v-5M12 16V7M17 16v-8"/></ng-container>
@@ -137,10 +138,10 @@ export class IcoComponent { @Input() n = ''; }
         </button>
         <button class="nav-item" [class.active]="section==='solicitudes'" (click)="irA('solicitudes')">
           <span class="nav-icon"><ico n="shield"></ico></span><span>{{ isAdmin ? 'Autorizaciones' : 'Solicitudes' }}</span>
-          <span class="nav-badge" *ngIf="pendientesBadge > 0">{{ pendientesBadge }}</span>
+          <span class="nav-badge" *ngIf="pendientesBadge - rqPorAtender > 0">{{ pendientesBadge - rqPorAtender }}</span>
         </button>
         <button class="nav-item" [class.active]="section==='requisiciones'" (click)="irA('requisiciones')">
-          <span class="nav-icon"><ico n="cart"></ico></span><span>Requisiciones</span>
+          <span class="nav-icon"><ico n="lista"></ico></span><span>Requisiciones</span>
           <span class="nav-badge" *ngIf="rqPorAtender > 0">{{ rqPorAtender }}</span>
         </button>
         <button class="nav-item" [class.active]="section==='documentos'" (click)="irA('documentos')">
@@ -321,15 +322,15 @@ export class IcoComponent { @Input() n = ''; }
       </div>
 
       <!-- AL INICIAR SESIÓN: OFRECER NOTIFICACIONES -->
-      <div class="modal-backdrop push-preg-fondo" *ngIf="logged && pushPregunta && !bienvenida" (click)="pushPregunta=false">
+      <div class="modal-backdrop push-preg-fondo" *ngIf="logged && pushPregunta && !bienvenida" (click)="cerrarPreguntaPush()">
         <div class="push-preg" (click)="$event.stopPropagation()">
           <span class="push-preg-ico"><ico n="bell"></ico></span>
           <h2>¿Activar notificaciones?</h2>
           <p>{{ isAdmin || canAuthorize ? 'Te avisamos en este celular cuando haya autorizaciones pendientes.' : 'Te avisamos cuando aprueben o rechacen tus solicitudes.' }}</p>
           <p class="push-preg-ios" *ngIf="pushEstado==='instalar-ios'">En iPhone primero instala DOZZER: toca Compartir <b>⬆</b> → <b>Agregar a inicio</b> y ábrela desde ese ícono.</p>
           <div class="push-preg-btns">
-            <button class="btn-outline" (click)="pushPregunta=false">Ahora no</button>
-            <button class="btn-primary" *ngIf="pushEstado==='inactivo'" [disabled]="pushProcesando" (click)="pushPregunta=false; activarPush()">Activar</button>
+            <button class="btn-outline" (click)="cerrarPreguntaPush()">Ahora no</button>
+            <button class="btn-primary" *ngIf="pushEstado==='inactivo'" [disabled]="pushProcesando" (click)="cerrarPreguntaPush(); activarPush()">Activar</button>
           </div>
           <small>Puedes cambiarlo cuando quieras en el menú ☰ → Notificaciones.</small>
         </div>
@@ -756,7 +757,7 @@ export class IcoComponent { @Input() n = ''; }
         <!-- TOPBAR -->
         <header class="topbar">
           <button class="menu-toggle" title="Menú" (click)="menuCollapsed=!menuCollapsed">☰<span class="toggle-badge" *ngIf="pendientesBadge > 0">{{ pendientesBadge }}</span></button>
-          <img class="top-logo" src="logo-dozzer.png" alt="DOZZER">
+          <img class="top-logo" src="logo-dozzer.png" alt="DOZZER" title="Inicio" (click)="irA('inicio')">
           <button class="sync-chip top-sync" *ngIf="(cola.total || !enLinea) && !(section==='anual' && anualVista==='captura')" [ngClass]="'sync-' + estadoSync" (click)="tocarSync()">{{ textoSync }}</button>
         </header>
 
@@ -766,6 +767,22 @@ export class IcoComponent { @Input() n = ''; }
 
 
           <!-- INVENTARIO -->
+          <!-- INICIO: el saludo es la primera vista -->
+          <section *ngIf="section==='inicio'" class="bv ini">
+            <div class="bv-in">
+              <img class="bv-logo" src="logo-dozzer.png" alt="DOZZER Construcción y Asesoría">
+              <span class="bv-chip">{{ saludoHora }} · {{ fechaHoy }}</span>
+              <h1>Hola, {{ primerNombre | titlecase }} <span class="saludo-mano">👋</span></h1>
+              <p>Bienvenido al sistema oficial de inventarios.</p>
+              <button class="btn-primary ini-menu" (click)="menuCollapsed=false"><span>☰</span> ¿A dónde vamos?</button>
+              <div class="ini-pend" *ngIf="rqPorAtender || (pendientesBadge - rqPorAtender) > 0">
+                <button *ngIf="(pendientesBadge - rqPorAtender) > 0" (click)="irA('solicitudes')"><ico n="shield"></ico>{{ pendientesBadge - rqPorAtender }} {{ (pendientesBadge - rqPorAtender) === 1 ? 'autorización pendiente' : 'autorizaciones pendientes' }}</button>
+                <button *ngIf="rqPorAtender" (click)="irA('requisiciones')"><ico n="lista"></ico>{{ rqPorAtender }} {{ rqPorAtender === 1 ? 'requisición por atender' : 'requisiciones por atender' }}</button>
+              </div>
+            </div>
+            <footer class="bv-pie">DOZZER INVENTORY CONTROL SYSTEM · © {{ anioActual }}</footer>
+          </section>
+
           <section *ngIf="section==='bienes'">
 
             <div class="inv-head">
@@ -2836,7 +2853,7 @@ export class IcoComponent { @Input() n = ''; }
             <div class="cal-head">
               <div>
                 <h1>Requisiciones</h1>
-                <p>Pide material o equipo y sigue en qué va: lo autoriza y lo aprueba la administración.</p>
+                <p>Solicita material, equipo o herramienta y sigue en qué va. La administración la autoriza y te llega el aviso.</p>
               </div>
               <button class="btn-primary btn-nuevo" (click)="nuevaRequisicion()"><ico n="plus"></ico><span>Nueva requisición</span></button>
             </div>
@@ -2851,9 +2868,9 @@ export class IcoComponent { @Input() n = ''; }
             <div class="inline-error" *ngIf="rqError">{{ rqError }}</div>
 
             <div class="cal-vacio" *ngIf="!rqCargando && !requisiciones.length && !rqError">
-              <span class="cal-vacio-ico"><ico n="cart"></ico></span>
+              <span class="cal-vacio-ico"><ico n="lista"></ico></span>
               <b>Todavía no hay requisiciones</b>
-              <p>Cuando necesites comprar algo (equipo, mobiliario, herramienta, material…), haz aquí tu requisición. La administración la autoriza y aprueba, y te llega el aviso.</p>
+              <p>Cuando necesites solicitar algo (equipo, mobiliario, herramienta, material…), haz aquí tu requisición. La administración la autoriza y te llega el aviso; ya autorizada, queda en Documentos.</p>
               <button class="btn-primary" (click)="nuevaRequisicion()"><ico n="plus"></ico> Hacer mi primera requisición</button>
             </div>
 
@@ -2910,7 +2927,7 @@ export class IcoComponent { @Input() n = ''; }
 
                   <button class="ver-acta" (click)="verPdfRequisicion(D)">
                     <span class="ver-acta-ico"><ico n="file"></ico></span>
-                    <span class="ver-acta-txt"><b>Ver el formato (PDF)</b><small>Requisición de Compra FA-04-01-02 con sus firmas</small></span>
+                    <span class="ver-acta-txt"><b>Ver el formato (PDF)</b><small>Formato FA-04-01-02 con sus firmas</small></span>
                     <ico class="ver-acta-go" n="chev"></ico>
                   </button>
 
@@ -2961,22 +2978,33 @@ export class IcoComponent { @Input() n = ''; }
                 <div class="modal-header">
                   <div>
                     <h2>Nueva requisición</h2>
-                    <p>Requisición de Compra · FA-04-01-02</p>
+                    <p>Solicitud de material o equipo · FA-04-01-02</p>
                   </div>
                   <button class="close-button" [disabled]="N.guardando" (click)="rqNueva=null">×</button>
                 </div>
                 <div class="form-section">
-                  <!-- Quién la pide (se llena solo) -->
-                  <div class="rq-yo" *ngIf="!N.editarYo">
+                  <!-- Quién la pide: nombre fijo; área y cargo de listas -->
+                  <div class="rq-yo">
                     <span class="adm-av admin">{{ inicialesDe(N.nombre) }}</span>
-                    <span class="rq-yo-txt"><b>{{ N.nombre | titlecase }}</b><small>{{ (N.cargo | titlecase) || 'Sin cargo' }} · {{ (N.area | titlecase) || 'Sin área' }}</small></span>
-                    <button class="btn-outline btn-small" (click)="N.editarYo=true">Cambiar</button>
+                    <span class="rq-yo-txt"><small>Solicita</small><b>{{ N.nombre | titlecase }}</b></span>
                   </div>
-                  <div class="rq-yo-edit" *ngIf="N.editarYo">
-                    <label>Área que lo solicita</label>
-                    <input [(ngModel)]="N.area" placeholder="Ej. Administración">
-                    <label>Tu cargo</label>
-                    <input [(ngModel)]="N.cargo" placeholder="Ej. Jefe administrativo">
+                  <div class="rq-sel2">
+                    <label>Área que lo solicita
+                      <select [(ngModel)]="N.areaSel" (ngModelChange)="cambioAreaRq()">
+                        <option value="" disabled>Elige el área</option>
+                        <option *ngFor="let a of rqOpc.areas" [ngValue]="a">{{ a | titlecase }}</option>
+                        <option value="__otra">Otra…</option>
+                      </select>
+                      <input *ngIf="N.areaSel==='__otra'" [(ngModel)]="N.areaOtra" maxlength="80" placeholder="Escribe el área">
+                    </label>
+                    <label>Cargo del solicitante
+                      <select [(ngModel)]="N.cargoSel">
+                        <option value="" disabled>Elige tu cargo</option>
+                        <option *ngFor="let c of cargosRq" [ngValue]="c">{{ c | titlecase }}</option>
+                        <option value="__otro">Otro…</option>
+                      </select>
+                      <input *ngIf="N.cargoSel==='__otro'" [(ngModel)]="N.cargoOtro" maxlength="80" placeholder="Escribe tu cargo">
+                    </label>
                   </div>
 
                   <div class="ni-paso"><span class="ni-n">1</span><b>¿Para cuándo lo necesitas?</b></div>
@@ -2992,9 +3020,21 @@ export class IcoComponent { @Input() n = ''; }
                     <div class="rqi" *ngFor="let p of N.partidas; let i = index">
                       <div class="rqi-top">
                         <span class="rqp-n">{{ i + 1 }}</span>
-                        <input class="rqi-desc" [(ngModel)]="p.descripcion" (ngModelChange)="sugerirCategoriaRq(p)" maxlength="160" placeholder="Ej. Laptop, silla de oficina, cemento…">
+                        <select class="rqi-desc" [(ngModel)]="p.sel" (ngModelChange)="elegirArticuloRq(p)">
+                          <option value="" disabled>{{ p.categoria ? '¿Qué ' + (nombreCortoRq(p.categoria) | lowercase) + ' necesitas?' : '¿Qué necesitas?' }}</option>
+                          <ng-container *ngIf="p.categoria">
+                            <option *ngFor="let x of articulosRq(p.categoria)" [ngValue]="x.n">{{ x.n | titlecase }}</option>
+                          </ng-container>
+                          <ng-container *ngIf="!p.categoria">
+                            <optgroup *ngFor="let g of gruposArticulosRq" [label]="g.t">
+                              <option *ngFor="let x of g.items" [ngValue]="x.n">{{ x.n | titlecase }}</option>
+                            </optgroup>
+                          </ng-container>
+                          <option value="__otro">Otro (escribir)…</option>
+                        </select>
                         <button class="wp-x" *ngIf="N.partidas.length > 1" title="Quitar" (click)="N.partidas.splice(i, 1)"><ico n="x"></ico></button>
                       </div>
+                      <input *ngIf="p.sel==='__otro'" class="rqi-otro" [(ngModel)]="p.descripcion" (ngModelChange)="sugerirCategoriaRq(p)" maxlength="160" placeholder="Escribe qué necesitas">
                       <div class="rqi-fila">
                         <div class="rqi-cant">
                           <button (click)="p.cantidad = mathMax(1, (+p.cantidad || 1) - 1)">−</button>
@@ -3006,7 +3046,7 @@ export class IcoComponent { @Input() n = ''; }
                         </select>
                       </div>
                       <div class="rqi-cats">
-                        <button *ngFor="let c of categoriasRq" [class.on]="p.categoria===c.k" [title]="c.t" (click)="p.categoria=c.k; p.catManual=true"><b>{{ c.k }}</b>{{ c.corto }}</button>
+                        <button *ngFor="let c of categoriasRq" [class.on]="p.categoria===c.k" [title]="c.t" (click)="elegirCategoriaRq(p, c.k)"><b>{{ c.k }}</b>{{ c.corto }}</button>
                       </div>
                       <button class="lev-more" *ngIf="!p.verObs && !p.observaciones" (click)="p.verObs=true">＋ Agregar una observación</button>
                       <input *ngIf="p.verObs || p.observaciones" [(ngModel)]="p.observaciones" maxlength="160" placeholder="Observaciones (ej. para el personal del tramo III)">
@@ -3042,7 +3082,7 @@ export class IcoComponent { @Input() n = ''; }
             <div class="inv-head">
               <div>
                 <button class="inv-back" *ngIf="docsVista!=='menu'" (click)="docsVista='menu'; docsBusqueda=''">← Documentos</button>
-                <h1>{{ docsVista==='menu' ? 'Documentos' : (docsVista==='ALTA' ? 'Formatos de alta' : docsVista==='BAJA' ? 'Formatos de baja' : docsVista==='RESGUARDO' ? 'Resguardos individuales' : 'Actas de inventario') }}</h1>
+                <h1>{{ docsVista==='menu' ? 'Documentos' : (docsVista==='ALTA' ? 'Formatos de alta' : docsVista==='BAJA' ? 'Formatos de baja' : docsVista==='RESGUARDO' ? 'Resguardos individuales' : docsVista==='REQUISICION' ? 'Requisiciones autorizadas' : 'Actas de inventario') }}</h1>
                 <p class="inv-resumen">
                   {{ isAdmin || canAuthorize ? 'Formatos autorizados de tu sede.' : 'Tus formatos autorizados.' }}
                   Se generan solos al autorizar y se abren aquí mismo.
@@ -3083,6 +3123,12 @@ export class IcoComponent { @Input() n = ''; }
                 <span class="tile-num">{{ docsCargando && !documentosLista.length ? '…' : conteoActas }}<em>actas</em></span>
                 <span class="tile-go">Ver actas →</span>
               </button>
+              <button class="inv-tile t-alta" (click)="docsVista='REQUISICION'">
+                <span class="tile-ico"><ico n="lista"></ico></span>
+                <span class="tile-text"><strong>Requisiciones</strong><small>Formato FA-04-01-02 · ya autorizadas</small></span>
+                <span class="tile-num">{{ docsCargando && !documentosLista.length ? '…' : conteoDocs('REQUISICION') }}<em>requisiciones</em></span>
+                <span class="tile-go">Ver requisiciones →</span>
+              </button>
               <div class="inv-tile t-transfer disabled">
                 <span class="tile-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h13l-3-3M20 16H7l3 3"/></svg></span>
                 <span class="tile-text"><strong>Transferencia</strong><small>Cambio de ubicación o responsable</small></span>
@@ -3121,6 +3167,7 @@ export class IcoComponent { @Input() n = ''; }
                       <span class="doc-estado borrador" *ngIf="d.estado==='BORRADOR'">BORRADOR</span>
                       <span class="doc-estado" *ngIf="d.estado==='HISTORICO'">HISTÓRICO</span>
                       <span class="doc-firma" *ngIf="(d.tipo==='ALTA' || d.tipo==='BAJA') && d.estado!=='ANULADO'" [class.ok]="d.firmado">{{ d.firmado ? '✓ Firmado' : 'Sin firmar' }}</span>
+                      <span class="doc-firma" *ngIf="d.tipo==='REQUISICION'" [class.ok]="d.estado==='APROBADA'">{{ d.estado==='APROBADA' ? '✓ Aprobada' : 'Autorizada · falta aprobar' }}</span>
                     </span>
                     <ng-container *ngIf="d.tipo==='RESGUARDO'">
                       <strong>{{ d.persona }}</strong>
@@ -3141,7 +3188,7 @@ export class IcoComponent { @Input() n = ''; }
                   </span>
                 </button>
                 <div class="inv-empty" *ngIf="!documentosFiltrados.length && !docsCargando">
-                  {{ docsBusqueda ? 'Ningún documento coincide con la búsqueda.' : docsVista==='RESGUARDO' ? 'Aún no hay resguardos. Se arman solos durante el levantamiento de inventario con los bienes revisados de cada persona.' : (docsVista==='ACTAS' ? 'Aún no hay actas. Se generan al iniciar y al cerrar un inventario anual.' : 'Aún no hay formatos de ' + (docsVista==='ALTA' ? 'alta' : 'baja') + '. Se generan solos cuando se autoriza un movimiento.') }}
+                  {{ docsBusqueda ? 'Ningún documento coincide con la búsqueda.' : docsVista==='REQUISICION' ? 'Aún no hay requisiciones autorizadas. Aparecen aquí en cuanto la administración autoriza una.' : docsVista==='RESGUARDO' ? 'Aún no hay resguardos. Se arman solos durante el levantamiento de inventario con los bienes revisados de cada persona.' : (docsVista==='ACTAS' ? 'Aún no hay actas. Se generan al iniciar y al cerrar un inventario anual.' : 'Aún no hay formatos de ' + (docsVista==='ALTA' ? 'alta' : 'baja') + '. Se generan solos cuando se autoriza un movimiento.') }}
                 </div>
               </div>
             </div>
@@ -3645,7 +3692,21 @@ export class IcoComponent { @Input() n = ''; }
       .res-resp button{grid-template-columns:90px 1fr 40px}
       .rp-body{padding-left:14px}
     }
+    /* Inicio (saludo fijo) */
+    .bv.ini{position:relative;inset:auto;z-index:auto;cursor:default;min-height:calc(100vh - 150px);min-height:calc(100dvh - 150px);border-radius:24px;padding:40px 20px 70px}
+    .ini-menu{margin-top:30px;display:inline-flex;align-items:center;gap:10px;font-size:16px!important;padding:14px 26px!important;border-radius:999px!important;animation:fadeUp .6s .34s ease both;box-shadow:0 10px 24px #244c7833}
+    .ini-menu span{font-size:18px}
+    .ini-pend{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:18px;animation:fadeUp .6s .42s ease both}
+    .ini-pend button{display:inline-flex;align-items:center;gap:7px;border:1.5px solid #f0c98a;background:#fff8ec;color:#8a5a12;border-radius:999px;padding:8px 14px;font-weight:700;font-size:13.5px;cursor:pointer;font-family:inherit}
+    .ini-pend ico{width:16px;height:16px}
+    .top-logo{cursor:pointer}
     /* Requisiciones */
+    .rq-sel2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+    .rq-sel2 label{display:flex;flex-direction:column;gap:6px;font-size:13px!important;font-weight:700;color:#41546b;margin:0!important}
+    .rq-sel2 select,.rq-sel2 input{margin:0!important}
+    select.rqi-desc{height:46px;font-weight:600}
+    .rqi-otro{margin:0!important}
+    @media(max-width:700px){.rq-sel2{grid-template-columns:1fr}}
     .rq-tabs{display:flex;gap:6px;background:#e9eef5;border-radius:999px;padding:4px;align-self:flex-start;margin-bottom:14px;max-width:100%;overflow-x:auto}
     .rq-tabs button{border:0;background:transparent;border-radius:999px;padding:8px 14px;font-weight:600;font-size:13.5px;color:#55667b;cursor:pointer;font-family:inherit;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
     .rq-tabs button b{font-size:12px;background:#d8e1ec;color:#41546b;border-radius:999px;padding:1px 7px}
@@ -5082,7 +5143,7 @@ export class AppComponent {
   private camTimer: any = null;
 
   // Pantalla de Documentos
-  docsVista: 'menu' | 'ALTA' | 'BAJA' | 'ACTAS' | 'RESGUARDO' = 'menu';
+  docsVista: 'menu' | 'ALTA' | 'BAJA' | 'ACTAS' | 'RESGUARDO' | 'REQUISICION' = 'menu';
   documentosLista: any[] = [];
   docsCargando = false;
   docsError = '';
@@ -5818,9 +5879,12 @@ export class AppComponent {
         this.login.password = '';
         if (!this.mustChangePassword) {
           try { localStorage.removeItem('dozzer_ui_' + this.email); } catch { /* */ }
-          this.section = 'bienes'; this.vistaInv = 'bienes'; this.origenVistaInv = 'menu';
-          this.loadAll(); this.mostrarBienvenida(true);
-          this.ofrecerAvisos(0);
+          this.section = 'inicio'; this.vistaInv = 'bienes'; this.origenVistaInv = 'menu';
+          try { localStorage.setItem('dozzer_saludo_' + this.email, String(Date.now())); } catch { /* */ }
+          this.loadAll();
+          // El saludo se queda de fondo y el menú se abre solo para elegir a dónde ir
+          this.menuCollapsed = true;
+          this.despuesDelSaludo(0);
         }
       },
       error: e => {
@@ -5887,6 +5951,7 @@ export class AppComponent {
   irA(s: string): void {
     this.menuCollapsed = true;
     this.editing = false;
+    if (s === 'inicio') { this.section = 'inicio'; return; }
     if (s === 'bienes') { this.section = 'bienes'; this.abrirVistaInv('bienes'); this.loadBienes(); return; }
     if (s === 'anual') {
       this.section = 'anual';
@@ -5952,6 +6017,24 @@ export class AppComponent {
     this.bienvenidaTimer = setTimeout(() => this.bienvenida = false, 3200);
   }
 
+  // Tras el saludo: primero (si hace falta) la pregunta de avisos; al cerrarla, se abre el menú
+  private menuTrasAvisos = false;
+
+  private despuesDelSaludo(intento: number): void {
+    setTimeout(() => {
+      if (!this.logged || this.mustChangePassword) return;
+      if (this.pushEstado === 'cargando' && intento < 10) { this.despuesDelSaludo(intento + 1); return; }
+      if (this.pushEstado === 'inactivo' || this.pushEstado === 'instalar-ios') { this.menuTrasAvisos = true; this.pushPregunta = true; return; }
+      if (this.section === 'inicio') this.menuCollapsed = false;
+    }, intento === 0 ? 1600 : 400);
+  }
+
+  cerrarPreguntaPush(): void {
+    this.pushPregunta = false;
+    if (this.menuTrasAvisos && this.section === 'inicio') setTimeout(() => this.menuCollapsed = false, 250);
+    this.menuTrasAvisos = false;
+  }
+
   // Al iniciar sesión se ofrecen los avisos (si este dispositivo aún no los tiene)
   private ofrecerAvisos(intento: number): void {
     setTimeout(() => {
@@ -5987,11 +6070,11 @@ export class AppComponent {
     let ui: any = null;
     try { ui = JSON.parse(localStorage.getItem('dozzer_ui_' + this.email) || 'null'); } catch { ui = null; }
     if (!ui || typeof ui !== 'object') return;
-    const permitidas = ['bienes', 'solicitudes', 'documentos', 'requisiciones']
+    const permitidas = ['inicio', 'bienes', 'solicitudes', 'documentos', 'requisiciones']
       .concat(this.verInventarioAnual ? ['anual'] : [], this.isAdmin ? ['catalogos'] : [], this.isAdmin || this.canAuthorize ? ['calibracion'] : []);
     if (permitidas.includes(ui.s)) this.section = ui.s;
     if (['bienes', 'personas', 'completo'].includes(ui.v) || (ui.v === 'sedes' && this.isAdmin)) this.vistaInv = ui.v;
-    if (this.section === 'documentos' && ['menu', 'ALTA', 'BAJA', 'ACTAS', 'RESGUARDO'].includes(ui.d)) { this.docsVista = ui.d; this.loadDocumentos(); }
+    if (this.section === 'documentos' && ['menu', 'ALTA', 'BAJA', 'ACTAS', 'RESGUARDO', 'REQUISICION'].includes(ui.d)) { this.docsVista = ui.d; this.loadDocumentos(); }
     if (this.section === 'requisiciones') this.loadRequisiciones();
     if (ui.f && typeof ui.f === 'object' && !ui.f.idBien) {
       this.bien = ui.f; this.bienOriginal = null; this.formMas = true; this.editing = true;
@@ -6253,7 +6336,7 @@ export class AppComponent {
 
   get pendientesBadge(): number {
     const solicitudes = this.vistaSolicitudes === 'autorizacion' ? this.conteoSolicitudes('PENDIENTE') : 0;
-    return solicitudes;
+    return solicitudes + this.rqPorAtender;
   }
 
   get solicitudesFiltradas(): any[] {
@@ -7455,9 +7538,68 @@ export class AppComponent {
     return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
   }
 
+  rqOpc: { areas: string[]; cargos: { nombre: string; area: string }[]; articulos: { n: string; c: string }[] } = { areas: [], cargos: [], articulos: [] };
+
+  private cargarOpcionesRq(): void {
+    if (this.rqOpc.areas.length || this.rqOpc.articulos.length) return;
+    this.http.get<any>(this.api + '/requisiciones/opciones').subscribe({
+      next: o => { this.rqOpc = { areas: o?.areas || [], cargos: o?.cargos || [], articulos: o?.articulos || [] }; this.ajustarYoRq(); },
+      error: () => { if (this.rqNueva) { this.rqNueva.sinListas = true; this.ajustarYoRq(); } }
+    });
+  }
+
+  // Cargos del área elegida primero; si el área no tiene, todos
+  get cargosRq(): string[] {
+    const n = this.rqNueva;
+    const area = n && n.areaSel !== '__otra' ? String(n.areaSel || '').toUpperCase() : '';
+    const del = this.rqOpc.cargos.filter(c => area && String(c.area).toUpperCase() === area).map(c => c.nombre);
+    const todos = Array.from(new Set(this.rqOpc.cargos.map(c => c.nombre)));
+    const lista = del.length ? Array.from(new Set(del)) : todos;
+    if (n?.cargoSel && n.cargoSel !== '__otro' && !lista.includes(n.cargoSel)) lista.unshift(n.cargoSel);
+    return lista;
+  }
+
+  cambioAreaRq(): void {
+    const n = this.rqNueva;
+    if (n.cargoSel && n.cargoSel !== '__otro' && !this.cargosRq.includes(n.cargoSel)) n.cargoSel = '';
+  }
+
+  // Lo que viene del perfil se elige en las listas (o va a "Otra…" si no está)
+  private ajustarYoRq(): void {
+    const n = this.rqNueva;
+    if (!n || (!this.rqOpc.areas.length && !n.sinListas)) return;
+    const enLista = (v: string, l: string[]) => l.find(x => x.toUpperCase() === String(v || '').toUpperCase());
+    if (n.area && !n.areaSel) { const a = enLista(n.area, this.rqOpc.areas); n.areaSel = a || '__otra'; if (!a) n.areaOtra = n.area; }
+    if (n.cargo && !n.cargoSel) { const c = enLista(n.cargo, this.rqOpc.cargos.map(x => x.nombre)); n.cargoSel = c || '__otro'; if (!c) n.cargoOtro = n.cargo; }
+  }
+
+  articulosRq(cat: string): { n: string; c: string }[] {
+    return this.rqOpc.articulos.filter(a => a.c === cat);
+  }
+
+  get gruposArticulosRq(): { t: string; items: any[] }[] {
+    return this.categoriasRq.map(c => ({ t: c.t, items: this.articulosRq(c.k) })).filter(g => g.items.length);
+  }
+
+  nombreCortoRq(k: string): string { return this.categoriasRq.find(c => c.k === k)?.corto || ''; }
+
+  elegirCategoriaRq(p: any, k: string): void {
+    p.categoria = k; p.catManual = true;
+    if (p.sel && p.sel !== '__otro' && !this.articulosRq(k).some(a => a.n === p.sel)) { p.sel = ''; p.descripcion = ''; }
+  }
+
+  elegirArticuloRq(p: any): void {
+    if (p.sel === '__otro') { p.descripcion = ''; return; }
+    p.descripcion = p.sel;
+    const a = this.rqOpc.articulos.find(x => x.n === p.sel);
+    if (a) { p.categoria = a.c; p.catManual = true; }
+  }
+
   nuevaRequisicion(): void {
+    this.cargarOpcionesRq();
     this.rqNueva = {
       nombre: this.nombreUsuario || this.email, cargo: '', area: '', editarYo: false,
+      areaSel: '', areaOtra: '', cargoSel: '', cargoOtro: '',
       fechaRequerida: this.fechaEnDias(7),
       partidas: [this.partidaVaciaRq()],
       trazos: {}, usarGuardada: !!this.firmaGuardada, recordar: !this.firmaGuardada, papel: false,
@@ -7470,19 +7612,19 @@ export class AppComponent {
         n.nombre = r.nombre || n.nombre;
         if (!n.cargo) n.cargo = r.cargo || '';
         if (!n.area) n.area = r.area || '';
-        if (!n.cargo || !n.area) n.editarYo = true;
+        this.ajustarYoRq();
       },
-      error: () => { n.editarYo = true; }
+      error: () => { /* se eligen a mano */ }
     });
   }
 
   private partidaVaciaRq(): any {
-    return { descripcion: '', categoria: '', catManual: false, cantidad: 1, unidad: 'PZA', observaciones: '', verObs: false };
+    return { sel: '', descripcion: '', categoria: '', catManual: false, cantidad: 1, unidad: 'PZA', observaciones: '', verObs: false };
   }
 
   agregarPartidaRq(): void {
     this.rqNueva.partidas.push(this.partidaVaciaRq());
-    setTimeout(() => { const l = document.querySelectorAll('.rqi-desc'); (l[l.length - 1] as HTMLInputElement)?.focus(); }, 50);
+
   }
 
   // Mientras escriben qué es, se propone la categoría (la pueden cambiar)
@@ -7505,10 +7647,13 @@ export class AppComponent {
     const n = this.rqNueva;
     if (!n || n.guardando) return;
     n.error = '';
-    if (!String(n.area || '').trim() || !String(n.cargo || '').trim()) { n.editarYo = true; n.error = 'Escribe tu área y tu cargo.'; return; }
+    n.area = n.areaSel === '__otra' ? String(n.areaOtra || '').trim() : n.areaSel;
+    n.cargo = n.cargoSel === '__otro' ? String(n.cargoOtro || '').trim() : n.cargoSel;
+    if (!String(n.area || '').trim()) { n.error = 'Elige el área que lo solicita.'; return; }
+    if (!String(n.cargo || '').trim()) { n.error = 'Elige tu cargo.'; return; }
     if (!n.fechaRequerida) { n.error = 'Elige para cuándo lo necesitas.'; return; }
     const partidas = n.partidas.filter((p: any) => String(p.descripcion || '').trim());
-    if (!partidas.length) { n.error = 'Escribe al menos una cosa que necesites.'; return; }
+    if (!partidas.length) { n.error = 'Elige al menos una cosa que necesites.'; return; }
     const sinCat = partidas.find((p: any) => !p.categoria);
     if (sinCat) { n.error = 'Elige la categoría de "' + sinCat.descripcion + '".'; return; }
     const malaCant = partidas.find((p: any) => !(+p.cantidad > 0));
@@ -7529,7 +7674,7 @@ export class AppComponent {
         this.rqNueva = null;
         this.rqVista = 'tramite';
         this.loadRequisiciones();
-        this.notificar('exito', 'Requisición enviada', r.folio + ' · La administración ya tiene el aviso. Aquí verás cuando la autoricen.', 3500);
+        this.notificar('exito', 'Requisición enviada', r.folio + ' · La administración ya tiene el aviso. Te avisamos cuando la autoricen.', 3500);
       },
       error: e => { n.guardando = false; n.error = this.mensajeError(e, 'No se pudo enviar la requisición.'); }
     });
@@ -10051,7 +10196,7 @@ export class AppComponent {
       next: r => {
         this.abriendoDocumento = null;
         this.docGenerando = false;
-        this.abrirFormato({ ...(r.datos || {}), idDocumento: r.idDocumento ?? id, anulado: r.estado === 'ANULADO', borrador: r.estado === 'BORRADOR',
+        this.abrirFormato({ ...(r.datos || {}), tipo: (r.datos || {}).tipo || r.tipo, estadoRq: r.estado, idDocumento: r.idDocumento ?? id, anulado: r.estado === 'ANULADO', borrador: r.estado === 'BORRADOR',
                             historico: r.estado === 'HISTORICO' } as FormatoDoc);
       },
       error: e => {
