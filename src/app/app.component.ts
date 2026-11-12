@@ -130,6 +130,10 @@ export class IcoComponent { @Input() n = ''; }
         <button class="nav-item" *ngIf="verInventarioAnual" [class.active]="section==='anual'" (click)="irA('anual')">
           <span class="nav-icon"><ico n="clipboard"></ico></span><span>Inventario</span>
         </button>
+        <button class="nav-item" *ngIf="isAdmin || canAuthorize" [class.active]="section==='calibracion'" (click)="irA('calibracion')">
+          <span class="nav-icon"><ico n="gauge"></ico></span><span>Calibración</span>
+          <span class="nav-badge" *ngIf="alertasCM.vencidas + alertasCM.proximas > 0">{{ alertasCM.vencidas + alertasCM.proximas }}</span>
+        </button>
         <button class="nav-item" [class.active]="section==='solicitudes'" (click)="irA('solicitudes')">
           <span class="nav-icon"><ico n="shield"></ico></span><span>{{ isAdmin ? 'Autorizaciones' : 'Solicitudes' }}</span>
           <span class="nav-badge" *ngIf="pendientesBadge > 0">{{ pendientesBadge }}</span>
@@ -747,7 +751,7 @@ export class IcoComponent { @Input() n = ''; }
               </div>
             </div>
 
-            <button class="cm-banner" *ngIf="(isAdmin || canAuthorize) && (alertasCM.vencidas || alertasCM.proximas) && vistaInv!=='completo'" (click)="verAlertasCM('atencion')">
+            <button class="cm-banner" *ngIf="(isAdmin || canAuthorize) && (alertasCM.vencidas || alertasCM.proximas) && vistaInv!=='completo'" (click)="irA('calibracion'); calFiltro = alertasCM.vencidas ? 'vencida' : 'proxima'">
               <span class="cm-banner-ico">🛠</span>
               <span>
                 <b *ngIf="alertasCM.vencidas">{{ alertasCM.vencidas }} con calibración o mantenimiento vencido</b>
@@ -1790,12 +1794,6 @@ export class IcoComponent { @Input() n = ''; }
               <div class="inline-error" *ngIf="av.error">{{ av.error }}</div>
 
               <ng-container *ngIf="!av.cargando">
-                <div class="av-aviso etq-aviso" *ngIf="av.enCaptura && cap?.etiquetaPorAsignar">
-                  <b>🏷 Etiqueta nueva {{ cap.etiquetaPorAsignar }}</b>
-                  <span>Toca el bien al que se la pegaste.</span>
-                  <button class="btn-primary btn-small" (click)="nuevoConEtiqueta()">＋ Es un bien nuevo</button>
-                  <button class="btn-outline btn-small" (click)="cap.etiquetaPorAsignar=null; cerrarAvance()">Cancelar</button>
-                </div>
                 <div class="av-aviso" *ngIf="av.antesDeCerrar">
                   <b>Antes de cerrar: faltan {{ av.vista.cuentas.pendientes | number }} bienes por revisar.</b>
                   <span>Revísalos por persona o por área. Si cierras así, quedarán como "no localizados" en el acta.</span>
@@ -2028,12 +2026,6 @@ export class IcoComponent { @Input() n = ''; }
 
                 <!-- Checklist de la persona: sus bienes, primero los pendientes -->
                 <div class="chk" *ngIf="esChecklist">
-                  <div class="av-aviso etq-aviso" *ngIf="cap.etiquetaPorAsignar">
-                    <b>🏷 Etiqueta nueva {{ cap.etiquetaPorAsignar }}</b>
-                    <span>Toca el bien al que se la pegaste.</span>
-                    <button class="btn-primary btn-small" (click)="nuevoConEtiqueta()">＋ Es un bien nuevo</button>
-                    <button class="btn-outline btn-small" (click)="cap.etiquetaPorAsignar=null">Cancelar</button>
-                  </div>
                   <div class="chk-head">
                     <strong>{{ cap.grupo.modo==='persona' ? 'Bienes de ' + nombreCorto(cap.grupo.nombre) : cap.grupo.nombre }}</strong>
                     <small>{{ hechosGrupo }} de {{ bienesGrupo.length }}</small>
@@ -2367,83 +2359,293 @@ export class IcoComponent { @Input() n = ''; }
               </div>
             </div>
 
+            <!-- Etiqueta en blanco escaneada: ¿de qué bien es? -->
+            <div class="modal-backdrop etq-sel-fondo" *ngIf="cap?.etiquetaPorAsignar && section==='anual'">
+              <div class="modal-card etq-sel">
+                <div class="es-top">
+                  <span class="es-qr"><ico n="qr"></ico></span>
+                  <div>
+                    <small>Etiqueta escaneada</small>
+                    <b>{{ cap.etiquetaPorAsignar }}</b>
+                  </div>
+                  <button class="close-button" (click)="cap.etiquetaPorAsignar=null">×</button>
+                </div>
+                <h3 class="es-q">¿A qué bien se la pegaste?</h3>
+                <div class="es-tabs" *ngIf="cap.grupo">
+                  <button [class.on]="etqAlcance==='grupo'" (click)="etqAlcance='grupo'">{{ cap.grupo.modo==='persona' ? 'De ' + nombreCorto(cap.grupo.nombre) : (cap.grupo.nombre | titlecase) }}</button>
+                  <button [class.on]="etqAlcance==='sede'" (click)="etqAlcance='sede'">Toda la sede</button>
+                </div>
+                <div class="cal-buscar en-hoja">
+                  <ico n="search"></ico>
+                  <input [(ngModel)]="etqBusqueda" placeholder="Buscar por nombre, clave o serie">
+                </div>
+                <div class="es-lista">
+                  <button class="es-item" *ngFor="let b of etqCandidatos; trackBy: trackBien" (click)="asignarEtiquetaCap(cap.etiquetaPorAsignar, b)">
+                    <span class="es-ico" [class.hecho]="b.estatus"><ico [n]="b.estatus ? 'check' : 'box'"></ico></span>
+                    <span class="ce-main">
+                      <b>{{ (b.articulo | titlecase) || 'Bien sin nombre' }}</b>
+                      <small>{{ b.clave }}<ng-container *ngIf="etqAlcance==='sede' || !cap.grupo"> · {{ ((cap.grupo?.modo==='persona' ? b.ubicacion : b.persona) || b.ubicacion || '') | titlecase }}</ng-container><ng-container *ngIf="b.numero_serie"> · S/N {{ b.numero_serie }}</ng-container></small>
+                    </span>
+                    <span class="es-go">Es este</span>
+                  </button>
+                  <p class="cal-hint" *ngIf="!etqCandidatos.length">
+                    {{ etqBusqueda ? 'Ningún bien sin etiqueta coincide.' : 'Todos los bienes de aquí ya tienen etiqueta.' }}
+                    <button class="link-button inline" *ngIf="etqAlcance==='grupo'" (click)="etqAlcance='sede'">Buscar en toda la sede</button>
+                  </p>
+                  <p class="es-mas" *ngIf="etqTotal > etqCandidatos.length">Hay {{ etqTotal - etqCandidatos.length }} más; escribe para encontrarlo.</p>
+                </div>
+                <div class="es-pie">
+                  <button class="btn-outline" (click)="nuevoConEtiqueta()"><ico n="plus"></ico> Es un bien nuevo</button>
+                  <button class="link-button" (click)="cap.etiquetaPorAsignar=null">Cancelar</button>
+                </div>
+              </div>
+            </div>
+
             <!-- ===== Asistente: nuevo levantamiento ===== -->
             <div class="modal-backdrop" *ngIf="levNuevo">
-              <div class="modal-card wizard">
+              <div class="modal-card wizard ni">
                 <div class="modal-header">
                   <div>
                     <h2>Nuevo inventario</h2>
-                    <p>Paso {{ levNuevo.paso }} de 4 · {{ ['Sede', 'Lugar', 'Personas', 'Pregunta'][levNuevo.paso - 1] }}</p>
+                    <p>Elige la sede y quién captura; lo demás ya viene listo.</p>
                   </div>
                   <button class="close-button" [disabled]="levGuardando" (click)="levNuevo=null">×</button>
                 </div>
-                <div class="wiz-steps"><span *ngFor="let n of [1,2,3,4]" [class.on]="levNuevo.paso>=n"></span></div>
 
-                <div class="form-section" *ngIf="levNuevo.paso===1">
-                  <label>Sede</label>
-                  <select [(ngModel)]="levNuevo.idSede" (ngModelChange)="cargarCandidatos(); ponerDireccionSede()">
-                    <option [ngValue]="null">Selecciona la sede</option>
-                    <option *ngFor="let s of activos(catalogs.sedes, levNuevo.idSede, 'id_sede')" [ngValue]="s.id_sede">{{ s.nombre_sede }}</option>
-                  </select>
-                  <label>Año del inventario</label>
-                  <input type="number" [(ngModel)]="levNuevo.anio" min="2020" max="2100">
-                  <label>Semestre</label>
-                  <div class="cap-options">
-                    <button type="button" [class.on]="levNuevo.periodo===1" (click)="levNuevo.periodo=1">1.er semestre</button>
-                    <button type="button" [class.on]="levNuevo.periodo===2" (click)="levNuevo.periodo=2">2.º semestre</button>
+                <div class="form-section">
+                  <div class="ni-paso" [class.listo]="levNuevo.idSede"><span class="ni-n"><ico *ngIf="levNuevo.idSede" n="check"></ico><ng-container *ngIf="!levNuevo.idSede">1</ng-container></span><b>¿Qué sede vas a inventariar?</b></div>
+                  <div class="ni-sedes" *ngIf="!levNuevo.idSede">
+                    <button class="ni-sede" *ngFor="let x of sedesParaInventario" [disabled]="x.ocupada" (click)="elegirSedeLev(x.s)">
+                      <span class="ni-sede-ico"><ico n="building"></ico></span>
+                      <span class="ni-sede-txt"><b>{{ x.s.nombre_sede | titlecase }}</b><small>{{ x.ocupada ? 'Ya tiene un inventario en curso' : (x.total | number) + ' bienes' }}</small></span>
+                      <ico class="ni-sede-go" n="chev"></ico>
+                    </button>
                   </div>
-                </div>
+                  <div class="ni-elegida" *ngIf="levNuevo.idSede">
+                    <span class="ni-sede-ico"><ico n="building"></ico></span>
+                    <span class="ni-sede-txt"><b>{{ nombreSedeLev | titlecase }}</b><small>Inventario {{ levNuevo.anio }} · {{ levNuevo.periodo===1 ? '1.er' : '2.º' }} semestre</small></span>
+                    <button class="btn-outline btn-small" [disabled]="levGuardando" (click)="levNuevo.idSede=null; levNuevo.idUsuarioCapturista=null; candidatos=[]">Cambiar</button>
+                  </div>
 
-                <div class="form-section" *ngIf="levNuevo.paso===2">
-                  <label>Ciudad</label>
-                  <input [(ngModel)]="levNuevo.ciudad" placeholder="Ej. Celaya, Guanajuato">
-                  <label>Dirección</label>
-                  <textarea rows="2" [(ngModel)]="levNuevo.direccion"></textarea>
-                </div>
-
-                <div class="form-section" *ngIf="levNuevo.paso===3">
-                  <label>¿Quién va a capturar con el celular?</label>
-                  <select [(ngModel)]="levNuevo.idUsuarioCapturista">
-                    <option [ngValue]="null">{{ candidatos.length ? 'Selecciona una persona' : 'Cargando…' }}</option>
-                    <option *ngFor="let c of candidatos" [ngValue]="c.idUsuario">{{ c.nombre }} · {{ c.rol }}</option>
-                  </select>
-                  <label>Participantes del acta <span class="muted">(observan y firman)</span></label>
-                  <div class="wp-lista">
-                    <div class="wp" *ngFor="let p of levNuevo.participantes; let i = index">
-                      <span class="wp-av">{{ inicialesDe(p.nombre) || (i + 1) }}</span>
-                      <div class="wp-campos">
-                        <input [(ngModel)]="p.nombre" placeholder="Nombre completo">
-                        <input [(ngModel)]="p.cargo" placeholder="Cargo (ej. Jefe de inventarios)">
-                      </div>
-                      <button class="wp-x" type="button" title="Quitar" (click)="levNuevo.participantes.splice(i, 1)"><ico n="x"></ico></button>
+                  <ng-container *ngIf="levNuevo.idSede">
+                    <div class="ni-paso" [class.listo]="levNuevo.idUsuarioCapturista"><span class="ni-n"><ico *ngIf="levNuevo.idUsuarioCapturista" n="check"></ico><ng-container *ngIf="!levNuevo.idUsuarioCapturista">2</ng-container></span><b>¿Quién va a capturar con el celular?</b></div>
+                    <div class="ni-personas">
+                      <span class="cal-hint" *ngIf="!candidatos.length && !levError">Cargando personas…</span>
+                      <button class="ni-per" *ngFor="let c of candidatos" [class.on]="levNuevo.idUsuarioCapturista===c.idUsuario" (click)="levNuevo.idUsuarioCapturista=c.idUsuario">
+                        <span class="adm-av" [class.admin]="levNuevo.idUsuarioCapturista===c.idUsuario">{{ inicialesDe(c.nombre || c.correo) }}</span>
+                        <span><b>{{ (nombreCorto(c.nombre) | titlecase) || c.correo }}</b><small>{{ esYo(c) ? 'Tú' : c.rol }}</small></span>
+                      </button>
                     </div>
-                  </div>
-                  <button class="wp-add" type="button" *ngIf="levNuevo.participantes.length < 8" (click)="levNuevo.participantes.push({ nombre: '', cargo: '' })"><ico n="plus"></ico> Agregar participante</button>
-                </div>
 
-                <div class="form-section" *ngIf="levNuevo.paso===4">
-                  <label>Pregunta para cada bien</label>
-                  <input [(ngModel)]="levNuevo.pregunta.texto">
-                  <label>Respuestas</label>
-                  <div class="wiz-ops">
-                    <span *ngFor="let o of levNuevo.pregunta.opciones; let i = index">{{ o }}<button (click)="levNuevo.pregunta.opciones.splice(i, 1)" *ngIf="levNuevo.pregunta.opciones.length > 2">×</button></span>
-                  </div>
-                  <div class="mail-add" *ngIf="levNuevo.pregunta.opciones.length < 6">
-                    <input [(ngModel)]="levNuevo.nuevaOpcion" placeholder="Otra respuesta" (keyup.enter)="agregarOpcion()">
-                    <button class="btn-outline" (click)="agregarOpcion()">Agregar</button>
-                  </div>
-                  <div class="wiz-summary">
-                    Al crear se genera el <b>Acta de inicio</b> y queda guardada en Documentos.
-                  </div>
+                    <div class="ni-paso listo"><span class="ni-n"><ico n="check"></ico></span><b>Ya está listo · revisa si quieres</b></div>
+                    <div class="ni-res">
+                      <div class="ni-fila" [class.abierta]="levNuevo.editar==='periodo'">
+                        <button class="ni-fila-top" (click)="levNuevo.editar = levNuevo.editar==='periodo' ? '' : 'periodo'">
+                          <ico n="calendar"></ico><span><small>Periodo</small>{{ levNuevo.anio }} · {{ levNuevo.periodo===1 ? '1.er' : '2.º' }} semestre</span><em>{{ levNuevo.editar==='periodo' ? 'Listo' : 'Cambiar' }}</em>
+                        </button>
+                        <div class="ni-fila-body" *ngIf="levNuevo.editar==='periodo'">
+                          <input type="number" [(ngModel)]="levNuevo.anio" min="2020" max="2100">
+                          <div class="cap-options">
+                            <button type="button" [class.on]="levNuevo.periodo===1" (click)="levNuevo.periodo=1">1.er semestre</button>
+                            <button type="button" [class.on]="levNuevo.periodo===2" (click)="levNuevo.periodo=2">2.º semestre</button>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="ni-fila" [class.abierta]="levNuevo.editar==='lugar'">
+                        <button class="ni-fila-top" (click)="levNuevo.editar = levNuevo.editar==='lugar' ? '' : 'lugar'">
+                          <ico n="pin"></ico><span><small>Lugar del acta</small>{{ levNuevo.ciudad || 'Falta la ciudad' }}</span><em>{{ levNuevo.editar==='lugar' ? 'Listo' : 'Cambiar' }}</em>
+                        </button>
+                        <div class="ni-fila-body" *ngIf="levNuevo.editar==='lugar'">
+                          <input [(ngModel)]="levNuevo.ciudad" placeholder="Ciudad (ej. Celaya, Guanajuato)">
+                          <textarea rows="2" [(ngModel)]="levNuevo.direccion" placeholder="Dirección"></textarea>
+                        </div>
+                      </div>
+                      <div class="ni-fila" [class.abierta]="levNuevo.editar==='part'">
+                        <button class="ni-fila-top" (click)="levNuevo.editar = levNuevo.editar==='part' ? '' : 'part'">
+                          <ico n="users"></ico>
+                          <span><small>Firman el acta</small>
+                            <span class="ni-avs"><i *ngFor="let p of participantesLev" [title]="p.nombre">{{ inicialesDe(p.nombre) }}</i></span>
+                            {{ participantesLev.length }} {{ participantesLev.length===1 ? 'participante' : 'participantes' }}
+                          </span>
+                          <em>{{ levNuevo.editar==='part' ? 'Listo' : 'Cambiar' }}</em>
+                        </button>
+                        <div class="ni-fila-body" *ngIf="levNuevo.editar==='part'">
+                          <div class="wp-lista">
+                            <div class="wp" *ngFor="let p of levNuevo.participantes; let i = index">
+                              <span class="wp-av">{{ inicialesDe(p.nombre) || (i + 1) }}</span>
+                              <div class="wp-campos">
+                                <input [(ngModel)]="p.nombre" placeholder="Nombre completo">
+                                <input [(ngModel)]="p.cargo" placeholder="Cargo (ej. Jefe de inventarios)">
+                              </div>
+                              <button class="wp-x" type="button" title="Quitar" (click)="levNuevo.participantes.splice(i, 1)"><ico n="x"></ico></button>
+                            </div>
+                          </div>
+                          <button class="wp-add" type="button" *ngIf="levNuevo.participantes.length < 8" (click)="levNuevo.participantes.push({ nombre: '', cargo: '' })"><ico n="plus"></ico> Agregar participante</button>
+                        </div>
+                      </div>
+                      <div class="ni-fila" [class.abierta]="levNuevo.editar==='preg'">
+                        <button class="ni-fila-top" (click)="levNuevo.editar = levNuevo.editar==='preg' ? '' : 'preg'">
+                          <ico n="check"></ico><span><small>Se pregunta por cada bien</small>{{ levNuevo.pregunta.opciones.join(' · ') }}</span><em>{{ levNuevo.editar==='preg' ? 'Listo' : 'Cambiar' }}</em>
+                        </button>
+                        <div class="ni-fila-body" *ngIf="levNuevo.editar==='preg'">
+                          <input [(ngModel)]="levNuevo.pregunta.texto">
+                          <div class="wiz-ops">
+                            <span *ngFor="let o of levNuevo.pregunta.opciones; let i = index">{{ o }}<button (click)="levNuevo.pregunta.opciones.splice(i, 1)" *ngIf="levNuevo.pregunta.opciones.length > 2">×</button></span>
+                          </div>
+                          <div class="mail-add" *ngIf="levNuevo.pregunta.opciones.length < 6">
+                            <input [(ngModel)]="levNuevo.nuevaOpcion" placeholder="Otra respuesta" (keyup.enter)="agregarOpcion()">
+                            <button class="btn-outline" (click)="agregarOpcion()">Agregar</button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </ng-container>
                 </div>
 
                 <div class="inline-error" *ngIf="levError" style="margin:0 24px 12px">{{ levError }}</div>
                 <div class="modal-footer">
-                  <button class="btn-outline" *ngIf="levNuevo.paso>1" [disabled]="levGuardando" (click)="levNuevo.paso = levNuevo.paso - 1; levError=''">Atrás</button>
-                  <button class="btn-primary" *ngIf="levNuevo.paso<4" (click)="siguientePasoLev()">Siguiente</button>
-                  <button class="btn-primary" *ngIf="levNuevo.paso===4" [disabled]="levGuardando" (click)="crearLevantamiento()">
+                  <button class="btn-outline" [disabled]="levGuardando" (click)="levNuevo=null">Cancelar</button>
+                  <button class="btn-primary" [disabled]="levGuardando || !levNuevo.idSede || !levNuevo.idUsuarioCapturista" (click)="crearLevantamiento()">
                     <span class="mini-ring light" *ngIf="levGuardando"></span>
-                    {{ levGuardando ? 'Creando…' : 'Crear y generar acta de inicio' }}
+                    {{ levGuardando ? 'Creando…' : 'Crear inventario' }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- CALIBRACIÓN Y MANTENIMIENTO -->
+          <section *ngIf="section==='calibracion'" class="cal">
+            <div class="cal-head">
+              <div>
+                <h1>Calibración y mantenimiento</h1>
+                <p>Los equipos que se calibran o reciben mantenimiento, y cuándo les toca.</p>
+              </div>
+              <button class="btn-primary btn-nuevo" (click)="abrirCalAgregar()"><ico n="plus"></ico><span>Agregar equipo</span></button>
+            </div>
+
+            <div class="cal-stats" *ngIf="calEquipos.length">
+              <button class="cs vencida" [class.on]="calFiltro==='vencida'" (click)="calFiltro = calFiltro==='vencida' ? 'todos' : 'vencida'"><b>{{ calCuenta('vencida') }}</b><small>Vencidos</small></button>
+              <button class="cs proxima" [class.on]="calFiltro==='proxima'" (click)="calFiltro = calFiltro==='proxima' ? 'todos' : 'proxima'"><b>{{ calCuenta('proxima') }}</b><small>En 30 días</small></button>
+              <button class="cs sin" [class.on]="calFiltro==='sin'" (click)="calFiltro = calFiltro==='sin' ? 'todos' : 'sin'"><b>{{ calCuenta('sin') }}</b><small>Sin fecha</small></button>
+              <button class="cs ok" [class.on]="calFiltro==='ok'" (click)="calFiltro = calFiltro==='ok' ? 'todos' : 'ok'"><b>{{ calCuenta('ok') }}</b><small>Al día</small></button>
+            </div>
+
+            <div class="cal-buscar" *ngIf="calEquipos.length > 6">
+              <ico n="search"></ico>
+              <input [(ngModel)]="calBusqueda" placeholder="Buscar equipo, clave o ubicación">
+            </div>
+
+            <div class="cal-cargando" *ngIf="loading && !bienes.length"><div class="loader-ring"></div></div>
+
+            <div class="cal-vacio" *ngIf="!(loading && !bienes.length) && !calEquipos.length">
+              <span class="cal-vacio-ico"><ico n="gauge"></ico></span>
+              <b>Todavía no hay equipos en control</b>
+              <p>Agrega los equipos que necesitan calibración o mantenimiento (básculas, extintores, aires acondicionados, vehículos…) con la fecha en que les toca. DOZZER te avisa cuando se acerque o se pase.</p>
+              <button class="btn-primary" (click)="abrirCalAgregar()"><ico n="plus"></ico> Agregar el primero</button>
+            </div>
+
+            <div class="cal-list" *ngIf="calEquipos.length">
+              <button class="ce" *ngFor="let b of calLista; trackBy: trackBien" [ngClass]="'ce-' + calEstado(b)" (click)="abrirCalForm(b)">
+                <span class="ce-foto">
+                  <img *ngIf="b.foto_mini" [src]="b.foto_mini" alt="" loading="lazy">
+                  <img *ngIf="!b.foto_mini" class="bc-logo" src="logo-dozzer.png" alt="">
+                </span>
+                <span class="ce-main">
+                  <b>{{ (b.articulo | titlecase) || 'Bien sin nombre' }}</b>
+                  <small>{{ b.clave }}<ng-container *ngIf="b.ubicacion"> · {{ b.ubicacion | titlecase }}</ng-container></small>
+                  <span class="ce-chips">
+                    <span *ngIf="b.requiere_calibracion" class="ce-chip" [ngClass]="'cm-' + estadoFechaCM(b.fecha_calibracion)"><ico n="gauge"></ico>{{ textoCortoCM(b.fecha_calibracion) }}</span>
+                    <span *ngIf="b.requiere_mantenimiento" class="ce-chip" [ngClass]="'cm-' + estadoFechaCM(b.fecha_mantenimiento)"><ico n="wrench"></ico>{{ textoCortoCM(b.fecha_mantenimiento) }}</span>
+                  </span>
+                </span>
+                <ico class="ce-chev" n="edit"></ico>
+              </button>
+              <div class="inv-empty" *ngIf="!calLista.length">Ningún equipo en este grupo.</div>
+            </div>
+
+            <!-- Agregar un equipo al control -->
+            <div class="modal-backdrop cal-fondo" *ngIf="calAgregar">
+              <div class="modal-card cal-sheet">
+                <div class="modal-header">
+                  <div>
+                    <h2>Agregar equipo</h2>
+                    <p>Busca el bien que necesita calibración o mantenimiento.</p>
+                  </div>
+                  <button class="close-button" (click)="calAgregar=null">×</button>
+                </div>
+                <div class="form-section">
+                  <div class="cal-buscar en-hoja">
+                    <ico n="search"></ico>
+                    <input id="cal-agregar-q" [(ngModel)]="calAgregar.q" placeholder="Nombre, clave, serie o ubicación">
+                  </div>
+                  <div class="cal-res">
+                    <button class="cr" *ngFor="let b of calCandidatos; trackBy: trackBien" (click)="abrirCalForm(b, true)">
+                      <span class="ce-foto">
+                        <img *ngIf="b.foto_mini" [src]="b.foto_mini" alt="" loading="lazy">
+                        <img *ngIf="!b.foto_mini" class="bc-logo" src="logo-dozzer.png" alt="">
+                      </span>
+                      <span class="ce-main"><b>{{ (b.articulo | titlecase) || 'Bien sin nombre' }}</b><small>{{ b.clave }}<ng-container *ngIf="b.ubicacion"> · {{ b.ubicacion | titlecase }}</ng-container></small></span>
+                      <ico class="ce-chev" n="plus"></ico>
+                    </button>
+                    <p class="cal-hint" *ngIf="!(calAgregar.q || '').trim()">Escribe para buscar entre {{ bienes.length | number }} bienes.</p>
+                    <p class="cal-hint" *ngIf="(calAgregar.q || '').trim() && !calCandidatos.length">No hay bienes que coincidan.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Fechas de un equipo -->
+            <div class="modal-backdrop cal-fondo" *ngIf="calForm as f">
+              <div class="modal-card cal-sheet">
+                <div class="modal-header">
+                  <div>
+                    <h2>{{ (f.b.articulo | titlecase) || 'Bien sin nombre' }}</h2>
+                    <p>{{ f.b.clave }}<ng-container *ngIf="f.b.ubicacion"> · {{ f.b.ubicacion | titlecase }}</ng-container></p>
+                  </div>
+                  <button class="close-button" [disabled]="f.guardando" (click)="calForm=null">×</button>
+                </div>
+                <div class="form-section">
+                  <div class="cf" [class.on]="f.cal">
+                    <button type="button" class="cf-top" (click)="f.cal = !f.cal">
+                      <span class="cf-ico"><ico n="gauge"></ico></span>
+                      <span class="cf-txt"><b>Calibración</b><small>{{ f.cal ? 'Próxima calibración' : 'No lo requiere' }}</small></span>
+                      <span class="sw" [class.on]="f.cal"><i></i></span>
+                    </button>
+                    <div class="cf-body" *ngIf="f.cal">
+                      <input type="date" [(ngModel)]="f.fCal">
+                      <div class="cf-rap">
+                        <span>Se calibró hoy, la próxima en:</span>
+                        <button type="button" (click)="f.fCal = fechaEnMeses(3)">3 meses</button>
+                        <button type="button" (click)="f.fCal = fechaEnMeses(6)">6 meses</button>
+                        <button type="button" (click)="f.fCal = fechaEnMeses(12)">1 año</button>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="cf" [class.on]="f.man">
+                    <button type="button" class="cf-top" (click)="f.man = !f.man">
+                      <span class="cf-ico"><ico n="wrench"></ico></span>
+                      <span class="cf-txt"><b>Mantenimiento</b><small>{{ f.man ? 'Próximo mantenimiento' : 'No lo requiere' }}</small></span>
+                      <span class="sw" [class.on]="f.man"><i></i></span>
+                    </button>
+                    <div class="cf-body" *ngIf="f.man">
+                      <input type="date" [(ngModel)]="f.fMan">
+                      <div class="cf-rap">
+                        <span>Se le dio hoy, el próximo en:</span>
+                        <button type="button" (click)="f.fMan = fechaEnMeses(3)">3 meses</button>
+                        <button type="button" (click)="f.fMan = fechaEnMeses(6)">6 meses</button>
+                        <button type="button" (click)="f.fMan = fechaEnMeses(12)">1 año</button>
+                      </div>
+                    </div>
+                  </div>
+                  <p class="cal-hint" *ngIf="!f.cal && !f.man && f.estaba">Al guardar, el equipo sale del control de calibración y mantenimiento.</p>
+                </div>
+                <div class="inline-error" *ngIf="f.error" style="margin:0 24px 12px">{{ f.error }}</div>
+                <div class="modal-footer">
+                  <button class="btn-outline" [disabled]="f.guardando" (click)="calForm=null">Cancelar</button>
+                  <button class="btn-primary" [disabled]="f.guardando || (!f.cal && !f.man && !f.estaba)" (click)="guardarCalForm()">
+                    <span class="mini-ring light" *ngIf="f.guardando"></span>
+                    {{ f.guardando ? 'Guardando…' : (!f.cal && !f.man ? 'Quitar del control' : 'Guardar') }}
                   </button>
                 </div>
               </div>
@@ -2830,6 +3032,128 @@ export class IcoComponent { @Input() n = ''; }
     .column-picker>.btn-outline{display:inline-flex;align-items:center;gap:7px}
     .column-picker>.btn-outline>ico{width:17px;height:17px}
     .clasif-menu{width:300px}
+    /* Calibración */
+    .cal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:18px}
+    .cal-head h1{margin:0;font-size:26px;letter-spacing:-.02em;color:#14243a}
+    .cal-head p{margin:4px 0 0;color:#6b7a8d;font-size:14.5px}
+    .cal-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}
+    .cs{border:1.5px solid #e3e9f1;background:#fff;border-radius:16px;padding:12px 10px;display:flex;flex-direction:column;align-items:flex-start;gap:2px;cursor:pointer;font-family:inherit;transition:border-color .15s,box-shadow .15s}
+    .cs b{font-size:24px;line-height:1.1;color:#14243a}
+    .cs small{font-size:12.5px;color:#6b7a8d;font-weight:600}
+    .cs.vencida b{color:#bd4b52}.cs.proxima b{color:#a8650f}.cs.sin b{color:#6b7a8d}.cs.ok b{color:#21835a}
+    .cs.on{border-color:#244c78;box-shadow:0 0 0 3px #244c7822}
+    .cal-buscar{display:flex;align-items:center;gap:10px;background:#fff;border:1.5px solid #e3e9f1;border-radius:14px;padding:0 14px;margin-bottom:12px}
+    .cal-buscar ico{width:18px;height:18px;color:#8a97a8;flex-shrink:0}
+    .cal-buscar input{border:0!important;outline:0;background:transparent;height:46px;flex:1;font-size:15px;box-shadow:none!important;padding:0!important;margin:0!important}
+    .cal-buscar.en-hoja{background:#f6f8fb}
+    .cal-cargando{display:grid;place-items:center;padding:50px}
+    .cal-vacio{background:#fff;border:1.5px dashed #d5dfeb;border-radius:20px;padding:34px 24px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:8px}
+    .cal-vacio-ico{width:64px;height:64px;border-radius:20px;background:#eef4fb;color:#2d5d93;display:grid;place-items:center;margin-bottom:4px}
+    .cal-vacio-ico ico{width:32px;height:32px}
+    .cal-vacio b{font-size:17px;color:#14243a}
+    .cal-vacio p{margin:0 0 8px;color:#6b7a8d;font-size:14px;max-width:440px;line-height:1.5}
+    .cal-list,.cal-res,.es-lista{display:flex;flex-direction:column;gap:8px}
+    .ce,.cr,.es-item{display:flex;align-items:center;gap:12px;background:#fff;border:1.5px solid #e6ecf3;border-radius:16px;padding:10px 14px 10px 10px;text-align:left;cursor:pointer;font-family:inherit;width:100%;transition:border-color .15s,background .15s}
+    .ce:hover,.cr:hover,.es-item:hover{border-color:#b9cbe0}
+    .ce{border-left-width:5px}
+    .ce-vencida{border-left-color:#d4646b}.ce-proxima{border-left-color:#e2a03c}.ce-sin{border-left-color:#c3ccd8}.ce-ok{border-left-color:#3aa876}
+    .ce-foto{width:48px;height:48px;border-radius:12px;background:#f1f4f8;overflow:hidden;display:grid;place-items:center;flex-shrink:0}
+    .ce-foto img{width:100%;height:100%;object-fit:cover}
+    .ce-foto img.bc-logo{width:60%;height:auto;object-fit:contain;opacity:.35;filter:grayscale(1)}
+    .ce-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+    .ce-main b{font-size:15px;color:#14243a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .ce-main small{font-size:12.5px;color:#6b7a8d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .ce-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:5px}
+    .ce-chip{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:700;border-radius:999px;padding:4px 10px 4px 8px;background:#eef1f5;color:#41546b}
+    .ce-chip ico{width:14px;height:14px}
+    .ce-chip.cm-vencida{background:#fdecee;color:#bd4b52}.ce-chip.cm-proxima{background:#fff4dc;color:#a8650f}.ce-chip.cm-ok{background:#e8f6ee;color:#21835a}
+    .ce-chev{width:18px;height:18px;color:#9aa7b7;flex-shrink:0}
+    .cal-hint{color:#7b889a;font-size:13.5px;margin:6px 2px;text-align:center}
+    .modal-backdrop.cal-fondo,.modal-backdrop.etq-sel-fondo{z-index:1200}
+    .cal-sheet{max-width:520px!important}
+    .cal-res{max-height:52vh;overflow:auto;padding:2px}
+    .cf{border:1.5px solid #e3e9f1;border-radius:16px;margin-bottom:10px;overflow:hidden;transition:border-color .15s}
+    .cf.on{border-color:#bcd0e6;background:#f8fbfe}
+    .cf-top{display:flex;align-items:center;gap:12px;width:100%;padding:12px 14px;background:transparent;border:0;cursor:pointer;text-align:left;font-family:inherit}
+    .cf-ico{width:40px;height:40px;border-radius:12px;background:#eef4fb;color:#2d5d93;display:grid;place-items:center;flex-shrink:0}
+    .cf-ico ico{width:20px;height:20px}
+    .cf-txt{flex:1;display:flex;flex-direction:column}
+    .cf-txt b{font-size:15px;color:#14243a}.cf-txt small{font-size:12.5px;color:#6b7a8d}
+    .sw{width:44px;height:26px;border-radius:13px;background:#cfd8e3;position:relative;flex-shrink:0;transition:background .2s}
+    .sw i{position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px #0003;transition:left .2s}
+    .sw.on{background:#2d6a4f}.sw.on i{left:21px}
+    .cf-body{padding:0 14px 14px 66px;display:flex;flex-direction:column;gap:10px}
+    .cf-body input[type=date]{height:44px;max-width:220px;margin:0!important}
+    .cf-rap{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+    .cf-rap span{font-size:12.5px;color:#6b7a8d;width:100%}
+    .cf-rap button{border:1.5px solid #d5e0ec;background:#fff;color:#244c78;border-radius:999px;padding:6px 12px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+    .cf-rap button:hover{background:#eef4fb}
+    /* Hoja: ¿de qué bien es la etiqueta? */
+    .etq-sel{max-width:520px!important;display:flex;flex-direction:column;max-height:92vh}
+    .es-top{display:flex;align-items:center;gap:12px;padding:18px 20px 6px}
+    .es-top>div{flex:1;display:flex;flex-direction:column}
+    .es-top small{font-size:12px;color:#6b7a8d;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+    .es-top b{font-size:20px;color:#14243a;letter-spacing:.02em}
+    .es-qr{width:48px;height:48px;border-radius:14px;background:#e8f6ee;color:#14804f;display:grid;place-items:center}
+    .es-qr ico{width:26px;height:26px}
+    .es-q{margin:6px 20px 12px;font-size:18px;color:#14243a}
+    .es-tabs{display:flex;gap:6px;margin:0 20px 10px;background:#eef2f7;border-radius:12px;padding:4px}
+    .es-tabs button{flex:1;border:0;background:transparent;border-radius:9px;padding:9px 8px;font-size:13.5px;font-weight:600;color:#55667b;cursor:pointer;font-family:inherit;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .es-tabs button.on{background:#fff;color:#14243a;box-shadow:0 1px 4px #17263d1a}
+    .etq-sel .cal-buscar{margin:0 20px 10px}
+    .es-lista{overflow:auto;padding:2px 20px 10px;flex:1;min-height:120px}
+    .es-ico{width:40px;height:40px;border-radius:12px;background:#f1f4f8;color:#6b7a8d;display:grid;place-items:center;flex-shrink:0}
+    .es-ico.hecho{background:#e8f6ee;color:#21835a}
+    .es-ico ico{width:19px;height:19px}
+    .es-go{font-size:13px;font-weight:700;color:#244c78;background:#eef4fb;border-radius:999px;padding:6px 12px;flex-shrink:0}
+    .es-mas{font-size:12.5px;color:#7b889a;text-align:center;margin:4px 0}
+    .es-pie{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 20px 18px;border-top:1px solid #edf1f6}
+    .es-pie .btn-outline{display:inline-flex;align-items:center;gap:6px}
+    .es-pie .btn-outline ico{width:16px;height:16px}
+    /* Nuevo inventario en una pantalla */
+    .ni .form-section{display:flex;flex-direction:column}
+    .ni-paso{display:flex;align-items:center;gap:10px;margin:6px 0 10px}
+    .ni-paso b{font-size:15.5px;color:#14243a}
+    .ni-n{width:26px;height:26px;border-radius:50%;background:#244c78;color:#fff;display:grid;place-items:center;font-size:13px;font-weight:800;flex-shrink:0}
+    .ni-paso.listo .ni-n{background:#2d6a4f}
+    .ni-n ico{width:15px;height:15px}
+    .ni-sedes{display:flex;flex-direction:column;gap:8px;margin-bottom:6px}
+    .ni-sede,.ni-elegida{display:flex;align-items:center;gap:12px;border:1.5px solid #e3e9f1;background:#fff;border-radius:16px;padding:12px 14px;text-align:left;font-family:inherit;width:100%}
+    .ni-sede{cursor:pointer;transition:border-color .15s,background .15s}
+    .ni-sede:hover:not(:disabled){border-color:#244c78;background:#f6f9fd}
+    .ni-sede:disabled{opacity:.5;cursor:not-allowed}
+    .ni-elegida{border-color:#bfe3cf;background:#eef9f2;margin-bottom:16px}
+    .ni-sede-ico{width:42px;height:42px;border-radius:12px;background:#eef4fb;color:#2d5d93;display:grid;place-items:center;flex-shrink:0}
+    .ni-elegida .ni-sede-ico{background:#fff;color:#14804f}
+    .ni-sede-ico ico{width:21px;height:21px}
+    .ni-sede-txt{flex:1;display:flex;flex-direction:column;min-width:0}
+    .ni-sede-txt b{font-size:15px;color:#14243a}.ni-sede-txt small{font-size:12.5px;color:#6b7a8d}
+    .ni-sede-go{width:18px;height:18px;color:#9aa7b7;transform:rotate(-90deg)}
+    .ni-personas{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px}
+    .ni-per{display:flex;align-items:center;gap:10px;border:1.5px solid #e3e9f1;background:#fff;border-radius:999px;padding:5px 16px 5px 5px;cursor:pointer;font-family:inherit;text-align:left;transition:border-color .15s,background .15s}
+    .ni-per>span:last-child{display:flex;flex-direction:column}
+    .ni-per b{font-size:14px;color:#14243a}.ni-per small{font-size:11.5px;color:#6b7a8d}
+    .ni-per.on{border-color:#2d6a4f;background:#eef9f2}
+    .ni-res{border:1.5px solid #e6ecf3;border-radius:16px;overflow:hidden;background:#fff}
+    .ni-fila+.ni-fila{border-top:1px solid #edf1f6}
+    .ni-fila-top{display:flex;align-items:center;gap:12px;width:100%;padding:12px 14px;background:transparent;border:0;cursor:pointer;text-align:left;font-family:inherit;font-size:14.5px;color:#14243a}
+    .ni-fila-top>ico{width:19px;height:19px;color:#2d5d93;flex-shrink:0}
+    .ni-fila-top>span{flex:1;display:flex;flex-direction:column;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .ni-fila-top>span small{font-size:12px;color:#7b889a}
+    .ni-fila-top em{font-style:normal;font-size:13px;font-weight:700;color:#244c78}
+    .ni-fila.abierta{background:#f8fbfe}
+    .ni-fila-body{padding:0 14px 14px 45px;display:flex;flex-direction:column;gap:8px}
+    .ni-fila-body input,.ni-fila-body textarea{margin:0!important}
+    .ni-avs{display:flex;margin:3px 0}
+    .ni-avs i{width:26px;height:26px;border-radius:50%;background:#e5eef8;color:#244c78;border:2px solid #fff;display:grid;place-items:center;font-size:10.5px;font-weight:800;font-style:normal;margin-right:-6px}
+    @media(max-width:700px){
+      .cal-head{flex-direction:column}
+      .cal-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+      .cf-body{padding-left:14px}
+      .ni-fila-body{padding-left:14px}
+      .modal-backdrop.etq-sel-fondo{align-items:flex-end;padding:0}
+      .etq-sel{border-radius:22px 22px 0 0!important;width:100%;max-height:88vh}
+    }
     .modal-backdrop.firma-doc-fondo{z-index:240}
     .firmar-doc{margin-bottom:14px}
     .firma-hecha{display:flex;align-items:center;gap:12px;background:#f6f8fb;border-radius:12px;padding:8px 12px}
@@ -4990,6 +5314,7 @@ export class AppComponent {
       return;
     }
     this.section = s;
+    if (s === 'calibracion') { this.calFiltro = 'todos'; this.calBusqueda = ''; if (!this.bienes.length) this.loadBienes(); }
     if (s === 'solicitudes') this.loadSolicitudes();
     if (s === 'documentos') { this.docsVista = 'menu'; this.loadDocumentos(); }
     if (s === 'catalogos') this.loadCatalog();
@@ -5077,7 +5402,7 @@ export class AppComponent {
     try { ui = JSON.parse(localStorage.getItem('dozzer_ui_' + this.email) || 'null'); } catch { ui = null; }
     if (!ui || typeof ui !== 'object') return;
     const permitidas = ['bienes', 'solicitudes', 'documentos']
-      .concat(this.verInventarioAnual ? ['anual'] : [], this.isAdmin ? ['catalogos'] : []);
+      .concat(this.verInventarioAnual ? ['anual'] : [], this.isAdmin ? ['catalogos'] : [], this.isAdmin || this.canAuthorize ? ['calibracion'] : []);
     if (permitidas.includes(ui.s)) this.section = ui.s;
     if (['bienes', 'personas', 'completo'].includes(ui.v) || (ui.v === 'sedes' && this.isAdmin)) this.vistaInv = ui.v;
     if (this.section === 'documentos' && ['menu', 'ALTA', 'BAJA', 'ACTAS', 'RESGUARDO'].includes(ui.d)) { this.docsVista = ui.d; this.loadDocumentos(); }
@@ -6330,9 +6655,110 @@ export class AppComponent {
     this.editing = true;
   }
 
+  // ----- Seccion Calibración y mantenimiento -----
+  calFiltro: 'todos' | 'vencida' | 'proxima' | 'sin' | 'ok' = 'todos';
+  calBusqueda = '';
+  calAgregar: any = null;
+  calForm: any = null;
+
+  get calEquipos(): any[] {
+    return this.bienes.filter((b: any) => b.requiere_calibracion || b.requiere_mantenimiento);
+  }
+
+  // El estado más urgente de sus dos fechas
+  calEstado(b: any): 'vencida' | 'proxima' | 'sin' | 'ok' {
+    const est: string[] = [];
+    if (b.requiere_calibracion) est.push(this.estadoFechaCM(b.fecha_calibracion));
+    if (b.requiere_mantenimiento) est.push(this.estadoFechaCM(b.fecha_mantenimiento));
+    for (const e of ['vencida', 'proxima', 'sin'] as const) if (est.includes(e)) return e;
+    return 'ok';
+  }
+
+  calCuenta(e: string): number { return this.calEquipos.filter(b => this.calEstado(b) === e).length; }
+
+  get calLista(): any[] {
+    const orden: any = { vencida: 0, proxima: 1, sin: 2, ok: 3 };
+    const q = this.calBusqueda.toLowerCase().trim();
+    const prox = (b: any) => Math.min(...[b.requiere_calibracion ? b.fecha_calibracion : null, b.requiere_mantenimiento ? b.fecha_mantenimiento : null]
+      .filter(x => !!x).map(x => new Date(String(x).substring(0, 10)).getTime()).concat([Infinity]));
+    return this.calEquipos
+      .filter(b => this.calFiltro === 'todos' || this.calEstado(b) === this.calFiltro)
+      .filter(b => !q || [b.articulo, b.clave, b.ubicacion, b.numero_serie, b.marca].some(x => String(x || '').toLowerCase().includes(q)))
+      .sort((x, y) => orden[this.calEstado(x)] - orden[this.calEstado(y)] || prox(x) - prox(y));
+  }
+
+  textoCortoCM(f: any): string {
+    const e = this.estadoFechaCM(f);
+    if (e === 'sin') return 'Sin fecha';
+    const d = new Date(String(f).substring(0, 10) + 'T00:00:00');
+    const txt = d.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
+    return e === 'vencida' ? 'Venció ' + txt : txt;
+  }
+
+  fechaEnMeses(m: number): string {
+    const d = new Date(); d.setMonth(d.getMonth() + m);
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  }
+
+  abrirCalAgregar(): void {
+    if (!this.bienes.length) this.loadBienes();
+    this.calAgregar = { q: '' };
+    setTimeout(() => (document.getElementById('cal-agregar-q') as HTMLInputElement)?.focus(), 80);
+  }
+
+  get calCandidatos(): any[] {
+    const q = String(this.calAgregar?.q || '').toLowerCase().trim();
+    if (!q) return [];
+    return this.bienes
+      .filter((b: any) => !b.requiere_calibracion && !b.requiere_mantenimiento && b.estatus_inventario !== 'BAJA')
+      .filter((b: any) => [b.articulo, b.clave, b.ubicacion, b.numero_serie, b.marca, b.modelo, b.etiqueta].some(x => String(x || '').toLowerCase().includes(q)))
+      .slice(0, 40);
+  }
+
+  abrirCalForm(b: any, nuevo = false): void {
+    this.calAgregar = null;
+    this.calForm = {
+      b, estaba: !nuevo,
+      cal: nuevo ? true : !!b.requiere_calibracion, fCal: b.fecha_calibracion ? String(b.fecha_calibracion).substring(0, 10) : '',
+      man: !!b.requiere_mantenimiento, fMan: b.fecha_mantenimiento ? String(b.fecha_mantenimiento).substring(0, 10) : '',
+      guardando: false, error: ''
+    };
+  }
+
+  guardarCalForm(): void {
+    const f = this.calForm;
+    if (!f || f.guardando) return;
+    const b = f.b;
+    const datos = {
+      ...this.formularioDeBien(b),
+      requiereCalibracion: !!f.cal, fechaCalibracion: f.cal && f.fCal ? f.fCal : null,
+      requiereMantenimiento: !!f.man, fechaMantenimiento: f.man && f.fMan ? f.fMan : null
+    };
+    f.guardando = true; f.error = '';
+    this.http.put<any>(this.api + '/bienes/' + b.id_bien, datos).subscribe({
+      next: r => {
+        this.calForm = null;
+        if (r?.pendienteAutorizacion) {
+          this.notificar('pendiente', 'Solicitud enviada', 'El cambio de fechas espera la autorización del administrador.');
+          return;
+        }
+        b.requiere_calibracion = datos.requiereCalibracion; b.fecha_calibracion = datos.fechaCalibracion;
+        b.requiere_mantenimiento = datos.requiereMantenimiento; b.fecha_mantenimiento = datos.fechaMantenimiento;
+        this.notificar('exito', 'Fechas guardadas', (b.articulo || b.clave) + (datos.requiereCalibracion || datos.requiereMantenimiento ? ' quedó en control.' : ' salió del control.'), 2200);
+      },
+      error: e => { f.guardando = false; f.error = this.mensajeError(e, 'No se pudieron guardar las fechas.'); }
+    });
+  }
+
   editBien(b: any): void {
     this.bienOriginal = b;
-    this.bien = {
+    this.bien = this.formularioDeBien(b);
+    this.editing = true;
+  }
+
+  // Datos del bien en el formato que espera el servidor al modificarlo
+  private formularioDeBien(b: any): any {
+    return {
       idBien: b.id_bien,
       clave: b.clave,
       articulo: b.articulo,
@@ -6356,7 +6782,6 @@ export class AppComponent {
       requiereMantenimiento: !!b.requiere_mantenimiento,
       fechaMantenimiento: b.fecha_mantenimiento || null
     };
-    this.editing = true;
   }
 
   // Si cambia la clasificación, se limpia la subcategoría que ya no le corresponde
@@ -6576,8 +7001,11 @@ export class AppComponent {
         { nombre: 'Ximena Cornejo Rivera', cargo: 'Auxiliar administrativo' }
       ],
       pregunta: { texto: '¿En qué estado está el bien?', opciones: ['Bueno', 'Regular', 'Malo', 'No funciona'] },
-      nuevaOpcion: ''
+      nuevaOpcion: '', editar: ''
     };
+    // Si solo hay una sede disponible, ya queda elegida
+    const libres = this.sedesParaInventario.filter(x => !x.ocupada);
+    if (libres.length === 1) this.elegirSedeLev(libres[0].s);
   }
 
   // Al elegir la sede, llena la dirección con la registrada en el catálogo de Sedes (se puede editar).
@@ -6594,12 +7022,45 @@ export class AppComponent {
     }
   }
 
+  // Sedes con su número de bienes; las que ya tienen un inventario en curso no se pueden elegir
+  get sedesParaInventario(): { s: any; total: number; ocupada: boolean }[] {
+    const cuenta = new Map<any, number>();
+    for (const b of this.bienes) if (b.id_sede != null) cuenta.set(b.id_sede, (cuenta.get(b.id_sede) || 0) + 1);
+    return this.activos(this.catalogs.sedes, null, 'id_sede')
+      .map((s: any) => ({ s, total: cuenta.get(s.id_sede) || 0,
+        ocupada: this.levantamientos.some((l: any) => l.idSede === s.id_sede && l.estado === 'EN_CURSO') }))
+      .sort((x: any, y: any) => Number(x.ocupada) - Number(y.ocupada) || y.total - x.total);
+  }
+
+  get nombreSedeLev(): string {
+    return (this.catalogs.sedes || []).find((x: any) => x.id_sede === this.levNuevo?.idSede)?.nombre_sede || '';
+  }
+
+  get participantesLev(): any[] {
+    return (this.levNuevo?.participantes || []).filter((p: any) => String(p.nombre || '').trim());
+  }
+
+  esYo(c: any): boolean { return String(c?.correo || '').toLowerCase() === String(this.email || '').toLowerCase(); }
+
+  elegirSedeLev(s: any): void {
+    this.levNuevo.idSede = s.id_sede;
+    this.levError = '';
+    this.cargarCandidatos();
+    this.ponerDireccionSede();
+  }
+
   cargarCandidatos(): void {
     this.candidatos = [];
     if (!this.levNuevo?.idSede) return;
     this.levNuevo.idUsuarioCapturista = null;
+    const n = this.levNuevo;
     this.http.get<any[]>(this.api + '/levantamientos/candidatos?idSede=' + this.levNuevo.idSede).subscribe({
-      next: rows => this.candidatos = rows || [],
+      next: rows => {
+        this.candidatos = rows || [];
+        // Quien crea el inventario suele ser quien captura
+        const yo = this.candidatos.find(c => this.esYo(c)) || (this.candidatos.length === 1 ? this.candidatos[0] : null);
+        if (yo && this.levNuevo === n && !n.idUsuarioCapturista) n.idUsuarioCapturista = yo.idUsuario;
+      },
       error: e => this.levError = this.mensajeError(e, 'No se pudieron cargar las personas de la sede.')
     });
   }
@@ -6624,6 +7085,10 @@ export class AppComponent {
 
   crearLevantamiento(): void {
     const n = this.levNuevo;
+    if (!n.idSede) { this.levError = 'Elige la sede.'; return; }
+    if (!n.idUsuarioCapturista) { this.levError = 'Elige quién va a capturar.'; return; }
+    if (!String(n.ciudad || '').trim()) { this.levError = 'Falta la ciudad del acta: toca "Lugar del acta".'; n.editar = 'lugar'; return; }
+    if (!this.participantesLev.length) { this.levError = 'Agrega al menos un participante que firme el acta.'; n.editar = 'part'; return; }
     this.levGuardando = true;
     this.levError = '';
     this.http.post<any>(this.api + '/levantamientos', {
@@ -7300,8 +7765,7 @@ export class AppComponent {
           // Bien recién agregado sin etiqueta: se le asigna directo
           const ag = c.agregado?.bien;
           if (ag && !ag.etiqueta) { this.asignarEtiquetaCap(codigo, ag); return; }
-          c.etiquetaPorAsignar = codigo;
-          if (!this.esChecklist) this.abrirAvanceCaptura('sinetiq');
+          this.pedirBienDeEtiqueta(codigo);
           return;
         }
         if (r.estado === 'ASIGNADA' && r.clave) { this.abrirBuscarGeneral(r.clave); return; }
@@ -7311,13 +7775,43 @@ export class AppComponent {
         if (e?.status === 0 || !navigator.onLine) {
           const ag = c.agregado?.bien;
           if (ag && !ag.etiqueta) { this.asignarEtiquetaCap(codigo, ag); return; }
-          c.etiquetaPorAsignar = codigo;
-          if (!this.esChecklist) this.abrirAvanceCaptura('sinetiq');
+          this.pedirBienDeEtiqueta(codigo);
           return;
         }
         c.error = this.mensajeError(e, 'No se pudo consultar la etiqueta.');
       }
     });
+  }
+
+  etqAlcance: 'grupo' | 'sede' = 'grupo';
+  etqBusqueda = '';
+
+  private pedirBienDeEtiqueta(codigo: string): void {
+    this.detenerEscaner();
+    this.etqAlcance = this.cap?.grupo ? 'grupo' : 'sede';
+    this.etqBusqueda = '';
+    this.cap.etiquetaPorAsignar = codigo;
+  }
+
+  private get etqBase(): any[] {
+    const c = this.cap;
+    if (!c) return [];
+    const q = this.etqBusqueda.toLowerCase().trim();
+    const base = this.etqAlcance === 'grupo' && c.grupo ? this.bienesGrupo : (c.bienes || []);
+    return base
+      .filter((b: any) => !b.etiqueta)
+      .filter((b: any) => !q || [b.articulo, b.clave, b.numero_serie, b.marca, b.modelo, b.persona, b.ubicacion].some(x => String(x || '').toLowerCase().includes(q)));
+  }
+
+  get etqTotal(): number { return this.etqBase.length; }
+
+  // Primero los que faltan por revisar (lo más probable es que sea uno de esos)
+  get etqCandidatos(): any[] {
+    return this.etqBase
+      .slice()
+      .sort((x: any, y: any) => Number(!!x.estatus) - Number(!!y.estatus)
+        || String(x.clave || '').localeCompare(String(y.clave || ''), 'es', { numeric: true }))
+      .slice(0, 60);
   }
 
   // Liga la etiqueta escaneada al bien y abre su captura
