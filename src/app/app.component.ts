@@ -29,7 +29,7 @@ interface DialogoConfirmacion {
 
 // Datos para llenar los formatos oficiales FA-04-02-03 (Alta) y FA-04-02-04 (Baja)
 interface FormatoDoc {
-  tipo: 'ALTA' | 'BAJA' | 'ACTA_INICIO' | 'ACTA_CIERRE' | 'RESGUARDO';
+  tipo: 'ALTA' | 'BAJA' | 'ACTA_INICIO' | 'ACTA_CIERRE' | 'RESGUARDO' | 'REQUISICION';
   folio: string;
   sede: string;
   fecha: string;
@@ -94,6 +94,7 @@ interface FormatoDoc {
       <ng-container *ngSwitchCase="'wrench'"><path d="M15 4.5a4.5 4.5 0 0 0 4.6 5.8L11 19a2.1 2.1 0 1 1-3-3l8.7-8.6A4.5 4.5 0 0 0 15 4.5z"/></ng-container>
       <ng-container *ngSwitchCase="'idcard'"><rect x="3" y="5" width="18" height="14" rx="2.2"/><circle cx="9" cy="11" r="2.2"/><path d="M5.6 16.2c.6-1.6 1.9-2.4 3.4-2.4s2.8.8 3.4 2.4M14.5 10h4M14.5 13.5h3"/></ng-container>
       <ng-container *ngSwitchCase="'flag'"><path d="M5.5 21V4"/><path d="M5.5 4.5h11l-2.2 4 2.2 4h-11"/></ng-container>
+      <ng-container *ngSwitchCase="'cart'"><path d="M3 4h2.2l2.3 11h10.8l2-7.5H6.4"/><circle cx="9.5" cy="19" r="1.4"/><circle cx="17" cy="19" r="1.4"/></ng-container>
       <ng-container *ngSwitchCase="'printer'"><path d="M7 9V3.5h10V9"/><rect x="3.5" y="9" width="17" height="8" rx="2"/><path d="M7 14h10v6.5H7z"/></ng-container>
       <ng-container *ngSwitchCase="'chart'"><path d="M4 20h16"/><path d="M7 16v-5M12 16V7M17 16v-8"/></ng-container>
       <ng-container *ngSwitchCase="'search'"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></ng-container>
@@ -137,6 +138,10 @@ export class IcoComponent { @Input() n = ''; }
         <button class="nav-item" [class.active]="section==='solicitudes'" (click)="irA('solicitudes')">
           <span class="nav-icon"><ico n="shield"></ico></span><span>{{ isAdmin ? 'Autorizaciones' : 'Solicitudes' }}</span>
           <span class="nav-badge" *ngIf="pendientesBadge > 0">{{ pendientesBadge }}</span>
+        </button>
+        <button class="nav-item" [class.active]="section==='requisiciones'" (click)="irA('requisiciones')">
+          <span class="nav-icon"><ico n="cart"></ico></span><span>Requisiciones</span>
+          <span class="nav-badge" *ngIf="rqPorAtender > 0">{{ rqPorAtender }}</span>
         </button>
         <button class="nav-item" [class.active]="section==='documentos'" (click)="irA('documentos')">
           <span class="nav-icon"><ico n="file"></ico></span><span>Documentos</span>
@@ -547,7 +552,7 @@ export class IcoComponent { @Input() n = ''; }
                 <span class="doc-badge" [class.baja]="d.datos.tipo==='BAJA'" [class.acta]="esActa(d.datos)" [class.resg]="d.datos.tipo==='RESGUARDO'">{{ etiquetaTipoDoc(d.datos) }}</span>
                 <div>
                   <h2>{{ tituloDoc(d.datos) }} <span class="doc-anulado" *ngIf="d.datos.anulado">ANULADO</span><span class="doc-estado borrador" *ngIf="d.datos.borrador">BORRADOR</span><span class="doc-estado" *ngIf="d.datos.historico">HISTÓRICO</span></h2>
-                  <p>Folio {{ d.datos.folio }}<ng-container *ngIf="!esActa(d.datos)"> · {{ d.datos.tipo==='ALTA' ? 'FA-04-02-03' : d.datos.tipo==='BAJA' ? 'FA-04-02-04' : 'FA-04-02-02' }}</ng-container> · {{ d.datos.tipo==='RESGUARDO' ? d.datos.persona?.nombre : (d.datos.sede || 'Sin sede') }}</p>
+                  <p>Folio {{ d.datos.folio }}<ng-container *ngIf="!esActa(d.datos)"> · {{ d.datos.tipo==='ALTA' ? 'FA-04-02-03' : d.datos.tipo==='BAJA' ? 'FA-04-02-04' : d.datos.tipo==='REQUISICION' ? 'FA-04-01-02' : 'FA-04-02-02' }}</ng-container> · {{ d.datos.tipo==='RESGUARDO' ? d.datos.persona?.nombre : (d.datos.sede || 'Sin sede') }}</p>
                 </div>
               </div>
               <button class="close-button" (click)="cerrarFormato()">×</button>
@@ -2826,6 +2831,212 @@ export class IcoComponent { @Input() n = ''; }
             </div>
           </section>
 
+          <!-- REQUISICIONES DE COMPRA -->
+          <section *ngIf="section==='requisiciones'" class="rq">
+            <div class="cal-head">
+              <div>
+                <h1>Requisiciones</h1>
+                <p>Pide material o equipo y sigue en qué va: lo autoriza y lo aprueba la administración.</p>
+              </div>
+              <button class="btn-primary btn-nuevo" (click)="nuevaRequisicion()"><ico n="plus"></ico><span>Nueva requisición</span></button>
+            </div>
+
+            <div class="rq-tabs" *ngIf="requisiciones.length">
+              <button *ngIf="rqPorAtender" [class.on]="rqVista==='atender'" (click)="rqVista='atender'">Por atender <b>{{ rqPorAtender }}</b></button>
+              <button [class.on]="rqVista==='tramite'" (click)="rqVista='tramite'">En trámite <b>{{ rqCuenta('tramite') }}</b></button>
+              <button [class.on]="rqVista==='cerradas'" (click)="rqVista='cerradas'">Terminadas <b>{{ rqCuenta('cerradas') }}</b></button>
+            </div>
+
+            <div class="cal-cargando" *ngIf="rqCargando && !requisiciones.length"><div class="loader-ring"></div></div>
+            <div class="inline-error" *ngIf="rqError">{{ rqError }}</div>
+
+            <div class="cal-vacio" *ngIf="!rqCargando && !requisiciones.length && !rqError">
+              <span class="cal-vacio-ico"><ico n="cart"></ico></span>
+              <b>Todavía no hay requisiciones</b>
+              <p>Cuando necesites comprar algo (equipo, mobiliario, herramienta, material…), haz aquí tu requisición. La administración la autoriza y aprueba, y te llega el aviso.</p>
+              <button class="btn-primary" (click)="nuevaRequisicion()"><ico n="plus"></ico> Hacer mi primera requisición</button>
+            </div>
+
+            <div class="rq-list" *ngIf="requisiciones.length">
+              <button class="rqc" *ngFor="let r of rqLista; trackBy: trackRq" [class.atender]="r.puedoAutorizar || r.puedoAprobar" (click)="abrirRequisicion(r)">
+                <span class="rqc-top">
+                  <b class="rqc-folio">{{ r.folio }}</b>
+                  <span class="rq-pill" [ngClass]="'rq-' + r.estado">{{ textoEstadoRq(r.estado) }}</span>
+                  <span class="rqc-fecha">Para el {{ fechaCortaRq(r.fechaRequerida) }}</span>
+                </span>
+                <span class="rqc-que">{{ r.resumen }}</span>
+                <span class="rqc-quien">{{ r.solicitante | titlecase }}<ng-container *ngIf="r.area"> · {{ r.area | titlecase }}</ng-container></span>
+                <span class="rq-pasos" *ngIf="r.estado!=='CANCELADA'">
+                  <i [class.ok]="true">Solicitó</i>
+                  <i [class.ok]="['AUTORIZADA','APROBADA'].includes(r.estado)" [class.no]="r.estado==='RECHAZADA' && !r.nombres?.autorizo">Autorizó</i>
+                  <i [class.ok]="r.estado==='APROBADA'" [class.no]="r.estado==='RECHAZADA' && r.nombres?.autorizo">Aprobó</i>
+                </span>
+                <span class="rqc-accion" *ngIf="r.puedoAutorizar || r.puedoAprobar">{{ r.puedoAutorizar ? 'Revisar y autorizar' : 'Revisar y aprobar' }} →</span>
+              </button>
+              <p class="cal-hint" *ngIf="!rqLista.length">Nada por aquí.</p>
+            </div>
+
+            <!-- Detalle -->
+            <div class="modal-backdrop cal-fondo" *ngIf="rqDet as D">
+              <div class="modal-card cal-sheet rq-det">
+                <div class="modal-header">
+                  <div>
+                    <h2>{{ D.r.folio }} <span class="rq-pill" [ngClass]="'rq-' + D.r.estado">{{ textoEstadoRq(D.r.estado) }}</span></h2>
+                    <p>{{ D.r.solicitante | titlecase }} · {{ D.d.cargo | titlecase }} · {{ D.d.area | titlecase }}</p>
+                  </div>
+                  <button class="close-button" [disabled]="D.guardando" (click)="rqDet=null">×</button>
+                </div>
+                <div class="form-section" *ngIf="!D.cargando">
+                  <div class="rq-linea" *ngIf="D.r.estado!=='CANCELADA'">
+                    <div class="rl ok"><span><ico n="check"></ico></span><b>Solicitó</b><small>{{ (D.d.nombres?.solicito | titlecase) || '—' }}<br>{{ D.d.fechaEmision }}</small></div>
+                    <div class="rl" [class.ok]="D.d.nombres?.autorizo" [class.no]="D.r.estado==='RECHAZADA' && !D.d.nombres?.autorizo"><span><ico [n]="D.d.nombres?.autorizo ? 'check' : D.r.estado==='RECHAZADA' ? 'x' : 'shield'"></ico></span><b>Autorizó</b><small>{{ (D.d.nombres?.autorizo | titlecase) || (D.r.estado==='RECHAZADA' ? 'Rechazada' : 'Pendiente') }}<br>{{ D.d.fechas?.autorizo || '' }}</small></div>
+                    <div class="rl" [class.ok]="D.d.nombres?.aprobo" [class.no]="D.r.estado==='RECHAZADA' && D.d.nombres?.autorizo"><span><ico [n]="D.d.nombres?.aprobo ? 'check' : (D.r.estado==='RECHAZADA' && D.d.nombres?.autorizo) ? 'x' : 'flag'"></ico></span><b>Aprobó</b><small>{{ (D.d.nombres?.aprobo | titlecase) || ((D.r.estado==='RECHAZADA' && D.d.nombres?.autorizo) ? 'Rechazada' : 'Pendiente') }}<br>{{ D.d.fechas?.aprobo || '' }}</small></div>
+                  </div>
+                  <div class="rq-rechazo" *ngIf="D.r.estado==='RECHAZADA'"><b>Rechazada por {{ D.d.rechazoPor | titlecase }}</b><span>{{ D.d.motivoRechazo }}</span></div>
+
+                  <div class="rq-datos">
+                    <div><small>Se requiere para</small><b>{{ fechaCortaRq(D.d.fechaRequerida) }}</b></div>
+                    <div><small>Emitida</small><b>{{ D.d.fechaEmision }}</b></div>
+                    <div><small>Sede</small><b>{{ (D.d.sede | titlecase) || '—' }}</b></div>
+                  </div>
+
+                  <div class="rq-partidas">
+                    <div class="rqp" *ngFor="let p of D.d.partidas; let i = index">
+                      <span class="rqp-n">{{ i + 1 }}</span>
+                      <span class="rqp-txt"><b>{{ p.descripcion }}</b><small><em class="rq-cat">{{ p.categoria }}</em> {{ nombreCategoriaRq(p.categoria) }}<ng-container *ngIf="p.observaciones"> · {{ p.observaciones }}</ng-container></small></span>
+                      <span class="rqp-cant"><b>{{ p.cantidad }}</b><small>{{ p.unidad }}</small></span>
+                    </div>
+                  </div>
+
+                  <button class="ver-acta" (click)="verPdfRequisicion(D)">
+                    <span class="ver-acta-ico"><ico n="file"></ico></span>
+                    <span class="ver-acta-txt"><b>Ver el formato (PDF)</b><small>Requisición de Compra FA-04-01-02 con sus firmas</small></span>
+                    <ico class="ver-acta-go" n="chev"></ico>
+                  </button>
+
+                  <!-- Firmar para autorizar o aprobar -->
+                  <div class="rq-firmar" *ngIf="D.firma as Fm">
+                    <label class="firma-lbl">Tu firma para {{ Fm.paso==='autorizar' ? 'autorizar' : 'aprobar' }}</label>
+                    <ng-container *ngIf="Fm.usarGuardada && firmaGuardada"><img class="firma-img" [src]="firmaGuardada" alt="Firma guardada"></ng-container>
+                    <div class="firma-pad" [hidden]="Fm.usarGuardada && firmaGuardada">
+                      <canvas #rqFirmaPaso width="600" height="220" (pointerdown)="firmaDown($event, rqFirmaPaso, 'rp')" (pointermove)="firmaMove($event, rqFirmaPaso, 'rp')"
+                              (pointerup)="firmaUp('rp')" (pointercancel)="firmaUp('rp')" (pointerleave)="firmaUp('rp')"></canvas>
+                      <span class="firma-guia" *ngIf="!Fm.trazos.rp">Firma aquí con el dedo</span>
+                      <button class="firma-borrar" *ngIf="Fm.trazos.rp" (click)="borrarFirma(rqFirmaPaso, 'rp')">Borrar</button>
+                    </div>
+                    <label class="cm-check" *ngIf="firmaGuardada"><input type="checkbox" [(ngModel)]="Fm.usarGuardada"> Usar mi firma guardada en este equipo</label>
+                    <label class="cm-check"><input type="checkbox" [(ngModel)]="Fm.papel"> Firmaré en papel</label>
+                    <div class="rq-btns">
+                      <button class="btn-outline" [disabled]="D.guardando" (click)="D.firma=null">Atrás</button>
+                      <button class="btn-primary" [disabled]="D.guardando" (click)="confirmarPasoRq(rqFirmaPaso)">
+                        <span class="mini-ring light" *ngIf="D.guardando"></span>{{ Fm.paso==='autorizar' ? '✓ Autorizar' : '✓ Aprobar' }}
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Rechazar -->
+                  <div class="rq-firmar" *ngIf="D.rechazo">
+                    <label class="firma-lbl">¿Por qué se rechaza?</label>
+                    <textarea rows="3" maxlength="300" [(ngModel)]="D.motivo" placeholder="Ej. No hay presupuesto este mes; volver a pedir en enero"></textarea>
+                    <div class="rq-btns">
+                      <button class="btn-outline" [disabled]="D.guardando" (click)="D.rechazo=false">Atrás</button>
+                      <button class="btn-danger" [disabled]="D.guardando || !String(D.motivo || '').trim()" (click)="rechazarRq()">Rechazar requisición</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="cap-loading" *ngIf="D.cargando"><div class="loader-ring"></div></div>
+                <div class="inline-error" *ngIf="D.error" style="margin:0 24px 12px">{{ D.error }}</div>
+                <div class="modal-footer" *ngIf="!D.cargando && !D.firma && !D.rechazo && (D.r.puedoAutorizar || D.r.puedoAprobar || D.r.puedoCancelar)">
+                  <button class="btn-outline peligro-txt" *ngIf="D.r.puedoAutorizar || D.r.puedoAprobar" (click)="D.rechazo=true; D.error=''">Rechazar</button>
+                  <button class="btn-outline peligro-txt" *ngIf="D.r.puedoCancelar && !(D.r.puedoAutorizar || D.r.puedoAprobar)" [disabled]="D.guardando" (click)="cancelarRq()">Cancelar mi requisición</button>
+                  <button class="btn-primary" *ngIf="D.r.puedoAutorizar" (click)="pedirFirmaRq('autorizar')">✓ Autorizar</button>
+                  <button class="btn-primary" *ngIf="D.r.puedoAprobar" (click)="pedirFirmaRq('aprobar')">✓ Aprobar</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Nueva requisición -->
+            <div class="modal-backdrop cal-fondo" *ngIf="rqNueva as N">
+              <div class="modal-card wizard rq-nueva">
+                <div class="modal-header">
+                  <div>
+                    <h2>Nueva requisición</h2>
+                    <p>Requisición de Compra · FA-04-01-02</p>
+                  </div>
+                  <button class="close-button" [disabled]="N.guardando" (click)="rqNueva=null">×</button>
+                </div>
+                <div class="form-section">
+                  <!-- Quién la pide (se llena solo) -->
+                  <div class="rq-yo" *ngIf="!N.editarYo">
+                    <span class="adm-av admin">{{ inicialesDe(N.nombre) }}</span>
+                    <span class="rq-yo-txt"><b>{{ N.nombre | titlecase }}</b><small>{{ (N.cargo | titlecase) || 'Sin cargo' }} · {{ (N.area | titlecase) || 'Sin área' }}</small></span>
+                    <button class="btn-outline btn-small" (click)="N.editarYo=true">Cambiar</button>
+                  </div>
+                  <div class="rq-yo-edit" *ngIf="N.editarYo">
+                    <label>Área que lo solicita</label>
+                    <input [(ngModel)]="N.area" placeholder="Ej. Administración">
+                    <label>Tu cargo</label>
+                    <input [(ngModel)]="N.cargo" placeholder="Ej. Jefe administrativo">
+                  </div>
+
+                  <div class="ni-paso"><span class="ni-n">1</span><b>¿Para cuándo lo necesitas?</b></div>
+                  <div class="rq-cuando">
+                    <input type="date" [(ngModel)]="N.fechaRequerida" [min]="fechaEnDias(0)">
+                    <div class="etq-rap">
+                      <button *ngFor="let o of [{t:'Mañana',d:1},{t:'En 1 semana',d:7},{t:'En 2 semanas',d:14},{t:'En 1 mes',d:30}]" [class.on]="N.fechaRequerida===fechaEnDias(o.d)" (click)="N.fechaRequerida=fechaEnDias(o.d)">{{ o.t }}</button>
+                    </div>
+                  </div>
+
+                  <div class="ni-paso"><span class="ni-n">2</span><b>¿Qué necesitas?</b></div>
+                  <div class="rq-items">
+                    <div class="rqi" *ngFor="let p of N.partidas; let i = index">
+                      <div class="rqi-top">
+                        <span class="rqp-n">{{ i + 1 }}</span>
+                        <input class="rqi-desc" [(ngModel)]="p.descripcion" (ngModelChange)="sugerirCategoriaRq(p)" maxlength="160" placeholder="Ej. Laptop, silla de oficina, cemento…">
+                        <button class="wp-x" *ngIf="N.partidas.length > 1" title="Quitar" (click)="N.partidas.splice(i, 1)"><ico n="x"></ico></button>
+                      </div>
+                      <div class="rqi-fila">
+                        <div class="rqi-cant">
+                          <button (click)="p.cantidad = mathMax(1, (+p.cantidad || 1) - 1)">−</button>
+                          <input type="number" min="1" [(ngModel)]="p.cantidad">
+                          <button (click)="p.cantidad = (+p.cantidad || 0) + 1">＋</button>
+                        </div>
+                        <select [(ngModel)]="p.unidad">
+                          <option *ngFor="let u of unidadesRq" [ngValue]="u.v">{{ u.t }}</option>
+                        </select>
+                      </div>
+                      <div class="rqi-cats">
+                        <button *ngFor="let c of categoriasRq" [class.on]="p.categoria===c.k" [title]="c.t" (click)="p.categoria=c.k; p.catManual=true"><b>{{ c.k }}</b>{{ c.corto }}</button>
+                      </div>
+                      <button class="lev-more" *ngIf="!p.verObs && !p.observaciones" (click)="p.verObs=true">＋ Agregar una observación</button>
+                      <input *ngIf="p.verObs || p.observaciones" [(ngModel)]="p.observaciones" maxlength="160" placeholder="Observaciones (ej. para el personal del tramo III)">
+                    </div>
+                    <button class="wp-add" *ngIf="N.partidas.length < 30" (click)="agregarPartidaRq()"><ico n="plus"></ico> Agregar otra cosa</button>
+                  </div>
+
+                  <div class="ni-paso"><span class="ni-n">3</span><b>Tu firma</b></div>
+                  <ng-container *ngIf="N.usarGuardada && firmaGuardada"><img class="firma-img" [src]="firmaGuardada" alt="Firma guardada"></ng-container>
+                  <div class="firma-pad" [hidden]="(N.usarGuardada && firmaGuardada) || N.papel">
+                    <canvas #rqFirmaNueva width="600" height="220" (pointerdown)="firmaDown($event, rqFirmaNueva, 'rn')" (pointermove)="firmaMove($event, rqFirmaNueva, 'rn')"
+                            (pointerup)="firmaUp('rn')" (pointercancel)="firmaUp('rn')" (pointerleave)="firmaUp('rn')"></canvas>
+                    <span class="firma-guia" *ngIf="!N.trazos.rn">Firma aquí con el dedo</span>
+                    <button class="firma-borrar" *ngIf="N.trazos.rn" (click)="borrarFirma(rqFirmaNueva, 'rn')">Borrar</button>
+                  </div>
+                  <label class="cm-check" *ngIf="firmaGuardada"><input type="checkbox" [(ngModel)]="N.usarGuardada"> Usar mi firma guardada en este equipo</label>
+                  <label class="cm-check" *ngIf="!firmaGuardada && !N.papel"><input type="checkbox" [(ngModel)]="N.recordar"> Recordar mi firma en este equipo</label>
+                  <label class="cm-check"><input type="checkbox" [(ngModel)]="N.papel"> Firmaré en papel</label>
+                </div>
+                <div class="inline-error" *ngIf="N.error" style="margin:0 24px 12px">{{ N.error }}</div>
+                <div class="modal-footer">
+                  <button class="btn-outline" [disabled]="N.guardando" (click)="rqNueva=null">Cancelar</button>
+                  <button class="btn-primary" [disabled]="N.guardando" (click)="enviarRequisicion(rqFirmaNueva)">
+                    <span class="mini-ring light" *ngIf="N.guardando"></span>{{ N.guardando ? 'Enviando…' : 'Enviar requisición' }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+
           <!-- DOCUMENTOS -->
           <section *ngIf="section==='documentos'">
             <div class="inv-head">
@@ -3268,7 +3479,7 @@ export class IcoComponent { @Input() n = ''; }
     .ce-chip.cm-vencida{background:#fdecee;color:#bd4b52}.ce-chip.cm-proxima{background:#fff4dc;color:#a8650f}.ce-chip.cm-ok{background:#e8f6ee;color:#21835a}
     .ce-chev{width:18px;height:18px;color:#9aa7b7;flex-shrink:0}
     .cal-hint{color:#7b889a;font-size:13.5px;margin:6px 2px;text-align:center}
-    .modal-backdrop.cal-fondo,.modal-backdrop.etq-sel-fondo{z-index:1200}
+    .modal-backdrop.cal-fondo,.modal-backdrop.etq-sel-fondo{z-index:190}
     .cal-sheet{max-width:520px!important}
     .cal-res{max-height:52vh;overflow:auto;padding:2px}
     .cf{border:1.5px solid #e3e9f1;border-radius:16px;margin-bottom:10px;overflow:hidden;transition:border-color .15s}
@@ -3434,6 +3645,77 @@ export class IcoComponent { @Input() n = ''; }
       .res-resp button{grid-template-columns:90px 1fr 40px}
       .rp-body{padding-left:14px}
     }
+    /* Requisiciones */
+    .rq-tabs{display:flex;gap:6px;background:#e9eef5;border-radius:999px;padding:4px;align-self:flex-start;margin-bottom:14px;max-width:100%;overflow-x:auto}
+    .rq-tabs button{border:0;background:transparent;border-radius:999px;padding:8px 14px;font-weight:600;font-size:13.5px;color:#55667b;cursor:pointer;font-family:inherit;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+    .rq-tabs button b{font-size:12px;background:#d8e1ec;color:#41546b;border-radius:999px;padding:1px 7px}
+    .rq-tabs button.on{background:#fff;color:#14243a;box-shadow:0 1px 4px #17263d1a}
+    .rq-tabs button.on b{background:#244c78;color:#fff}
+    .rq-list{display:flex;flex-direction:column;gap:10px}
+    .rqc{display:flex;flex-direction:column;align-items:stretch;gap:6px;width:100%;text-align:left;background:#fff;border:1.5px solid #e3e9f1;border-radius:18px;padding:14px 16px;cursor:pointer;font-family:inherit;transition:border-color .15s,box-shadow .15s}
+    .rqc:hover{border-color:#b9cbe0}
+    .rqc.atender{border-color:#f0c98a;box-shadow:0 4px 14px #b8751414}
+    .rqc-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .rqc-folio{font-size:14px;color:#14243a;font-weight:800;letter-spacing:.02em;font-variant-numeric:tabular-nums}
+    .rqc-fecha{margin-left:auto;font-size:12.5px;color:#6b7a8d;font-weight:600}
+    .rqc-que{font-size:15px;font-weight:700;color:#14243a;line-height:1.35}
+    .rqc-quien{font-size:13px;color:#6b7a8d}
+    .rqc-accion{align-self:flex-start;font-size:13px;font-weight:700;color:#8a5a12;background:#fff4e2;border-radius:999px;padding:5px 12px}
+    .rq-pill{display:inline-flex;align-items:center;font-size:11.5px;font-weight:700;border-radius:999px;padding:3px 10px;vertical-align:middle}
+    .rq-PENDIENTE{background:#fff4dc;color:#9a5b0b}.rq-AUTORIZADA{background:#e5eef8;color:#244c78}.rq-APROBADA{background:#e8f6ee;color:#1d7a4f}
+    .rq-RECHAZADA{background:#fdecee;color:#b23c45}.rq-CANCELADA{background:#eef1f5;color:#6b7a8d}
+    .rq-pasos{display:flex;gap:4px;margin-top:2px}
+    .rq-pasos i{flex:1;font-style:normal;font-size:11.5px;font-weight:700;color:#8a97a8;padding-top:7px;border-top:4px solid #e3e9f1;border-radius:2px}
+    .rq-pasos i.ok{color:#1d7a4f;border-top-color:#2f9e6b}
+    .rq-pasos i.no{color:#b23c45;border-top-color:#c8454d}
+    .rq-det{max-width:600px!important}
+    .rq-det h2 .rq-pill{margin-left:6px}
+    .rq-linea{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+    .rl{display:flex;flex-direction:column;align-items:center;text-align:center;gap:3px;background:#f6f8fb;border-radius:14px;padding:10px 6px}
+    .rl>span{width:34px;height:34px;border-radius:50%;background:#e3e9f1;color:#8a97a8;display:grid;place-items:center}
+    .rl>span ico{width:17px;height:17px}
+    .rl b{font-size:13px;color:#41546b}.rl small{font-size:11.5px;color:#7b889a;line-height:1.3}
+    .rl.ok>span{background:#2f9e6b;color:#fff}.rl.ok b{color:#1d7a4f}
+    .rl.no>span{background:#c8454d;color:#fff}.rl.no b{color:#b23c45}
+    .rq-rechazo{display:flex;flex-direction:column;gap:3px;background:#fdecee;border-radius:12px;padding:10px 14px;margin-bottom:12px;font-size:13.5px;color:#7a2f35}
+    .rq-datos{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+    .rq-datos div{display:flex;flex-direction:column;border:1px solid #e6ecf3;border-radius:12px;padding:8px 10px}
+    .rq-datos small{font-size:11.5px;color:#7b889a}.rq-datos b{font-size:14px;color:#14243a}
+    .rq-partidas{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+    .rqp{display:flex;align-items:center;gap:10px;border:1px solid #e6ecf3;border-radius:12px;padding:9px 12px}
+    .rqp-n{width:24px;height:24px;border-radius:50%;background:#eef2f7;color:#41546b;display:grid;place-items:center;font-size:12px;font-weight:800;flex-shrink:0}
+    .rqp-txt{flex:1;min-width:0;display:flex;flex-direction:column}
+    .rqp-txt b{font-size:14px;color:#14243a}.rqp-txt small{font-size:12px;color:#6b7a8d}
+    .rq-cat{font-style:normal;font-weight:800;color:#244c78;background:#e5eef8;border-radius:5px;padding:0 5px;font-size:11px}
+    .rqp-cant{display:flex;flex-direction:column;align-items:flex-end;flex-shrink:0}
+    .rqp-cant b{font-size:17px;color:#14243a;line-height:1}.rqp-cant small{font-size:11px;color:#7b889a}
+    .rq-firmar{display:flex;flex-direction:column;gap:8px;border-top:1px solid #edf1f6;padding-top:12px;margin-top:4px}
+    .rq-btns{display:flex;justify-content:flex-end;gap:8px;margin-top:4px}
+    .peligro-txt{color:#b23c45!important;margin-right:auto}
+    .rq-nueva .form-section{display:flex;flex-direction:column}
+    .rq-yo{display:flex;align-items:center;gap:12px;background:#f6f8fb;border-radius:14px;padding:10px 12px;margin-bottom:10px}
+    .rq-yo-txt{flex:1;min-width:0;display:flex;flex-direction:column}
+    .rq-yo-txt b{font-size:14.5px;color:#14243a}.rq-yo-txt small{font-size:12.5px;color:#6b7a8d}
+    .rq-yo-edit{display:flex;flex-direction:column;margin-bottom:6px}
+    .rq-cuando{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
+    .rq-cuando input{max-width:220px;margin:0!important}
+    .rq-items{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}
+    .rqi{border:1.5px solid #e3e9f1;border-radius:16px;padding:12px;display:flex;flex-direction:column;gap:10px;background:#fff}
+    .rqi-top{display:flex;align-items:center;gap:8px}
+    .rqi-desc{flex:1;margin:0!important;font-size:15px!important;font-weight:600}
+    .rqi-fila{display:flex;gap:8px;align-items:center}
+    .rqi-cant{display:flex;align-items:center;border:1.5px solid #dfe6ef;border-radius:12px;overflow:hidden;flex-shrink:0}
+    .rqi-cant button{width:38px;height:40px;border:0;background:#f6f8fb;font-size:18px;color:#244c78;cursor:pointer}
+    .rqi-cant input{width:64px;height:40px;border:0!important;text-align:center;font-weight:800;font-size:16px!important;margin:0!important;box-shadow:none!important;padding:0!important}
+    .rqi-fila select{flex:1;height:44px;margin:0!important}
+    .rqi-cats{display:flex;flex-wrap:wrap;gap:6px}
+    .rqi-cats button{display:inline-flex;align-items:center;gap:5px;border:1.5px solid #e3e9f1;background:#fff;border-radius:999px;padding:5px 10px 5px 6px;font-size:12.5px;color:#41546b;cursor:pointer;font-family:inherit}
+    .rqi-cats button b{font-size:10.5px;background:#eef2f7;color:#55667b;border-radius:999px;padding:1px 6px}
+    .rqi-cats button.on{border-color:#244c78;background:#244c78;color:#fff}
+    .rqi-cats button.on b{background:#fff;color:#244c78}
+    .rqi input{margin:0!important}
+    .rqi .lev-more{align-self:flex-start;padding:0}
+    @media(max-width:700px){.rq-datos{grid-template-columns:1fr 1fr}.rq-linea{gap:5px}}
     .ni-res{border:1.5px solid #e6ecf3;border-radius:16px;overflow:hidden;background:#fff}
     .ni-fila+.ni-fila{border-top:1px solid #edf1f6}
     .ni-fila-top{display:flex;align-items:center;gap:12px;width:100%;padding:12px 14px;background:transparent;border:0;cursor:pointer;text-align:left;font-family:inherit;font-size:14.5px;color:#14243a}
@@ -5163,6 +5445,7 @@ export class AppComponent {
 
   private irDesdeAviso(ir: string): void {
     if (!this.logged || this.mustChangePassword) return;
+    if (ir === 'requisiciones') { this.section = 'requisiciones'; this.menuCollapsed = true; this.loadRequisiciones(); return; }
     if (ir === 'autorizaciones' || ir === 'solicitudes') {
       this.section = 'solicitudes';
       this.menuCollapsed = true;
@@ -5618,6 +5901,7 @@ export class AppComponent {
     this.section = s;
     if (s === 'calibracion') { this.calFiltro = 'todos'; this.calBusqueda = ''; if (!this.bienes.length) this.loadBienes(); }
     if (s === 'solicitudes') this.loadSolicitudes();
+    if (s === 'requisiciones') this.loadRequisiciones();
     if (s === 'documentos') { this.docsVista = 'menu'; this.loadDocumentos(); }
     if (s === 'catalogos') this.loadCatalog();
   }
@@ -5703,11 +5987,12 @@ export class AppComponent {
     let ui: any = null;
     try { ui = JSON.parse(localStorage.getItem('dozzer_ui_' + this.email) || 'null'); } catch { ui = null; }
     if (!ui || typeof ui !== 'object') return;
-    const permitidas = ['bienes', 'solicitudes', 'documentos']
+    const permitidas = ['bienes', 'solicitudes', 'documentos', 'requisiciones']
       .concat(this.verInventarioAnual ? ['anual'] : [], this.isAdmin ? ['catalogos'] : [], this.isAdmin || this.canAuthorize ? ['calibracion'] : []);
     if (permitidas.includes(ui.s)) this.section = ui.s;
     if (['bienes', 'personas', 'completo'].includes(ui.v) || (ui.v === 'sedes' && this.isAdmin)) this.vistaInv = ui.v;
     if (this.section === 'documentos' && ['menu', 'ALTA', 'BAJA', 'ACTAS', 'RESGUARDO'].includes(ui.d)) { this.docsVista = ui.d; this.loadDocumentos(); }
+    if (this.section === 'requisiciones') this.loadRequisiciones();
     if (ui.f && typeof ui.f === 'object' && !ui.f.idBien) {
       this.bien = ui.f; this.bienOriginal = null; this.formMas = true; this.editing = true;
     }
@@ -5809,6 +6094,7 @@ export class AppComponent {
     this.loadBienes();
     Object.keys(this.catalogs).forEach(k => this.loadCatalog(k));
     this.loadSolicitudes();
+    this.loadRequisiciones();
   }
 
   // =========================
@@ -7097,6 +7383,320 @@ export class AppComponent {
       },
       error: e => { f.guardando = false; f.error = this.mensajeError(e, 'No se pudieron guardar las fechas.'); }
     });
+  }
+
+  // =========================
+  // REQUISICIONES DE COMPRA (FA-04-01-02)
+  // =========================
+  requisiciones: any[] = [];
+  rqCargando = false;
+  rqError = '';
+  rqVista: 'atender' | 'tramite' | 'cerradas' = 'tramite';
+  rqNueva: any = null;
+  rqDet: any = null;
+  String = String;
+  readonly categoriasRq = [
+    { k: 'ECA', corto: 'Cómputo', t: 'Equipo de cómputo y accesorios' },
+    { k: 'MEO', corto: 'Mobiliario', t: 'Mobiliario y equipo de oficina' },
+    { k: 'MI', corto: 'Material', t: 'Material o insumo' },
+    { k: 'H', corto: 'Herramienta', t: 'Herramienta' },
+    { k: 'ME', corto: 'Máquinas', t: 'Máquinas y equipos' },
+    { k: 'ET', corto: 'Transporte', t: 'Equipo de transporte' },
+    { k: 'AM', corto: 'Mercancía', t: 'Adquisición de mercancía' },
+    { k: 'O', corto: 'Otros', t: 'Otros' }
+  ];
+  readonly unidadesRq = [
+    { v: 'PZA', t: 'Piezas' }, { v: 'CAJA', t: 'Cajas' }, { v: 'PAQ', t: 'Paquetes' }, { v: 'JGO', t: 'Juegos' },
+    { v: 'KG', t: 'Kilos' }, { v: 'LT', t: 'Litros' }, { v: 'MT', t: 'Metros' }, { v: 'ROLLO', t: 'Rollos' }, { v: 'SERV', t: 'Servicio' }
+  ];
+
+  loadRequisiciones(): void {
+    if (!this.logged) return;
+    this.rqCargando = true;
+    this.http.get<any[]>(this.api + '/requisiciones').subscribe({
+      next: rows => {
+        this.requisiciones = rows || [];
+        this.rqCargando = false; this.rqError = '';
+        if (this.rqPorAtender && this.rqVista === 'tramite') this.rqVista = 'atender';
+        if (!this.rqPorAtender && this.rqVista === 'atender') this.rqVista = 'tramite';
+      },
+      error: e => { this.rqCargando = false; this.rqError = e?.status === 404 ? '' : this.mensajeError(e, 'No se pudieron cargar las requisiciones.'); }
+    });
+  }
+
+  get rqPorAtender(): number { return this.requisiciones.filter(r => r.puedoAutorizar || r.puedoAprobar).length; }
+
+  rqCuenta(v: string): number { return this.requisiciones.filter(r => this.rqEnVista(r, v)).length; }
+
+  private rqEnVista(r: any, v: string): boolean {
+    if (v === 'atender') return r.puedoAutorizar || r.puedoAprobar;
+    if (v === 'tramite') return r.estado === 'PENDIENTE' || r.estado === 'AUTORIZADA';
+    return !(r.estado === 'PENDIENTE' || r.estado === 'AUTORIZADA');
+  }
+
+  get rqLista(): any[] { return this.requisiciones.filter(r => this.rqEnVista(r, this.rqVista)); }
+
+  trackRq(_: number, r: any): any { return r.idDocumento; }
+
+  textoEstadoRq(e: string): string {
+    return ({ PENDIENTE: 'Por autorizar', AUTORIZADA: 'Por aprobar', APROBADA: 'Aprobada', RECHAZADA: 'Rechazada', CANCELADA: 'Cancelada' } as any)[e] || e;
+  }
+
+  nombreCategoriaRq(k: string): string { return this.categoriasRq.find(c => c.k === k)?.t || ''; }
+
+  fechaCortaRq(f: any): string {
+    if (!f) return '—';
+    const d = new Date(String(f).substring(0, 10) + 'T00:00:00');
+    return isNaN(d.getTime()) ? String(f) : d.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
+  fechaEnDias(n: number): string {
+    const d = new Date(); d.setDate(d.getDate() + n);
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  }
+
+  nuevaRequisicion(): void {
+    this.rqNueva = {
+      nombre: this.nombreUsuario || this.email, cargo: '', area: '', editarYo: false,
+      fechaRequerida: this.fechaEnDias(7),
+      partidas: [this.partidaVaciaRq()],
+      trazos: {}, usarGuardada: !!this.firmaGuardada, recordar: !this.firmaGuardada, papel: false,
+      guardando: false, error: ''
+    };
+    const n = this.rqNueva;
+    this.http.get<any>(this.api + '/requisiciones/mis-datos').subscribe({
+      next: r => {
+        if (this.rqNueva !== n) return;
+        n.nombre = r.nombre || n.nombre;
+        if (!n.cargo) n.cargo = r.cargo || '';
+        if (!n.area) n.area = r.area || '';
+        if (!n.cargo || !n.area) n.editarYo = true;
+      },
+      error: () => { n.editarYo = true; }
+    });
+  }
+
+  private partidaVaciaRq(): any {
+    return { descripcion: '', categoria: '', catManual: false, cantidad: 1, unidad: 'PZA', observaciones: '', verObs: false };
+  }
+
+  agregarPartidaRq(): void {
+    this.rqNueva.partidas.push(this.partidaVaciaRq());
+    setTimeout(() => { const l = document.querySelectorAll('.rqi-desc'); (l[l.length - 1] as HTMLInputElement)?.focus(); }, 50);
+  }
+
+  // Mientras escriben qué es, se propone la categoría (la pueden cambiar)
+  sugerirCategoriaRq(p: any): void {
+    if (p.catManual) return;
+    const t = String(p.descripcion || '').toLowerCase();
+    const reglas: [string, RegExp][] = [
+      ['ECA', /laptop|computador|\bpc\b|monitor|teclado|mouse|rat[oó]n|disco|ssd|usb|impresora|t[oó]ner|cartucho|memoria|cable|router|switch|tablet|celular|no ?break|proyector|software|licencia/],
+      ['MEO', /silla|escritorio|mesa|archivero|librero|estante|anaquel|sill[oó]n|gabinete|pizarr|locker|mueble/],
+      ['ET', /camioneta|auto|carro|veh[ií]culo|cami[oó]n|moto|llanta|remolque/],
+      ['H', /taladro|martillo|desarmador|pinza|llave|sierra|esmeril|nivel|flex[oó]metro|herramienta|pulidora|rotomartillo/],
+      ['ME', /m[aá]quina|generador|compresor|bomba|revolvedora|soldadora|montacargas|planta|motor/],
+      ['MI', /cemento|arena|grava|varilla|pintura|papel|hojas|tinta|material|insumo|tornillo|clavo|block|tubo|cable el[eé]ctrico|limpieza|caf[eé]|agua/]
+    ];
+    const hit = reglas.find(([, re]) => re.test(t));
+    p.categoria = hit ? hit[0] : (t.trim() ? p.categoria : '');
+  }
+
+  enviarRequisicion(canvas: HTMLCanvasElement): void {
+    const n = this.rqNueva;
+    if (!n || n.guardando) return;
+    n.error = '';
+    if (!String(n.area || '').trim() || !String(n.cargo || '').trim()) { n.editarYo = true; n.error = 'Escribe tu área y tu cargo.'; return; }
+    if (!n.fechaRequerida) { n.error = 'Elige para cuándo lo necesitas.'; return; }
+    const partidas = n.partidas.filter((p: any) => String(p.descripcion || '').trim());
+    if (!partidas.length) { n.error = 'Escribe al menos una cosa que necesites.'; return; }
+    const sinCat = partidas.find((p: any) => !p.categoria);
+    if (sinCat) { n.error = 'Elige la categoría de "' + sinCat.descripcion + '".'; return; }
+    const malaCant = partidas.find((p: any) => !(+p.cantidad > 0));
+    if (malaCant) { n.error = 'Revisa la cantidad de "' + malaCant.descripcion + '".'; return; }
+    let firma: string | null = null;
+    if (!n.papel) {
+      if (n.usarGuardada && this.firmaGuardada) firma = this.firmaGuardada;
+      else if (n.trazos.rn) firma = canvas.toDataURL('image/png');
+      else { n.error = 'Firma con el dedo o marca "Firmaré en papel".'; return; }
+      if (!n.usarGuardada && n.recordar && firma) { try { localStorage.setItem('dozzer_firma_' + this.email, firma); } catch { /* */ } }
+    }
+    n.guardando = true;
+    this.http.post<any>(this.api + '/requisiciones', {
+      area: n.area, cargo: n.cargo, fechaRequerida: n.fechaRequerida, firma,
+      partidas: partidas.map((p: any) => ({ categoria: p.categoria, descripcion: p.descripcion, cantidad: +p.cantidad, unidad: p.unidad, observaciones: p.observaciones }))
+    }).subscribe({
+      next: r => {
+        this.rqNueva = null;
+        this.rqVista = 'tramite';
+        this.loadRequisiciones();
+        this.notificar('exito', 'Requisición enviada', r.folio + ' · La administración ya tiene el aviso. Aquí verás cuando la autoricen.', 3500);
+      },
+      error: e => { n.guardando = false; n.error = this.mensajeError(e, 'No se pudo enviar la requisición.'); }
+    });
+  }
+
+  abrirRequisicion(r: any): void {
+    const D: any = this.rqDet = { r, d: {}, cargando: true, guardando: false, error: '', firma: null, rechazo: false, motivo: '' };
+    this.http.get<any>(this.api + '/requisiciones/' + r.idDocumento).subscribe({
+      next: x => { if (this.rqDet !== D) return; D.r = x; D.d = x.datos || {}; D.cargando = false; },
+      error: e => { D.cargando = false; D.error = this.mensajeError(e, 'No se pudo abrir la requisición.'); }
+    });
+  }
+
+  verPdfRequisicion(D: any): void {
+    this.abrirFormato({ ...(D.d || {}), tipo: 'REQUISICION', estadoRq: D.r.estado, idDocumento: D.r.idDocumento } as any);
+  }
+
+  pedirFirmaRq(paso: 'autorizar' | 'aprobar'): void {
+    this.rqDet.firma = { paso, trazos: {}, usarGuardada: !!this.firmaGuardada, papel: false };
+    this.rqDet.error = '';
+  }
+
+  confirmarPasoRq(canvas: HTMLCanvasElement): void {
+    const D = this.rqDet, Fm = D?.firma;
+    if (!Fm || D.guardando) return;
+    let firma: string | null = null;
+    if (!Fm.papel) {
+      if (Fm.usarGuardada && this.firmaGuardada) firma = this.firmaGuardada;
+      else if (Fm.trazos.rp) firma = canvas.toDataURL('image/png');
+      else { D.error = 'Firma con el dedo o marca "Firmaré en papel".'; return; }
+    }
+    D.guardando = true; D.error = '';
+    this.http.post<any>(this.api + '/requisiciones/' + D.r.idDocumento + '/' + Fm.paso, { firma }).subscribe({
+      next: x => {
+        D.guardando = false; D.firma = null; D.r = x; D.d = x.datos || D.d;
+        this.loadRequisiciones();
+        this.notificar('exito', Fm.paso === 'autorizar' ? 'Requisición autorizada' : 'Requisición aprobada',
+          x.folio + (Fm.paso === 'autorizar' ? ' · ahora falta que un administrador la apruebe.' : ' · ya se le avisó a quien la pidió.'), 3000);
+      },
+      error: e => { D.guardando = false; D.error = this.mensajeError(e, 'No se pudo guardar.'); }
+    });
+  }
+
+  rechazarRq(): void {
+    const D = this.rqDet;
+    if (!D || D.guardando) return;
+    D.guardando = true; D.error = '';
+    this.http.post<any>(this.api + '/requisiciones/' + D.r.idDocumento + '/rechazar', { motivo: D.motivo }).subscribe({
+      next: x => { D.guardando = false; D.rechazo = false; D.r = x; D.d = x.datos || D.d; this.loadRequisiciones(); },
+      error: e => { D.guardando = false; D.error = this.mensajeError(e, 'No se pudo rechazar.'); }
+    });
+  }
+
+  cancelarRq(): void {
+    const D = this.rqDet;
+    this.abrirDialogo({
+      tipo: 'peligro', icono: '✕', titulo: '¿Cancelar la requisición ' + D.r.folio + '?',
+      mensaje: 'Ya no llegará a la administración. Si la necesitas después, haz una nueva.',
+      textoConfirmar: 'Sí, cancelarla', textoCancelar: 'No',
+      accion: terminar => this.http.post<any>(this.api + '/requisiciones/' + D.r.idDocumento + '/cancelar', {}).subscribe({
+        next: x => { terminar(); D.r = x; D.d = x.datos || D.d; this.loadRequisiciones(); },
+        error: e => terminar(this.mensajeError(e, 'No se pudo cancelar.'))
+      })
+    });
+  }
+
+  // PDF con el formato oficial FA-04-01-02 (carta horizontal)
+  private async crearPdfRequisicion(d: any): Promise<Blob> {
+    const doc = new jsPDF({ unit: 'mm', format: 'letter', orientation: 'landscape', compress: true });
+    const X = 12, W = 255.4, R = X + W;
+    const ajustar = (t: any, ancho: number) => this.ajustarTexto(doc, String(t ?? ''), ancho);
+    const fecha = (f: any) => { if (!f) return ''; const m = String(f).match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? m[3] + '/' + m[2] + '/' + m[1].slice(2) : String(f); };
+    const logo = await this.cargarLogo();
+    doc.setDrawColor(0, 0, 0); doc.setTextColor(0, 0, 0);
+
+    const encabezado = () => {
+      doc.setLineWidth(0.5);
+      doc.rect(X, 10, 62, 17); doc.rect(X + 62, 10, 133, 17); doc.rect(X + 195, 10, W - 195, 17);
+      if (logo) { try { doc.addImage(logo, 'PNG', X + 4, 12.5, 54, 54 * 227 / 879, 'logo', 'FAST'); } catch { /* sin logo */ } }
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
+      doc.text('Requisición de Compra', X + 62 + 66.5, 17, { align: 'center' });
+      doc.text(d.formato || 'FA-04-01-02', X + 62 + 66.5, 22.5, { align: 'center' });
+      doc.setFontSize(9);
+      doc.text('No. de revisión del formato:', X + 195 + (W - 195) / 2, 16.5, { align: 'center' });
+      doc.text(String(d.revision || '3'), X + 195 + (W - 195) / 2, 22.5, { align: 'center' });
+    };
+    encabezado();
+
+    // Datos generales (2 renglones)
+    const y0 = 31, h = 12;
+    const c = [X, X + 47, X + 103, X + 150, X + 195, R];
+    doc.setLineWidth(0.4);
+    for (let i = 0; i < 2; i++) for (let k = 0; k < 5; k++) doc.rect(c[k], y0 + i * h, c[k + 1] - c[k], h);
+    doc.setFontSize(8.5);
+    const celda = (k: number, i: number, t: string, centro = false) =>
+      doc.text(ajustar(t, c[k + 1] - c[k] - 3), centro ? (c[k] + c[k + 1]) / 2 : c[k] + 1.5, y0 + i * h + 7, centro ? { align: 'center' } : undefined);
+    celda(0, 0, 'Área que lo solicita:'); celda(1, 0, String(d.area || '').toUpperCase()); celda(2, 0, 'Cargo del solicitante:'); celda(3, 0, String(d.cargo || '').toUpperCase(), true);
+    celda(0, 1, 'Nombre del solicitante:'); celda(1, 1, String(d.solicitante || '').toUpperCase()); celda(2, 1, 'Num. de requisición:'); celda(3, 1, d.folio || '', true);
+    doc.text('Fecha de emisión: ' + (d.fechaEmision || ''), c[4] + 1.5, y0 + 5);
+    doc.text('Fecha que se requiere el material:', c[4] + 1.5, y0 + h + 4.5);
+    doc.text(fecha(d.fechaRequerida), c[4] + 1.5, y0 + h + 9);
+
+    // Partidas
+    const cols = [12, 38, 96, 30, 25, W - 201];
+    const tit = ['No.', 'Categoría', 'Descripción de la solicitud', 'Unidad de medida', 'Cantidad', 'Observaciones'];
+    const partidas: any[] = d.partidas || [];
+    const filasPorHoja = 8;
+    const totalFilas = Math.max(7, partidas.length);
+    let y = 60, fila = 0;
+    const cabecera = () => {
+      doc.setLineWidth(0.4); doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
+      let x = X;
+      cols.forEach((w, i) => { doc.rect(x, y, w, 8); doc.text(tit[i], x + w / 2, y + 5.3, { align: 'center' }); x += w; });
+      y += 8;
+    };
+    cabecera();
+    for (let i = 0; i < totalFilas; i++) {
+      if (fila === filasPorHoja && i < totalFilas) {
+        doc.addPage('letter', 'landscape'); encabezado(); y = 32; fila = 0; cabecera();
+      }
+      const p = partidas[i];
+      let x = X;
+      const celdas = p ? [String(i + 1), p.categoria, String(p.descripcion || '').toUpperCase(), p.unidad, String(p.cantidad), String(p.observaciones || '').toUpperCase()] : ['', '', '', '', '', ''];
+      cols.forEach((w, k) => {
+        doc.rect(x, y, w, 9.5);
+        const lineas = doc.splitTextToSize(celdas[k] || '', w - 3).slice(0, 2);
+        doc.setFontSize(lineas.length > 1 ? 7 : 8);
+        doc.text(lineas, x + w / 2, y + (lineas.length > 1 ? 3.9 : 6), { align: 'center' });
+        x += w;
+      });
+      y += 9.5; fila++;
+    }
+
+    // Leyenda de categorías
+    y += 4;
+    if (y + 52 > 210) { doc.addPage('letter', 'landscape'); encabezado(); y = 32; }
+    doc.setLineWidth(0.4); doc.rect(X, y, W, 7); doc.rect(X, y + 7, W, 11);
+    doc.setFontSize(8.5); doc.text('CATEGORÍA', X + W / 2, y + 4.8, { align: 'center' });
+    doc.setFontSize(7.8);
+    doc.text('AM: Adquisición de mercancía    MEO: Mobiliario y Equipo de Oficina    ET: Equipo de Transporte    ECA: Equipo de Cómputo y Accesorios', X + W / 2, y + 11.5, { align: 'center' });
+    doc.text('ME: Máquinas y Equipos    H: Herramienta    MI: Material o insumo    O: Otros', X + W / 2, y + 15.8, { align: 'center' });
+    y += 22;
+
+    // Firmas
+    const firmas = d.firmas || {}, nombres = d.nombres || {};
+    const lugares: [string, string][] = [['solicito', 'Solicitó'], ['autorizo', 'Autorizó'], ['aprobo', 'Aprobó']];
+    const bw = (W - 8) / 3;
+    lugares.forEach(([k, rol], i) => {
+      const bx = X + i * (bw + 4);
+      doc.setLineWidth(0.4); doc.roundedRect(bx, y, bw, 27, 4, 4);
+      if (firmas[k]) { try { doc.addImage(firmas[k], 'PNG', bx + bw / 2 - 22, y + 1, 44, 16); } catch { /* firma ilegible */ } }
+      doc.setFontSize(8.2);
+      doc.text(ajustar(String(nombres[k] || '').toUpperCase(), bw - 6), bx + bw / 2, y + 17.5, { align: 'center' });
+      doc.text('Nombre y firma', bx + bw / 2, y + 21.2, { align: 'center' });
+      doc.text(rol, bx + bw / 2, y + 24.9, { align: 'center' });
+    });
+
+    // Estado si no está aprobada
+    const est = d.estadoRq;
+    if (est && est !== 'APROBADA') {
+      const txt = est === 'RECHAZADA' ? 'RECHAZADA' : est === 'CANCELADA' ? 'CANCELADA' : 'EN TRÁMITE';
+      doc.setTextColor(est === 'RECHAZADA' || est === 'CANCELADA' ? 190 : 160, est === 'RECHAZADA' || est === 'CANCELADA' ? 60 : 110, 60);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
+      doc.text(txt + (est === 'RECHAZADA' && d.motivoRechazo ? ' · ' + ajustar(d.motivoRechazo, 180) : ''), R, 7.5, { align: 'right' });
+      doc.setTextColor(0, 0, 0); doc.setFont('helvetica', 'normal');
+    }
+    return doc.output('blob');
   }
 
   editBien(b: any): void {
@@ -8945,6 +9545,8 @@ export class AppComponent {
     if (this.cierre) this.cierre.trazos[k] = true;
     if (this.firmaIni) this.firmaIni.trazos[k] = true;
     if (this.firmaDoc) this.firmaDoc.trazos[k] = true;
+    if (this.rqNueva) this.rqNueva.trazos[k] = true;
+    if (this.rqDet?.firma) this.rqDet.firma.trazos[k] = true;
   }
 
   firmaMove(ev: PointerEvent, canvas: HTMLCanvasElement, k: string): void {
@@ -8968,6 +9570,8 @@ export class AppComponent {
     if (this.cierre) this.cierre.trazos[k] = false;
     if (this.firmaIni) this.firmaIni.trazos[k] = false;
     if (this.firmaDoc) this.firmaDoc.trazos[k] = false;
+    if (this.rqNueva) this.rqNueva.trazos[k] = false;
+    if (this.rqDet?.firma) this.rqDet.firma.trazos[k] = false;
   }
 
   firmarYTerminar(canvasA: HTMLCanvasElement, canvasB: HTMLCanvasElement): void {
@@ -9213,12 +9817,13 @@ export class AppComponent {
       case 'ACTA_CIERRE': return 'Acta de cierre';
       case 'BAJA': return 'Formato de Baja';
       case 'RESGUARDO': return 'Resguardo individual';
+      case 'REQUISICION': return 'Requisición de compra';
       default: return 'Formato de Alta';
     }
   }
 
   etiquetaTipoDoc(d: any): string {
-    return d?.tipo === 'ACTA_INICIO' ? 'INICIO' : d?.tipo === 'ACTA_CIERRE' ? 'CIERRE' : d?.tipo;
+    return d?.tipo === 'ACTA_INICIO' ? 'INICIO' : d?.tipo === 'ACTA_CIERRE' ? 'CIERRE' : d?.tipo === 'REQUISICION' ? 'REQUISICIÓN' : d?.tipo;
   }
 
   get conteoActas(): number {
@@ -9632,6 +10237,7 @@ export class AppComponent {
   private async crearPdfFormato(d: FormatoDoc): Promise<Blob> {
     if (this.esActa(d)) return this.crearPdfActa(d as any);
     if (d.tipo === 'RESGUARDO') return this.crearPdfResguardo(d as any);
+    if (d.tipo === 'REQUISICION') return this.crearPdfRequisicion(d as any);
     type RGB = [number, number, number];
     const NAVY: RGB = [23, 38, 61], AZUL: RGB = [36, 76, 120], GRIS: RGB = [110, 120, 135];
     const CLARO: RGB = [244, 246, 250], LINEA: RGB = [214, 220, 229];
