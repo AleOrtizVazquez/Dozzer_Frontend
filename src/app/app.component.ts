@@ -46,6 +46,9 @@ interface FormatoDoc {
   // Resguardo individual
   persona?: { nombre?: string; numeroEmpleado?: string; area?: string; puesto?: string };
   totalBienes?: number;
+  // Guardado en el servidor (para firmarlo) y firmas dibujadas en el celular
+  idDocumento?: number;
+  firmas?: { solicito?: string; autorizo?: string; valido?: string };
 }
 
 // Iconos de DOZZER: un solo trazo fino y uniforme en todo el sistema
@@ -155,7 +158,8 @@ export class IcoComponent { @Input() n = ''; }
         <button class="side-op" *ngIf="instalarPrompt" (click)="instalarApp()"><span><ico n="download"></ico></span><span class="side-op-txt">Instalar app</span></button>
         <button class="side-op" (click)="menuCollapsed=true; abrirCambioPassword()"><span><ico n="key"></ico></span><span class="side-op-txt">Cambiar mi contraseña</span></button>
         <ng-container *ngIf="isAdmin">
-          <button class="side-op" (click)="menuCollapsed=true; abrirRestablecerManual()"><span><ico n="shield"></ico></span><span class="side-op-txt">Restablecer contraseña<small>A un usuario</small></span></button>
+          <button class="side-op" (click)="menuCollapsed=true; abrirAdmins()"><span><ico n="shield"></ico></span><span class="side-op-txt">Administradores<small>Quién administra DOZZER</small></span></button>
+          <button class="side-op" (click)="menuCollapsed=true; abrirRestablecerManual()"><span><ico n="key"></ico></span><span class="side-op-txt">Restablecer contraseña<small>A un usuario</small></span></button>
           <button class="side-op" (click)="menuCollapsed=true; generarTemporalesPendientes()"><span><ico n="users"></ico></span><span class="side-op-txt">Contraseñas temporales<small>Una por empleado (Excel)</small></span></button>
         </ng-container>
         <button class="side-op" (click)="menuCollapsed=true; manualAbierto=true"><span><ico n="book"></ico></span><span class="side-op-txt">Manual de usuario</span></button>
@@ -322,6 +326,89 @@ export class IcoComponent { @Input() n = ''; }
         </div>
       </div>
 
+      <!-- FIRMAS DEL FORMATO DE ALTA / BAJA -->
+      <div class="modal-backdrop firma-doc-fondo" *ngIf="firmaDoc as fd">
+        <div class="modal-card wizard">
+          <div class="modal-header">
+            <div>
+              <h2>Firmas del formato</h2>
+              <p>{{ fd.titulo }} · Folio {{ fd.folio }}. Cada quien firma con el dedo; quien no esté, firma en papel.</p>
+            </div>
+            <button class="close-button" [disabled]="fd.guardando" (click)="firmaDoc=null">×</button>
+          </div>
+          <div class="form-section">
+            <div class="cierre-firma" *ngFor="let f of fd.lugares">
+              <label class="firma-lbl">{{ f.nombre || 'Sin nombre' }} <span class="muted">· {{ f.rol }}</span></label>
+              <div class="firma-hecha" *ngIf="f.actual && !fd.rehacer[f.k]">
+                <img [src]="f.actual" alt="Firma guardada">
+                <button type="button" class="btn-outline btn-small" (click)="fd.rehacer[f.k]=true">Volver a firmar</button>
+              </div>
+              <ng-container *ngIf="!f.actual || fd.rehacer[f.k]">
+                <div class="firma-pad" [hidden]="fd.papel[f.k]">
+                  <canvas [id]="'firma-doc-' + f.k" #fdc width="600" height="220" (pointerdown)="firmaDown($event, fdc, 'd' + f.k)" (pointermove)="firmaMove($event, fdc, 'd' + f.k)"
+                          (pointerup)="firmaUp('d' + f.k)" (pointercancel)="firmaUp('d' + f.k)" (pointerleave)="firmaUp('d' + f.k)"></canvas>
+                  <span class="firma-guia" *ngIf="!fd.trazos['d' + f.k]">Firme aquí con el dedo</span>
+                  <button class="firma-borrar" *ngIf="fd.trazos['d' + f.k]" (click)="borrarFirma(fdc, 'd' + f.k)">Borrar</button>
+                </div>
+                <label class="cm-check"><input type="checkbox" [(ngModel)]="fd.papel[f.k]"> Firmará en papel</label>
+              </ng-container>
+            </div>
+          </div>
+          <div class="inline-error" *ngIf="fd.error" style="margin:0 24px 12px">{{ fd.error }}</div>
+          <div class="modal-footer">
+            <button class="btn-outline" [disabled]="fd.guardando" (click)="firmaDoc=null">Cancelar</button>
+            <button class="btn-primary" [disabled]="fd.guardando" (click)="guardarFirmaFormato()">
+              <span class="mini-ring light" *ngIf="fd.guardando"></span>
+              {{ fd.guardando ? 'Guardando…' : '✓ Guardar firmas' }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ADMINISTRADORES: quién puede administrar DOZZER -->
+      <div class="modal-backdrop adm-fondo" *ngIf="admins as a" (click)="admins=null">
+        <div class="adm" (click)="$event.stopPropagation()">
+          <div class="adm-top">
+            <span class="adm-top-ico"><ico n="shield"></ico></span>
+            <div>
+              <h2>Administradores</h2>
+              <p>Elige quién puede autorizar, dar de alta y baja, hacer inventarios y ver todas las sedes.</p>
+            </div>
+            <button class="close-button" (click)="admins=null">×</button>
+          </div>
+          <div class="adm-buscar">
+            <ico n="search"></ico>
+            <input [(ngModel)]="a.q" placeholder="Buscar persona o correo…">
+          </div>
+          <div class="adm-cuerpo">
+            <div class="cap-loading" *ngIf="a.cargando"><div class="loader-ring"></div><strong>Cargando usuarios…</strong></div>
+            <p class="inline-error" *ngIf="a.error">{{ a.error }}</p>
+            <ng-container *ngIf="!a.cargando">
+              <h3 class="adm-grupo">Administradores <b>{{ adminsFiltrados(true).length }}</b></h3>
+              <div class="adm-fila es-admin" *ngFor="let u of adminsFiltrados(true)">
+                <span class="adm-av admin">{{ inicialesDe(u.nombre || u.correo) }}</span>
+                <span class="adm-txt"><b>{{ (u.nombre | titlecase) || u.correo }}</b><small>{{ u.correo }}</small></span>
+                <span class="adm-fija" *ngIf="u.principal" title="Cuenta principal del sistema">Principal</span>
+                <span class="adm-fija" *ngIf="!u.principal && u.correo===email" title="Tu cuenta">Tú</span>
+                <button class="switch-btn" *ngIf="!u.principal && u.correo!==email" [disabled]="u.cambiando" (click)="cambiarAdmin(u, false)" title="Quitar como administrador">
+                  <span class="switch on"><i></i></span>
+                </button>
+              </div>
+              <h3 class="adm-grupo">Empleados <b>{{ adminsFiltrados(false).length }}</b></h3>
+              <div class="adm-fila" *ngFor="let u of adminsFiltrados(false).slice(0, a.visibles)">
+                <span class="adm-av">{{ inicialesDe(u.nombre || u.correo) }}</span>
+                <span class="adm-txt"><b>{{ (u.nombre | titlecase) || u.correo }}</b><small>{{ u.correo }}</small></span>
+                <button class="switch-btn" [disabled]="u.cambiando" (click)="cambiarAdmin(u, true)" title="Hacer administrador">
+                  <span class="switch"><i></i></span>
+                </button>
+              </div>
+              <button class="lev-more adm-mas" *ngIf="adminsFiltrados(false).length > a.visibles" (click)="a.visibles = a.visibles + 40">Mostrar más ({{ adminsFiltrados(false).length - a.visibles }})</button>
+            </ng-container>
+          </div>
+          <p class="adm-nota">El cambio aplica la próxima vez que esa persona entre a DOZZER.</p>
+        </div>
+      </div>
+
       <!-- AVISO: ETIQUETA ESCANEADA -->
       <div class="escaneo-ok" *ngIf="escaneoOk"><span class="escaneo-ok-ico"><ico n="check"></ico></span><span><b>Escaneada</b><small>{{ escaneoOk }}</small></span></div>
 
@@ -437,6 +524,11 @@ export class IcoComponent { @Input() n = ''; }
               </div>
 
               <div class="doc-side">
+                <button class="ver-acta firmar-doc" *ngIf="isAdmin && d.datos.idDocumento && (d.datos.tipo==='ALTA' || d.datos.tipo==='BAJA') && !d.datos.anulado" (click)="abrirFirmaFormato()">
+                  <span class="ver-acta-ico"><ico n="edit"></ico></span>
+                  <span class="ver-acta-txt"><b>{{ firmasDe(d.datos) ? 'Firmas (' + firmasDe(d.datos) + ' de 3)' : 'Firmar en el celular' }}</b><small>Solicitó, autorizó y validó firman con el dedo</small></span>
+                  <ico class="ver-acta-go" n="chev"></ico>
+                </button>
                 <h3>¿Qué quieres hacer?</h3>
                 <button class="doc-action" (click)="descargarFormato()">
                   <span>⬇</span><div><strong>Descargar PDF</strong><small>Guardarlo en este equipo</small></div>
@@ -2441,6 +2533,7 @@ export class IcoComponent { @Input() n = ''; }
                       <span class="doc-anulado" *ngIf="d.estado==='ANULADO'">ANULADO</span>
                       <span class="doc-estado borrador" *ngIf="d.estado==='BORRADOR'">BORRADOR</span>
                       <span class="doc-estado" *ngIf="d.estado==='HISTORICO'">HISTÓRICO</span>
+                      <span class="doc-firma" *ngIf="(d.tipo==='ALTA' || d.tipo==='BAJA') && d.estado!=='ANULADO'" [class.ok]="d.firmado">{{ d.firmado ? '✓ Firmado' : 'Sin firmar' }}</span>
                     </span>
                     <ng-container *ngIf="d.tipo==='RESGUARDO'">
                       <strong>{{ d.persona }}</strong>
@@ -2737,6 +2830,42 @@ export class IcoComponent { @Input() n = ''; }
     .column-picker>.btn-outline{display:inline-flex;align-items:center;gap:7px}
     .column-picker>.btn-outline>ico{width:17px;height:17px}
     .clasif-menu{width:300px}
+    .modal-backdrop.firma-doc-fondo{z-index:240}
+    .firmar-doc{margin-bottom:14px}
+    .firma-hecha{display:flex;align-items:center;gap:12px;background:#f6f8fb;border-radius:12px;padding:8px 12px}
+    .firma-hecha img{height:58px;width:auto;background:#fff;border-radius:8px}
+    .doc-firma{font-size:11px;font-weight:800;letter-spacing:.3px;color:#a56a00;background:#fff4dc;border-radius:999px;padding:2px 8px;margin-left:6px}
+    .doc-firma.ok{color:#14804f;background:#e6f6ec}
+    .modal-backdrop.adm-fondo{z-index:150}
+    .adm{width:min(560px,100%);max-height:min(88vh,860px);background:#fff;border-radius:22px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 30px 80px #15243b45;animation:fadeUp .3s ease both}
+    .adm-top{display:flex;align-items:flex-start;gap:14px;padding:22px 22px 14px;background:linear-gradient(160deg,#f2f7fd,#fff)}
+    .adm-top-ico{width:48px;height:48px;border-radius:15px;background:linear-gradient(140deg,#17304f,#2d5d93);color:#fff;display:grid;place-items:center;flex-shrink:0;box-shadow:0 8px 20px #2d5d9340}
+    .adm-top-ico ico{width:24px;height:24px}
+    .adm-top h2{margin:0 0 4px;font-size:20px;font-weight:800;color:#14243a}
+    .adm-top p{margin:0;font-size:13.5px;color:#6b7a8d;line-height:1.5}
+    .adm-top>div{flex:1}
+    .adm-buscar{display:flex;align-items:center;gap:10px;margin:0 22px 8px;border:1px solid #e1e7ef;border-radius:12px;padding:0 12px;height:44px;color:#8a96a6}
+    .adm-buscar ico{width:18px;height:18px}
+    .adm-buscar input{border:0!important;padding:0!important;height:100%;background:transparent;font-size:14.5px;box-shadow:none!important}
+    .adm-cuerpo{flex:1;overflow-y:auto;padding:4px 14px 10px}
+    .adm-grupo{display:flex;align-items:center;gap:8px;margin:14px 8px 8px;font-size:12px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#8d99a9}
+    .adm-grupo b{background:#eef3f9;color:#2d5d93;border-radius:999px;padding:1px 8px;font-size:11.5px;letter-spacing:0}
+    .adm-fila{display:flex;align-items:center;gap:12px;padding:9px 10px;border-radius:14px;transition:background .15s}
+    .adm-fila:hover{background:#f6f8fb}
+    .adm-fila.es-admin{background:#f3f8fe;margin-bottom:6px}
+    .adm-av{width:40px;height:40px;border-radius:50%;background:#e8edf3;color:#4a5d75;display:grid;place-items:center;font-size:13.5px;font-weight:800;flex-shrink:0}
+    .adm-av.admin{background:linear-gradient(140deg,#17304f,#2d5d93);color:#fff}
+    .adm-txt{flex:1;min-width:0;display:flex;flex-direction:column}
+    .adm-txt b{font-size:14.5px;color:#14243a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .adm-txt small{font-size:12.5px;color:#8a96a6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .adm-fija{font-size:11.5px;font-weight:800;color:#2d5d93;background:#e3edf9;border-radius:999px;padding:3px 10px}
+    .switch-btn{border:0;background:transparent;padding:6px;cursor:pointer;border-radius:999px}
+    .switch-btn:disabled{opacity:.5;cursor:default}
+    .switch-btn .switch{background:#cfd8e3}
+    .switch-btn .switch.on{background:#2fa36b}
+    .adm-mas{margin:8px auto 4px;display:block}
+    .adm-nota{margin:0;padding:12px 22px 16px;font-size:12.5px;color:#8a96a6;border-top:1px solid #eef1f5}
+    @media(max-width:600px){.modal-backdrop.adm-fondo{padding:0;align-items:flex-end}.adm{max-height:92vh;border-radius:22px 22px 0 0}}
     .nb-etq{display:flex;align-items:center;gap:12px;border:1.5px dashed #c9d6e6;background:#f8fafd;border-radius:14px;padding:12px 14px;margin-bottom:10px}
     .nb-etq.lista{border-style:solid;border-color:#bfe3cf;background:#eef9f2}
     .nb-etq-ico{width:40px;height:40px;border-radius:12px;background:#fff;color:#2d5d93;display:grid;place-items:center;flex-shrink:0;box-shadow:0 2px 8px #17263d12}
@@ -2748,7 +2877,7 @@ export class IcoComponent { @Input() n = ''; }
     .nb-etq-leer{display:flex;flex-direction:column;gap:8px;margin-bottom:6px}
     .nb-etq-btn{display:inline-flex!important;align-items:center;justify-content:center;gap:8px;height:46px;margin:0!important;color:#fff!important;font-size:15px!important;cursor:pointer}
     .nb-etq-btn ico{width:19px;height:19px}
-    .push-preg-fondo{z-index:300}
+    .modal-backdrop.push-preg-fondo{z-index:300}
     .push-preg{width:min(400px,100%);background:#fff;border-radius:22px;padding:28px 24px 20px;text-align:center;box-shadow:0 24px 70px #15243b40;animation:fadeUp .3s ease both}
     .push-preg-ico{width:64px;height:64px;border-radius:20px;margin:0 auto 16px;display:grid;place-items:center;color:#fff;background:linear-gradient(140deg,#17304f,#2d5d93);box-shadow:0 10px 24px #2d5d9340}
     .push-preg-ico ico{width:30px;height:30px}
@@ -4153,6 +4282,8 @@ export class AppComponent {
   paginasPdf: string[] = [];
   paginasError = '';
   firmaIni: any = null;
+  firmaDoc: any = null;
+  admins: any = null;
   clasifAbierto = false;
   bienvenida = false;
   private bienvenidaTimer: any;
@@ -6513,6 +6644,98 @@ export class AppComponent {
     });
   }
 
+  // ----- Firmas del formato de alta / baja -----
+  firmasDe(d: any): number {
+    const f = d?.firmas || {};
+    return ['solicito', 'autorizo', 'valido'].filter(k => !!f[k]).length;
+  }
+
+  abrirFirmaFormato(): void {
+    const d: any = this.documento?.datos;
+    if (!d?.idDocumento) return;
+    const f = d.firmas || {};
+    this.firmaDoc = {
+      id: d.idDocumento, folio: d.folio, titulo: this.tituloDoc(d),
+      lugares: [
+        { k: 'solicito', nombre: d.solicito, rol: 'Solicitó', actual: f.solicito },
+        { k: 'autorizo', nombre: d.autorizo, rol: 'Autorizó', actual: f.autorizo },
+        { k: 'valido', nombre: 'Ing. Juan Carlos Zuno Muñiz', rol: 'Validó', actual: f.valido }
+      ],
+      papel: {}, trazos: {}, rehacer: {}, guardando: false, error: ''
+    };
+  }
+
+  guardarFirmaFormato(): void {
+    const z = this.firmaDoc;
+    if (!z || z.guardando) return;
+    const firmas: any = {};
+    for (const l of z.lugares) {
+      if (l.actual && !z.rehacer[l.k]) continue;                 // ya estaba firmada
+      if (z.papel[l.k]) { firmas[l.k] = ''; continue; }           // firmará en papel
+      if (z.trazos['d' + l.k]) {
+        const c = document.getElementById('firma-doc-' + l.k) as HTMLCanvasElement | null;
+        if (c) firmas[l.k] = c.toDataURL('image/png');
+      }
+    }
+    if (!Object.keys(firmas).length) { z.error = 'Dibuja al menos una firma (o cierra si no van a firmar ahora).'; return; }
+    z.guardando = true; z.error = '';
+    this.http.post<any>(this.api + '/documentos/' + z.id + '/firmas', { firmas }).subscribe({
+      next: () => {
+        const id = z.id;
+        this.firmaDoc = null;
+        this.cerrarFormato();
+        this.abrirDocumentoGuardado(id);
+        if (this.section === 'documentos') this.loadDocumentos();
+      },
+      error: e => { z.guardando = false; z.error = this.mensajeError(e, 'No se pudieron guardar las firmas.'); }
+    });
+  }
+
+  // ----- Administradores -----
+  abrirAdmins(): void {
+    this.admins = { lista: [], cargando: true, error: '', q: '', visibles: 40 };
+    const a = this.admins;
+    this.http.get<any[]>(this.api + '/usuarios').subscribe({
+      next: r => {
+        a.lista = (r || []).filter(u => u.activo !== false)
+          .sort((x, y) => String(x.nombre || x.correo).localeCompare(String(y.nombre || y.correo), 'es'));
+        a.cargando = false;
+      },
+      error: e => { a.cargando = false; a.error = this.mensajeError(e, 'No se pudo cargar la lista de usuarios.'); }
+    });
+  }
+
+  adminsFiltrados(administradores: boolean): any[] {
+    const a = this.admins;
+    if (!a) return [];
+    const q = String(a.q || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+    return a.lista.filter((u: any) => !!u.administrador === administradores &&
+      (!q || (String(u.nombre || '') + ' ' + u.correo).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes(q)));
+  }
+
+  cambiarAdmin(u: any, administrador: boolean): void {
+    const nombre = this.titulo(u.nombre || u.correo);
+    this.abrirDialogo({
+      tipo: administrador ? 'confirmar' : 'peligro', icono: administrador ? '🛡' : '↩',
+      titulo: administrador ? '¿Hacer administrador a ' + nombre + '?' : '¿Quitar como administrador a ' + nombre + '?',
+      mensaje: administrador
+        ? 'Podrá autorizar solicitudes, dar de alta y baja bienes, hacer inventarios y ver todas las sedes. Aplica la próxima vez que entre.'
+        : 'Volverá a ser empleado: solo verá su sede y sus solicitudes necesitarán autorización.',
+      textoConfirmar: administrador ? 'Sí, hacerlo administrador' : 'Sí, quitar',
+      accion: terminar => {
+        u.cambiando = true;
+        this.http.put<any>(this.api + '/usuarios/' + u.idUsuario + '/administrador', { administrador }).subscribe({
+          next: r => { u.cambiando = false; u.administrador = !!r?.administrador; terminar(); },
+          error: e => { u.cambiando = false; terminar(this.mensajeError(e, 'No se pudo cambiar el rol.')); }
+        });
+      }
+    });
+  }
+
+  private titulo(t: string): string {
+    return String(t || '').toLowerCase().replace(/(^|\s)\S/g, x => x.toUpperCase());
+  }
+
   // Acta de inicio: si aún no tiene firmas, primero se firma en el celular y después se ve el PDF
   abrirActaInicio(l: any): void {
     if (l.estado === 'EN_CURSO' && l.puedoAdministrar && !l.inicioFirmado && (l.participantes || []).length) this.abrirFirmasInicio(l);
@@ -7597,6 +7820,7 @@ export class AppComponent {
     if (this.cap?.term) this.cap.term.trazos[k] = true;
     if (this.cierre) this.cierre.trazos[k] = true;
     if (this.firmaIni) this.firmaIni.trazos[k] = true;
+    if (this.firmaDoc) this.firmaDoc.trazos[k] = true;
   }
 
   firmaMove(ev: PointerEvent, canvas: HTMLCanvasElement, k: string): void {
@@ -7619,6 +7843,7 @@ export class AppComponent {
     if (this.cap?.term) this.cap.term.trazos[k] = false;
     if (this.cierre) this.cierre.trazos[k] = false;
     if (this.firmaIni) this.firmaIni.trazos[k] = false;
+    if (this.firmaDoc) this.firmaDoc.trazos[k] = false;
   }
 
   firmarYTerminar(canvasA: HTMLCanvasElement, canvasB: HTMLCanvasElement): void {
@@ -8095,7 +8320,7 @@ export class AppComponent {
       next: r => {
         this.abriendoDocumento = null;
         this.docGenerando = false;
-        this.abrirFormato({ ...(r.datos || {}), anulado: r.estado === 'ANULADO', borrador: r.estado === 'BORRADOR',
+        this.abrirFormato({ ...(r.datos || {}), idDocumento: r.idDocumento ?? id, anulado: r.estado === 'ANULADO', borrador: r.estado === 'BORRADOR',
                             historico: r.estado === 'HISTORICO' } as FormatoDoc);
       },
       error: e => {
@@ -8374,13 +8599,17 @@ export class AppComponent {
 
     // Firmas: espacio vacío para la imagen de la firma, línea, nombre y rol
     seccion('FIRMAS', y);
-    const espacioFirma = (fx: number, fy: number, w: number, nombre: string, rol: string) => {
-      doc.setDrawColor(...LINEA); doc.setLineWidth(0.3);
-      (doc as any).setLineDashPattern([1.2, 1.2], 0);
-      doc.roundedRect(fx + 4, fy, w - 8, 22, 2, 2);
-      (doc as any).setLineDashPattern([], 0);
-      doc.setFont('helvetica', 'italic'); doc.setFontSize(7); doc.setTextColor(170, 178, 190);
-      doc.text('Espacio para firma', fx + w / 2, fy + 12, { align: 'center' });
+    const espacioFirma = (fx: number, fy: number, w: number, nombre: string, rol: string, firma?: string) => {
+      if (firma) {
+        try { doc.addImage(firma, 'PNG', fx + w / 2 - 22, fy + 2, 44, 22); } catch { /* firma ilegible */ }
+      } else {
+        doc.setDrawColor(...LINEA); doc.setLineWidth(0.3);
+        (doc as any).setLineDashPattern([1.2, 1.2], 0);
+        doc.roundedRect(fx + 4, fy, w - 8, 22, 2, 2);
+        (doc as any).setLineDashPattern([], 0);
+        doc.setFont('helvetica', 'italic'); doc.setFontSize(7); doc.setTextColor(170, 178, 190);
+        doc.text('Espacio para firma', fx + w / 2, fy + 12, { align: 'center' });
+      }
       doc.setDrawColor(...NAVY); doc.setLineWidth(0.35);
       doc.line(fx + 4, fy + 26, fx + w - 4, fy + 26);
       if (nombre) {
@@ -8394,10 +8623,10 @@ export class AppComponent {
       doc.text(rol, fx + w / 2, fy + 34.5, { align: 'center' });
     };
     const fy = Math.min(y + 5, 222);
-    espacioFirma(X, fy, 58, d.solicito, 'Solicitó');
-    espacioFirma(X + 59, fy, 58, d.autorizo, 'Autorizó');
+    espacioFirma(X, fy, 58, d.solicito, 'Solicitó', d.firmas?.solicito);
+    espacioFirma(X + 59, fy, 58, d.autorizo, 'Autorizó', d.firmas?.autorizo);
     // Valida siempre el Jefe de recursos materiales (alta y baja)
-    espacioFirma(X + 118, fy, 58, 'Ing. Juan Carlos Zuno Muñiz', 'Validó · Jefe de recursos materiales');
+    espacioFirma(X + 118, fy, 58, 'Ing. Juan Carlos Zuno Muñiz', 'Validó · Jefe de recursos materiales', d.firmas?.valido);
 
     if (d.anulado) {
       try { (doc as any).setGState(new (doc as any).GState({ opacity: 0.18 })); } catch { /* sin transparencia */ }
