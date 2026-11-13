@@ -216,8 +216,11 @@ export class IcoComponent { @Input() n = ''; }
             {{ loading ? 'ENTRANDO…' : 'ENTRAR' }}
           </button>
           <div class="login-lento" *ngIf="loginLento">
-            <span class="ll-giro"></span>
-            <span><b>Estamos preparando todo para ti</b><small>Espera un momento, enseguida entras.</small></span>
+            <div class="ll-caja">
+              <span class="ll-giro"></span>
+              <b>Estamos preparando todo para ti</b>
+              <small>Espera un momento, enseguida entras.</small>
+            </div>
           </div>
 
           <button type="button" class="lg-forgot" (click)="abrirRecuperacion()">¿Olvidaste tu contraseña?</button>
@@ -1851,6 +1854,7 @@ export class IcoComponent { @Input() n = ''; }
             <!-- ===== Resultado de un inventario cerrado ===== -->
             <div class="res" *ngIf="anualVista==='resultado' && res as R">
               <button class="doc-back" (click)="salirResultado()">← Inventarios</button>
+              <div class="res-fin"><button class="btn-primary" (click)="salirResultado()"><ico n="check"></ico> Finalizar</button></div>
               <div class="res-head">
                 <div>
                   <span class="res-ok" *ngIf="R.recien"><ico n="check"></ico> Inventario cerrado</span>
@@ -2211,7 +2215,7 @@ export class IcoComponent { @Input() n = ''; }
                     <input type="file" accept="image/*" capture="environment" (change)="leerQrDeFoto($event)" hidden>
                   </label>
                   <p class="cap-hint" *ngIf="!camaraEnVivo">Para escanear en vivo, el celular necesita abrir DOZZER con https. Mientras, toma una foto del QR.</p>
-                  <div class="pistola-tip" *ngIf="hayLectorPosible"><ico n="qr"></ico><span><b>¿Tienes la pistola lectora?</b> Solo dispárale a la etiqueta; no hace falta tocar nada.</span></div>
+                  <div class="pistola-tip" *ngIf="hayLectorPosible"><ico n="qr"></ico><span><b>Con el lector de códigos (pistola USB):</b> apunta al QR de la etiqueta y aprieta el gatillo. DOZZER lo lee solo, sin tocar la pantalla.</span></div>
 
                   <button class="lev-more" (click)="cap.verClave = !cap.verClave">{{ cap.verClave ? '▴' : '▾' }} Escribir la clave a mano</button>
                   <div class="cap-clave" *ngIf="cap.verClave">
@@ -2323,14 +2327,31 @@ export class IcoComponent { @Input() n = ''; }
                   <small>{{ [b.marca, b.modelo].filter(esTexto).join(' · ') }}</small>
                   <small>📍 Registrado en: {{ b.ubicacion || 'Sin ubicación' }}</small>
                   <small>👤 {{ b.persona || 'Sin resguardante' }}</small>
-                  <small>🏷 {{ b.etiqueta || (hayLectorPosible ? 'Sin etiqueta: pégale una en blanco y dispárale con la pistola' : 'Sin etiqueta: escanea una en blanco para asignarla') }}</small>
+                  <small *ngIf="b.etiqueta">🏷 Etiqueta {{ b.etiqueta }}</small>
                   <div class="cap-warn" *ngIf="cap.area && b.id_ubicacion !== cap.area.id">⚠ Está registrado en otra área: se marcará como fuera de lugar.</div>
                   <div class="cap-info" *ngIf="b.estatus==='REVISADO'">Ya se revisó antes ({{ b.respuesta }}). Si guardas, se actualiza.</div>
                   <div class="cap-info" *ngIf="b.estatus==='NO_ENCONTRADO'">Estaba marcado como no encontrado. Si lo guardas, queda revisado.</div>
                 </div>
 
+                <!-- Paso 1: la etiqueta (si no tiene) -->
+                <div class="cap-step cap-etq" *ngIf="!b.etiqueta && !cap.omitirEtq">
+                  <div class="step-title"><span>1</span> Pégale una etiqueta en blanco y escanéala</div>
+                  <label class="cap-photo">
+                    <span>🏷</span> {{ cap.leyendoEtq ? 'Leyendo…' : 'Escanear la etiqueta' }}
+                    <input type="file" accept="image/*" capture="environment" (change)="leerEtiquetaBienCap($event)" hidden>
+                  </label>
+                  <div class="cap-clave">
+                    <input [(ngModel)]="cap.etqTexto" placeholder="o escribe el código (DZ-000123)" (keyup.enter)="usarEtiquetaBienCap()">
+                    <button class="btn-outline" (click)="usarEtiquetaBienCap()">Usar</button>
+                  </div>
+                  <p class="cap-hint" *ngIf="hayLectorPosible">🔫 ¿Usas el lector de códigos (la pistola USB)? Apunta al QR de la etiqueta y aprieta el gatillo: se registra solo.</p>
+                  <button class="lev-more" (click)="cap.omitirEtq=true">Este bien no puede llevar etiqueta</button>
+                </div>
+                <div class="cap-info cap-etq-ok" *ngIf="b.etiqueta && cap.etqRecien">✓ Etiqueta {{ b.etiqueta }} asignada</div>
+
+                <ng-container *ngIf="b.etiqueta || cap.omitirEtq">
                 <div class="cap-step" *ngIf="!b.tiene_foto">
-                  <div class="step-title"><span>1</span> Foto del bien</div>
+                  <div class="step-title"><span>{{ pasoBienCap(b, 'foto') }}</span> Foto del bien</div>
                   <label class="cap-photo" *ngIf="!cap.fotoUrl">
                     <span>📷</span> Tomar foto
                     <input type="file" accept="image/*" capture="environment" (change)="tomarFotoBien($event)" hidden>
@@ -2346,16 +2367,17 @@ export class IcoComponent { @Input() n = ''; }
                 </div>
 
                 <div class="cap-step" *ngIf="b.tiene_foto || cap.fotoUrl">
-                  <div class="step-title"><span>{{ b.tiene_foto ? 1 : 2 }}</span> {{ cap.lev.pregunta?.texto }}</div>
+                  <div class="step-title"><span>{{ pasoBienCap(b, 'estado') }}</span> {{ cap.lev.pregunta?.texto }}</div>
                   <div class="cap-options">
                     <button *ngFor="let o of cap.lev.pregunta?.opciones" [class.on]="cap.respuesta===o" (click)="cap.respuesta=o">{{ o }}</button>
                   </div>
                 </div>
+                </ng-container>
 
                 <div class="inline-error" *ngIf="cap.error">{{ cap.error }}</div>
                 <div class="cap-footer">
                   <button class="btn-outline" [disabled]="cap.guardando" (click)="cancelarBienCaptura()">Cancelar</button>
-                  <button class="btn-primary" [disabled]="cap.guardando || !cap.respuesta || (!b.tiene_foto && !cap.foto)" (click)="guardarCaptura()">
+                  <button class="btn-primary" [disabled]="cap.guardando || !cap.respuesta || (!b.tiene_foto && !cap.foto) || (!b.etiqueta && !cap.omitirEtq)" (click)="guardarCaptura()">
                     <span class="mini-ring light" *ngIf="cap.guardando"></span>
                     {{ cap.guardando ? 'Guardando…' : 'Guardar y siguiente' }}
                   </button>
@@ -3626,7 +3648,11 @@ export class IcoComponent { @Input() n = ''; }
     .cap-finalizar b{font-size:14.5px;color:#7a4d0c}.cap-finalizar small{font-size:12.5px;color:#9a7444}
     .cap-finalizar:hover{background:#fff4e2}
     /* Resultado */
-    .res{display:flex;flex-direction:column;gap:14px;max-width:820px}
+    .res{display:flex;flex-direction:column;gap:14px;max-width:820px;padding-bottom:96px}
+    .res-fin{position:fixed;left:0;right:0;bottom:calc(18px + env(safe-area-inset-bottom));z-index:120;display:flex;justify-content:center;pointer-events:none;padding:0 16px}
+    .res-fin .btn-primary{pointer-events:auto;display:inline-flex;align-items:center;justify-content:center;gap:10px;min-width:260px;height:56px;border-radius:999px!important;font-size:18px!important;box-shadow:0 12px 28px #244c7840}
+    .res-fin ico{width:22px;height:22px}
+    .cap-etq-ok{background:#e8f6ee!important;color:#1d7a4f!important;font-weight:700}
     .res-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
     .res-head h1{margin:2px 0 0;font-size:28px;letter-spacing:-.02em;color:#14243a}
     .res-head p{margin:2px 0 0;color:#6b7a8d;font-size:14.5px}
@@ -4065,10 +4091,11 @@ export class IcoComponent { @Input() n = ''; }
     .manual-head strong{font-size:15px;color:#14243a}
     .manual-head a{margin-left:auto;font-size:13px;font-weight:700;color:#2d5d93;text-decoration:none}
     .manual-card iframe{flex:1;width:100%;border:0}
-    .login-lento{margin:12px 0 0;display:flex;align-items:center;gap:12px;background:#f1f6fc;border:1px solid #dbe6f3;border-radius:14px;padding:12px 14px;text-align:left;animation:fadeIn .3s ease both}
-    .login-lento b{display:block;font-size:14px;color:#17263d}
-    .login-lento small{display:block;font-size:12.5px;color:#5d6f86;margin-top:1px}
-    .ll-giro{width:26px;height:26px;border-radius:50%;border:3px solid #d5e2f1;border-top-color:#244c78;flex-shrink:0;animation:llGiro .8s linear infinite}
+    .login-lento{position:fixed;inset:0;z-index:600;display:grid;place-items:center;background:#f6f9fd;animation:fadeIn .3s ease both;padding:24px}
+    .ll-caja{display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;max-width:320px}
+    .ll-caja b{font-size:20px;color:#14243a;letter-spacing:-.2px;margin-top:10px}
+    .ll-caja small{font-size:15px;color:#5d6f86}
+    .ll-giro{width:84px;height:84px;border-radius:50%;border:7px solid #dbe6f3;border-top-color:#244c78;border-right-color:#f08a24;animation:llGiro .9s linear infinite}
     @keyframes llGiro{to{transform:rotate(360deg)}}
     @media(max-width:600px){.manual-backdrop{padding:0}.manual-card{height:100%;border-radius:0}}
     .user-menu-exit .more-ico{background:#fdeced;color:#c2414b}
@@ -8521,6 +8548,8 @@ export class AppComponent {
   salirResultado(): void {
     this.res = null;
     this.anualVista = 'lista';
+    this.loadLevantamientos();
+    window.scrollTo({ top: 0 });
   }
 
   // Cerrado: lo que no se revisó cuenta como no localizado
@@ -9289,7 +9318,7 @@ export class AppComponent {
   }
 
   // Etiqueta en blanco leída con la pistola mientras se captura un bien sin etiqueta (no se pierde la foto)
-  private ligarEtiquetaAlBienAbierto(codigo: string): void {
+  ligarEtiquetaAlBienAbierto(codigo: string): void {
     const c = this.cap, b = c.bien;
     this.http.get<any>(this.api + '/etiquetas/' + encodeURIComponent(codigo)).subscribe({
       next: r => {
@@ -9300,7 +9329,7 @@ export class AppComponent {
         }).then(res => {
           if (!res.ok) { c.error = res.error || 'No se pudo asignar la etiqueta.'; return; }
           b.etiqueta = codigo;
-          this.notificar('exito', 'Etiqueta asignada', codigo + ' → ' + b.clave, 1800);
+          c.etqRecien = true; c.etqTexto = '';
         });
       },
       error: e => c.error = this.mensajeError(e, 'No se pudo consultar la etiqueta.')
@@ -9361,8 +9390,50 @@ export class AppComponent {
     this.cap.agregado = null;
     this.cap.ofrecerNuevo = false;
     this.cap.desdeLista = false;
+    this.cap.omitirEtq = false; this.cap.etqTexto = ''; this.cap.etqRecien = false; this.cap.leyendoEtq = false;
     this.cap.paso = 'bien';
     window.scrollTo({ top: 0 });
+  }
+
+  // Número de cada paso del bien (la etiqueta va primero si no tiene)
+  pasoBienCap(b: any, paso: 'foto' | 'estado'): number {
+    let n = b.etiqueta && !this.cap?.etqRecien ? 0 : 1;
+    if (paso === 'foto') return n + 1;
+    return n + (b.tiene_foto ? 1 : 2);
+  }
+
+  async leerEtiquetaBienCap(ev: Event): Promise<void> {
+    const input = ev.target as HTMLInputElement;
+    const archivo = input.files?.[0];
+    input.value = '';
+    const c = this.cap;
+    if (!archivo || !c?.bien) return;
+    c.leyendoEtq = true; c.error = '';
+    try {
+      const bmp = await this.cargarImagen(archivo);
+      const escala = Math.min(1, 1400 / Math.max(bmp.width, bmp.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(bmp.width * escala); canvas.height = Math.round(bmp.height * escala);
+      const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
+      ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+      const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const qr = jsQR(img.data, img.width, img.height, { inversionAttempts: 'attemptBoth' });
+      c.leyendoEtq = false;
+      const cod = qr?.data ? this.codigoDeTexto(qr.data) : '';
+      if (!cod) { c.error = 'No se encontró el QR de la etiqueta en la foto. Acércate más y que salga enfocado.'; return; }
+      this.avisarEscaneo(qr!.data);
+      this.ligarEtiquetaAlBienAbierto(cod);
+    } catch {
+      c.leyendoEtq = false; c.error = 'No se pudo leer la foto.';
+    }
+  }
+
+  usarEtiquetaBienCap(): void {
+    const c = this.cap;
+    const cod = this.codigoDeTexto(String(c?.etqTexto || ''));
+    if (!cod) { c.error = 'Escribe el código de la etiqueta, por ejemplo DZ-000123.'; return; }
+    c.error = '';
+    this.ligarEtiquetaAlBienAbierto(cod);
   }
 
   cancelarBienCaptura(): void {
