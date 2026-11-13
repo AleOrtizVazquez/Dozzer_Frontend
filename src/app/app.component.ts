@@ -99,6 +99,8 @@ interface FormatoDoc {
       <ng-container *ngSwitchCase="'printer'"><path d="M7 9V3.5h10V9"/><rect x="3.5" y="9" width="17" height="8" rx="2"/><path d="M7 14h10v6.5H7z"/></ng-container>
       <ng-container *ngSwitchCase="'chart'"><path d="M4 20h16"/><path d="M7 16v-5M12 16V7M17 16v-8"/></ng-container>
       <ng-container *ngSwitchCase="'search'"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></ng-container>
+      <ng-container *ngSwitchCase="'gear'"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></ng-container>
+      <ng-container *ngSwitchCase="'chevright'"><path d="M9 6l6 6-6 6"/></ng-container>
       <ng-container *ngSwitchCase="'image'"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.8"/><path d="M21 16l-5-5-8 8"/></ng-container>
     </ng-container>
   </svg>`,
@@ -123,6 +125,15 @@ export class IcoComponent { @Input() n = ''; }
           <small>Construcción y Asesoría S.A. de C.V.</small>
         </div>
         <button class="sidebar-close" title="Cerrar menú" (click)="menuCollapsed=true">×</button>
+      </div>
+
+      <div class="side-perfil">
+        <div class="side-perfil-avatar">{{ initials }}</div>
+        <div class="side-perfil-info">
+          <strong [title]="nombreUsuario || email">{{ nombreUsuario || email }}</strong>
+          <small *ngIf="nombreUsuario" [title]="email">{{ email }}</small>
+          <span class="side-perfil-rol" [class.admin]="isAdmin">{{ isAdmin ? 'Administrador' : 'Empleado' }}</span>
+        </div>
       </div>
 
       <nav class="side-nav">
@@ -153,29 +164,73 @@ export class IcoComponent { @Input() n = ''; }
       </nav>
 
       <div class="side-cuenta" *ngIf="logged">
-        <div class="side-user">
-          <div class="user-avatar">{{ initials }}</div>
-          <div class="user-info">
-            <strong [title]="email">{{ nombreUsuario || email }}</strong>
-            <small>{{ isAdmin ? 'Administrador' : 'Empleado' }}</small>
-          </div>
-        </div>
-        <button class="side-op" [disabled]="pushProcesando || !pushCambiable" (click)="pushEstado==='activo' ? desactivarPush() : activarPush()">
-          <span><ico n="bell"></ico></span>
-          <span class="side-op-txt">Notificaciones<small *ngIf="!pushCambiable">{{ textoPushEstado }}</small></span>
-          <span class="switch" *ngIf="pushCambiable" [class.on]="pushEstado==='activo'"><i></i></span>
-        </button>
-        <button class="side-op" *ngIf="instalarPrompt" (click)="instalarApp()"><span><ico n="download"></ico></span><span class="side-op-txt">Instalar app</span></button>
-        <button class="side-op" (click)="menuCollapsed=true; abrirCambioPassword()"><span><ico n="key"></ico></span><span class="side-op-txt">Cambiar mi contraseña</span></button>
-        <ng-container *ngIf="isAdmin">
-          <button class="side-op" (click)="menuCollapsed=true; abrirAdmins()"><span><ico n="shield"></ico></span><span class="side-op-txt">Administradores<small>Quién administra DOZZER</small></span></button>
-          <button class="side-op" (click)="menuCollapsed=true; abrirRestablecerManual()"><span><ico n="key"></ico></span><span class="side-op-txt">Restablecer contraseña<small>A un usuario</small></span></button>
-          <button class="side-op" (click)="menuCollapsed=true; generarTemporalesPendientes()"><span><ico n="users"></ico></span><span class="side-op-txt">Contraseñas temporales<small>Una por empleado (Excel)</small></span></button>
-        </ng-container>
-        <button class="side-op" (click)="menuCollapsed=true; manualAbierto=true"><span><ico n="book"></ico></span><span class="side-op-txt">Manual de usuario</span></button>
+        <button class="side-op" (click)="menuCollapsed=true; ajustesAbierto=true"><span><ico n="gear"></ico></span><span class="side-op-txt">Ajustes</span></button>
         <button class="side-op salir" (click)="logout()"><span><ico n="logout"></ico></span><span class="side-op-txt">Cerrar sesión</span></button>
       </div>
     </aside>
+
+    <!-- AJUSTES -->
+    <div class="aj-backdrop" *ngIf="logged && ajustesAbierto" (click)="ajustesAbierto=false">
+      <div class="aj-card" role="dialog" aria-label="Ajustes" (click)="$event.stopPropagation()">
+        <div class="aj-head">
+          <span class="aj-head-ico"><ico n="gear"></ico></span>
+          <div><strong>Ajustes</strong><small>Tu cuenta, este dispositivo y ayuda</small></div>
+          <button class="close-button" title="Cerrar" (click)="ajustesAbierto=false">×</button>
+        </div>
+        <div class="aj-body">
+          <h4>Mi cuenta y este dispositivo</h4>
+          <button class="aj-item" [disabled]="pushProcesando || !pushCambiable" (click)="pushEstado==='activo' ? desactivarPush() : activarPush()">
+            <span class="aj-ico"><ico n="bell"></ico></span>
+            <span class="aj-txt"><strong>Notificaciones</strong>
+              <small>Recibe en este dispositivo los avisos de DOZZER (autorizaciones, requisiciones, calibraciones) aunque no tengas la app abierta.</small>
+              <em *ngIf="!pushCambiable">{{ textoPushEstado }}</em></span>
+            <span class="switch" *ngIf="pushCambiable" [class.on]="pushEstado==='activo'"><i></i></span>
+          </button>
+          <button class="aj-item" *ngIf="instalarPrompt" (click)="instalarApp()">
+            <span class="aj-ico"><ico n="download"></ico></span>
+            <span class="aj-txt"><strong>Instalar app</strong>
+              <small>Agrega DOZZER a la pantalla de inicio para abrirlo como una aplicación, sin buscarlo en el navegador.</small></span>
+            <ico class="aj-chev" n="chevright"></ico>
+          </button>
+          <button class="aj-item" (click)="ajustesAbierto=false; abrirCambioPassword()">
+            <span class="aj-ico"><ico n="key"></ico></span>
+            <span class="aj-txt"><strong>Cambiar mi contraseña</strong>
+              <small>Cambia la contraseña con la que entras a DOZZER. Te pedirá la actual.</small></span>
+            <ico class="aj-chev" n="chevright"></ico>
+          </button>
+
+          <ng-container *ngIf="isAdmin">
+            <h4>Administración</h4>
+            <button class="aj-item" (click)="ajustesAbierto=false; abrirAdmins()">
+              <span class="aj-ico"><ico n="shield"></ico></span>
+              <span class="aj-txt"><strong>Administradores</strong>
+                <small>Consulta y elige qué usuarios tienen permisos de administrador en DOZZER.</small></span>
+              <ico class="aj-chev" n="chevright"></ico>
+            </button>
+            <button class="aj-item" (click)="ajustesAbierto=false; abrirRestablecerManual()">
+              <span class="aj-ico"><ico n="lock"></ico></span>
+              <span class="aj-txt"><strong>Restablecer contraseña</strong>
+                <small>Da una contraseña nueva a un usuario que olvidó la suya o no puede entrar.</small></span>
+              <ico class="aj-chev" n="chevright"></ico>
+            </button>
+            <button class="aj-item" (click)="ajustesAbierto=false; generarTemporalesPendientes()">
+              <span class="aj-ico"><ico n="users"></ico></span>
+              <span class="aj-txt"><strong>Contraseñas temporales</strong>
+                <small>Genera una contraseña temporal para cada empleado que aún no cambia la suya y descarga la lista en Excel. Antes de generar te pide confirmar.</small></span>
+              <ico class="aj-chev" n="chevright"></ico>
+            </button>
+          </ng-container>
+
+          <h4>Ayuda</h4>
+          <button class="aj-item" (click)="ajustesAbierto=false; manualAbierto=true">
+            <span class="aj-ico"><ico n="book"></ico></span>
+            <span class="aj-txt"><strong>Manual de usuario</strong>
+              <small>Guía paso a paso de cómo usar cada sección de DOZZER.</small></span>
+            <ico class="aj-chev" n="chevright"></ico>
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- CONTENIDO -->
     <main class="main-content">
@@ -338,7 +393,7 @@ export class IcoComponent { @Input() n = ''; }
             <button class="btn-outline" (click)="cerrarPreguntaPush()">Ahora no</button>
             <button class="btn-primary" *ngIf="pushEstado==='inactivo'" [disabled]="pushProcesando" (click)="cerrarPreguntaPush(); activarPush()">Activar</button>
           </div>
-          <small>Puedes cambiarlo cuando quieras en el menú ☰ → Notificaciones.</small>
+          <small>Puedes cambiarlo cuando quieras en el menú ☰ → Ajustes → Notificaciones.</small>
         </div>
       </div>
 
@@ -3438,6 +3493,37 @@ export class IcoComponent { @Input() n = ''; }
     .side-op-txt{flex:1;display:flex;flex-direction:column;gap:2px}
     .side-op-txt small{font-size:11.5px;color:#8fa0b6}
     .side-op.salir{color:#f0a6ab}
+    .brand{margin-bottom:20px}
+    .side-perfil{display:flex;align-items:center;gap:12px;padding:12px;margin-bottom:22px;border-radius:12px;background:#22344f;border:1px solid #2f4462}
+    .side-perfil-avatar{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#dce8f7,#b9d0ee);color:#1d3a5c;display:grid;place-items:center;font-size:16px;font-weight:800;flex-shrink:0}
+    .side-perfil-info{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
+    .side-perfil-info strong{font-size:14px;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .side-perfil-info small{font-size:11.5px;color:#9eacc0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .side-perfil-rol{align-self:flex-start;margin-top:3px;font-size:10.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;padding:2px 8px;border-radius:999px;background:#2f4462;color:#c1ccdb}
+    .side-perfil-rol.admin{background:#5e9be933;color:#9cc4f5}
+    .aj-backdrop{position:fixed;top:0;right:0;bottom:0;left:0;inset:0;z-index:150;background:#15243b88;display:flex;align-items:center;justify-content:center;padding:16px;animation:fadeIn .2s ease both}
+    .aj-card{width:min(560px,100%);max-height:min(88vh,100%);background:#fff;border-radius:16px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 24px 80px #15243b40}
+    .aj-head{display:flex;align-items:center;gap:12px;padding:16px 18px;border-bottom:1px solid #edf0f4}
+    .aj-head>div{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}
+    .aj-head strong{font-size:17px;color:#14243a}
+    .aj-head small{font-size:12.5px;color:#7a889b}
+    .aj-head-ico{width:38px;height:38px;border-radius:10px;background:#eaf1fb;color:#2d5d93;display:grid;place-items:center;flex-shrink:0}
+    .aj-head-ico ico{width:21px;height:21px}
+    .aj-body{overflow-y:auto;padding:6px 12px 16px}
+    .aj-body h4{margin:16px 8px 6px;font-size:11.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:#8290a2}
+    .aj-item{display:flex;align-items:center;gap:14px;width:100%;border:0;background:transparent;padding:12px 10px;border-radius:12px;text-align:left;cursor:pointer;color:#14243a}
+    .aj-item:hover:not(:disabled){background:#f3f6fa}
+    .aj-item:disabled{cursor:default}
+    .aj-ico{width:38px;height:38px;border-radius:10px;background:#f0f4f9;color:#2d5d93;display:grid;place-items:center;flex-shrink:0}
+    .aj-ico ico{width:20px;height:20px}
+    .aj-txt{flex:1;display:flex;flex-direction:column;gap:3px;min-width:0}
+    .aj-txt strong{font-size:14.5px}
+    .aj-txt small{font-size:12.5px;line-height:1.4;color:#6b7a8f}
+    .aj-txt em{font-style:normal;font-size:12px;font-weight:700;color:#b26a12}
+    .aj-item .switch{background:#cfd8e3}
+    .aj-item .switch.on{background:#2fa36b}
+    .aj-chev{color:#a6b2c2;width:18px;height:18px}
+    @media(max-width:600px){.aj-backdrop{padding:0;align-items:flex-end}.aj-card{max-height:92vh;border-radius:16px 16px 0 0}}
     .switch{width:38px;height:22px;border-radius:999px;background:#4a5b74;position:relative;flex-shrink:0;transition:background .2s}
     .switch i{position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .2s}
     .switch.on{background:#2fa36b}
@@ -5296,6 +5382,7 @@ export class AppComponent {
   menuMasInventario = false;
   menuUsuario = false;
   manualAbierto = false;
+  ajustesAbierto = false;
   formMas = false;
   bienAbierto: any = null;
   pushPregunta = false;
@@ -7595,7 +7682,7 @@ export class AppComponent {
       next: r => {
         this.calProbando = false;
         if (!r?.equipos) { this.notificar('info', 'Nada que avisar', 'Ningún equipo vence en los próximos 30 días ni está vencido.'); return; }
-        this.notificar('exito', 'Aviso enviado', r.equipos + (r.equipos === 1 ? ' equipo' : ' equipos') + ' en el aviso. Llega a los dispositivos con las notificaciones activadas (menú ☰ → Notificaciones).', 5000);
+        this.notificar('exito', 'Aviso enviado', r.equipos + (r.equipos === 1 ? ' equipo' : ' equipos') + ' en el aviso. Llega a los dispositivos con las notificaciones activadas (menú ☰ → Ajustes → Notificaciones).', 5000);
       },
       error: e => { this.calProbando = false; this.notificar('error', 'No se envió el aviso', this.mensajeError(e, 'Inténtalo de nuevo.'), 0); }
     });
