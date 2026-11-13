@@ -164,7 +164,7 @@ export class IcoComponent { @Input() n = ''; }
       </nav>
 
       <div class="side-cuenta" *ngIf="logged">
-        <button class="side-op" (click)="menuCollapsed=true; ajustesAbierto=true"><span><ico n="gear"></ico></span><span class="side-op-txt">Ajustes</span></button>
+        <button class="side-op" (click)="abrirAjustes()"><span><ico n="gear"></ico></span><span class="side-op-txt">Ajustes</span></button>
         <button class="side-op salir" (click)="logout()"><span><ico n="logout"></ico></span><span class="side-op-txt">Cerrar sesión</span></button>
       </div>
     </aside>
@@ -5686,15 +5686,33 @@ export class AppComponent {
       const reg = await this.swRegistro;
       if (!reg) { this.pushEstado = 'no-soportado'; return; }
       const sub = await reg.pushManager.getSubscription();
+      if (this.pushProcesando) return; // no pisar un encendido/apagado en curso
+      // El interruptor refleja lo que tiene el dispositivo; ligarlo al usuario en el servidor va aparte
       if (sub && Notification.permission === 'granted') {
-        await firstValueFrom(this.http.post(this.api + '/push/suscripciones', sub.toJSON()));
         this.pushEstado = 'activo';
+        this.sincronizarSuscripcion(sub);
       } else {
         this.pushEstado = 'inactivo';
       }
     } catch {
-      this.pushEstado = 'inactivo';
+      if (!this.pushProcesando) this.pushEstado = 'inactivo';
     }
+  }
+
+  // Liga la suscripción del dispositivo al usuario actual. Si el servidor no responde
+  // (p. ej. se está despertando), se reintenta sin cambiar el interruptor.
+  private sincronizarSuscripcion(sub: PushSubscription, intento = 0): void {
+    this.http.post(this.api + '/push/suscripciones', sub.toJSON()).subscribe({
+      error: () => {
+        if (intento < 3 && this.logged) setTimeout(() => this.sincronizarSuscripcion(sub, intento + 1), [5000, 15000, 40000][intento]);
+      }
+    });
+  }
+
+  abrirAjustes(): void {
+    this.menuCollapsed = true;
+    this.ajustesAbierto = true;
+    if (!this.pushProcesando) this.revisarPush();
   }
 
   async activarPush(): Promise<void> {
@@ -5722,14 +5740,27 @@ export class AppComponent {
       // Si el dispositivo estaba suscrito con otras llaves (otro servidor), se rehace
       if (sub && !this.mismaClave(sub, clave)) { await sub.unsubscribe(); sub = null; }
       if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: clave as BufferSource });
-      await firstValueFrom(this.http.post(this.api + '/push/suscripciones', sub.toJSON()));
+      try {
+        await firstValueFrom(this.http.post(this.api + '/push/suscripciones', sub.toJSON()));
+      } catch (e) {
+        // Sin registro en el servidor no llegarían avisos: se deshace para que el interruptor diga la verdad
+        await sub.unsubscribe().catch(() => false);
+        this.pushEstado = 'inactivo';
+        throw e;
+      }
       this.pushEstado = 'activo';
-      const prueba: any = await firstValueFrom(this.http.post<any>(this.api + '/push/prueba', {}));
-      this.notificar('exito', 'Avisos activados', prueba?.enviados
-        ? 'Te mandamos un aviso de prueba a este dispositivo.'
-        : 'Quedaron activados. Si no llega el aviso de prueba, revisa que el celular permita notificaciones de DOZZER.');
+      // El aviso de prueba es solo una comprobación: si falla, los avisos siguen activados
+      let enviados: number | null = null;
+      try {
+        const prueba: any = await firstValueFrom(this.http.post<any>(this.api + '/push/prueba', {}));
+        enviados = prueba?.enviados || 0;
+      } catch { /* la suscripción ya quedó guardada */ }
+      this.notificar('exito', 'Avisos activados',
+        enviados ? 'Te mandamos un aviso de prueba a este dispositivo.'
+        : enviados === 0 ? 'Quedaron activados. Si no llega el aviso de prueba, revisa que el celular permita notificaciones de DOZZER.'
+        : 'Quedaron activados en este dispositivo. No se pudo mandar el aviso de prueba porque el servidor no respondió a tiempo.');
     } catch (e) {
-      this.notificar('error', 'No se activaron los avisos', this.mensajeError(e, 'Inténtalo de nuevo en unos segundos.'), 0);
+      this.notificar('error', 'No se activaron los avisos', this.mensajeError(e, 'No se pudo conectar con el servidor. Inténtalo de nuevo en unos segundos.'), 0);
     } finally {
       this.pushProcesando = false;
     }
