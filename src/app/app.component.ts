@@ -788,7 +788,8 @@ export class IcoComponent { @Input() n = ''; }
               <h1>Hola, {{ primerNombre | titlecase }} <span class="saludo-mano">👋</span></h1>
               <p>Bienvenido al sistema oficial de inventarios.</p>
               <button class="btn-primary ini-menu" (click)="menuCollapsed=false"><span>☰</span> ¿A dónde vamos?</button>
-              <div class="ini-pend" *ngIf="rqPorAtender || (pendientesBadge - rqPorAtender) > 0">
+              <div class="ini-pend" *ngIf="rqPorAtender || (pendientesBadge - rqPorAtender) > 0 || ((isAdmin || canAuthorize) && (alertasCM.vencidas + alertasCM.proximas) > 0)">
+                <button *ngIf="(isAdmin || canAuthorize) && (alertasCM.vencidas + alertasCM.proximas) > 0" (click)="irA('calibracion'); calFiltro = alertasCM.vencidas ? 'vencida' : 'proxima'"><ico n="gauge"></ico>{{ alertasCM.vencidas ? alertasCM.vencidas + (alertasCM.vencidas === 1 ? ' equipo vencido' : ' equipos vencidos') : '' }}{{ alertasCM.vencidas && alertasCM.proximas ? ' · ' : '' }}{{ alertasCM.proximas ? alertasCM.proximas + ' por vencer' : '' }}</button>
                 <button *ngIf="(pendientesBadge - rqPorAtender) > 0" (click)="irA('solicitudes')"><ico n="shield"></ico>{{ pendientesBadge - rqPorAtender }} {{ (pendientesBadge - rqPorAtender) === 1 ? 'autorización pendiente' : 'autorizaciones pendientes' }}</button>
                 <button *ngIf="rqPorAtender" (click)="irA('requisiciones')"><ico n="lista"></ico>{{ rqPorAtender }} {{ rqPorAtender === 1 ? 'requisición por atender' : 'requisiciones por atender' }}</button>
               </div>
@@ -2749,7 +2750,10 @@ export class IcoComponent { @Input() n = ''; }
                 <h1>Calibración y mantenimiento</h1>
                 <p>Los equipos que se calibran o reciben mantenimiento, y cuándo les toca.</p>
               </div>
-              <button class="btn-primary btn-nuevo" (click)="abrirCalAgregar()"><ico n="plus"></ico><span>Agregar equipo</span></button>
+              <div class="cal-acc">
+                <button class="btn-outline btn-small" *ngIf="isAdmin && calEquipos.length" [disabled]="calProbando" (click)="probarAvisoCal()"><ico n="bell"></ico> {{ calProbando ? 'Enviando…' : 'Probar aviso' }}</button>
+                <button class="btn-primary btn-nuevo" (click)="abrirCalAgregar()"><ico n="plus"></ico><span>Agregar equipo</span></button>
+              </div>
             </div>
 
             <div class="cal-stats" *ngIf="calEquipos.length">
@@ -3523,6 +3527,9 @@ export class IcoComponent { @Input() n = ''; }
     @media(max-width:700px){.etq-imp{grid-template-columns:1fr}}
     /* Calibración */
     .cal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:18px}
+    .cal-acc{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .cal-acc .btn-outline{display:inline-flex;align-items:center;gap:6px;height:44px}
+    .cal-acc ico{width:16px;height:16px}
     .cal-head h1{margin:0;font-size:26px;letter-spacing:-.02em;color:#14243a}
     .cal-head p{margin:4px 0 0;color:#6b7a8d;font-size:14.5px}
     .cal-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}
@@ -5558,6 +5565,7 @@ export class AppComponent {
   private irDesdeAviso(ir: string): void {
     if (!this.logged || this.mustChangePassword) return;
     if (ir === 'requisiciones') { this.section = 'requisiciones'; this.menuCollapsed = true; this.loadRequisiciones(); return; }
+    if (ir === 'calibracion' && (this.isAdmin || this.canAuthorize)) { this.irA('calibracion'); return; }
     if (ir === 'autorizaciones' || ir === 'solicitudes') {
       this.section = 'solicitudes';
       this.menuCollapsed = true;
@@ -7576,6 +7584,21 @@ export class AppComponent {
   fechaEnMeses(m: number): string {
     const d = new Date(); d.setMonth(d.getMonth() + m);
     return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  }
+
+  calProbando = false;
+
+  // Manda ahora al celular (y a la laptop con avisos activos) el resumen de lo vencido o por vencer
+  probarAvisoCal(): void {
+    this.calProbando = true;
+    this.http.post<any>(this.api + '/calibraciones/avisar-ahora', {}).subscribe({
+      next: r => {
+        this.calProbando = false;
+        if (!r?.equipos) { this.notificar('info', 'Nada que avisar', 'Ningún equipo vence en los próximos 30 días ni está vencido.'); return; }
+        this.notificar('exito', 'Aviso enviado', r.equipos + (r.equipos === 1 ? ' equipo' : ' equipos') + ' en el aviso. Llega a los dispositivos con las notificaciones activadas (menú ☰ → Notificaciones).', 5000);
+      },
+      error: e => { this.calProbando = false; this.notificar('error', 'No se envió el aviso', this.mensajeError(e, 'Inténtalo de nuevo.'), 0); }
+    });
   }
 
   abrirCalAgregar(): void {
