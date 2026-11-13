@@ -37,6 +37,9 @@ self.addEventListener('fetch', e => {
 self.addEventListener('push', e => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch (_) { d = { cuerpo: e.data ? e.data.text() : '' }; }
+  self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+    .then(cs => cs.forEach(c => c.postMessage({ tipo: 'dozzer-aviso', titulo: d.titulo || '', url: d.url || '/' })))
+    .catch(() => {});
   e.waitUntil(self.registration.showNotification(d.titulo || 'DOZZER', {
     body: d.cuerpo || '',
     icon: 'icono-192.png',

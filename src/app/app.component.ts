@@ -215,7 +215,10 @@ export class IcoComponent { @Input() n = ''; }
             <span class="mini-ring light" *ngIf="loading"></span>
             {{ loading ? 'ENTRANDO…' : 'ENTRAR' }}
           </button>
-          <p class="login-lento" *ngIf="loginLento">Despertando el servidor… la primera entrada del día puede tardar unos segundos más.</p>
+          <div class="login-lento" *ngIf="loginLento">
+            <span class="ll-giro"></span>
+            <span><b>Estamos preparando todo para ti</b><small>Espera un momento, enseguida entras.</small></span>
+          </div>
 
           <button type="button" class="lg-forgot" (click)="abrirRecuperacion()">¿Olvidaste tu contraseña?</button>
 
@@ -420,6 +423,13 @@ export class IcoComponent { @Input() n = ''; }
       </div>
 
       <!-- AVISO: ETIQUETA ESCANEADA -->
+      <!-- Aviso en la esquina: llegó algo nuevo (no estorba; se toca para ir) -->
+      <div class="aviso-app" *ngIf="logged && avisoApp as A" (click)="tocarAvisoApp()">
+        <span class="aa-ico"><ico n="bell"></ico></span>
+        <span class="aa-txt"><b>{{ A.titulo }}</b><small>{{ A.cuerpo }}</small></span>
+        <button class="aa-x" title="Cerrar" (click)="$event.stopPropagation(); avisoApp=null">×</button>
+      </div>
+
       <div class="escaneo-ok" *ngIf="escaneoOk"><span class="escaneo-ok-ico"><ico n="check"></ico></span><span><b>Escaneada</b><small>{{ escaneoOk }}</small></span></div>
 
       <!-- BIENVENIDA (al iniciar sesión) -->
@@ -3692,6 +3702,14 @@ export class IcoComponent { @Input() n = ''; }
       .res-resp button{grid-template-columns:90px 1fr 40px}
       .rp-body{padding-left:14px}
     }
+    .aviso-app{position:fixed;right:18px;bottom:18px;z-index:450;display:flex;align-items:center;gap:12px;max-width:380px;width:calc(100% - 36px);background:#fff;border:1px solid #dbe6f3;border-left:5px solid #f08a24;border-radius:16px;padding:12px 10px 12px 14px;box-shadow:0 14px 34px #17263d33;cursor:pointer;animation:fadeUp .35s ease both}
+    .aa-ico{width:38px;height:38px;border-radius:50%;background:#fff1e0;color:#b8650f;display:grid;place-items:center;flex-shrink:0}
+    .aa-ico ico{width:19px;height:19px}
+    .aa-txt{flex:1;min-width:0;display:flex;flex-direction:column}
+    .aa-txt b{font-size:14px;color:#14243a}
+    .aa-txt small{font-size:12.5px;color:#5d6f86;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .aa-x{border:0;background:transparent;color:#8a97a8;font-size:20px;cursor:pointer;padding:2px 6px}
+    @media(max-width:600px){.aviso-app{right:12px;left:12px;bottom:calc(12px + env(safe-area-inset-bottom));width:auto;max-width:none}}
     /* Inicio (saludo fijo) */
     .bv.ini{position:relative;inset:auto;z-index:auto;cursor:default;min-height:calc(100vh - 150px);min-height:calc(100dvh - 150px);border-radius:24px;padding:40px 20px 70px}
     .ini-menu{margin-top:30px;display:inline-flex;align-items:center;gap:10px;font-size:16px!important;padding:14px 26px!important;border-radius:999px!important;animation:fadeUp .6s .34s ease both;box-shadow:0 10px 24px #244c7833}
@@ -4047,7 +4065,11 @@ export class IcoComponent { @Input() n = ''; }
     .manual-head strong{font-size:15px;color:#14243a}
     .manual-head a{margin-left:auto;font-size:13px;font-weight:700;color:#2d5d93;text-decoration:none}
     .manual-card iframe{flex:1;width:100%;border:0}
-    .login-lento{margin:10px 0 0;font-size:13px;color:#7a4b0c;background:#fff7ec;border-radius:10px;padding:8px 12px;text-align:center}
+    .login-lento{margin:12px 0 0;display:flex;align-items:center;gap:12px;background:#f1f6fc;border:1px solid #dbe6f3;border-radius:14px;padding:12px 14px;text-align:left;animation:fadeIn .3s ease both}
+    .login-lento b{display:block;font-size:14px;color:#17263d}
+    .login-lento small{display:block;font-size:12.5px;color:#5d6f86;margin-top:1px}
+    .ll-giro{width:26px;height:26px;border-radius:50%;border:3px solid #d5e2f1;border-top-color:#244c78;flex-shrink:0;animation:llGiro .8s linear infinite}
+    @keyframes llGiro{to{transform:rotate(360deg)}}
     @media(max-width:600px){.manual-backdrop{padding:0}.manual-card{height:100%;border-radius:0}}
     .user-menu-exit .more-ico{background:#fdeced;color:#c2414b}
     .topbar-right{margin-left:auto;display:flex;align-items:center;gap:9px}
@@ -5498,6 +5520,8 @@ export class AppComponent {
       this.swRegistro = navigator.serviceWorker.register('sw-dozzer.js').catch(() => null);
       // Con la app abierta, tocar un aviso la lleva a la pantalla que corresponde
       navigator.serviceWorker.addEventListener('message', (ev: any) => {
+        // Llegó un aviso mientras DOZZER está abierto: se revisa al momento
+        if (ev.data?.tipo === 'dozzer-aviso') { this.revisarNovedades(); return; }
         if (ev.data?.tipo !== 'dozzer-ir') return;
         try { const ir = new URL(ev.data.url).searchParams.get('ir'); if (ir) this.irDesdeAviso(ir); } catch { /* */ }
       });
@@ -5846,7 +5870,7 @@ export class AppComponent {
     this.error = '';
     this.loading = true;
     this.loginLento = false;
-    const lento = setTimeout(() => { if (this.loading) this.loginLento = true; }, 4000);
+    const lento = setTimeout(() => { if (this.loading) this.loginLento = true; }, 2500);
 
     this.http.post<any>(this.api + '/auth/login', this.login).subscribe({
       next: r => {
@@ -5898,6 +5922,7 @@ export class AppComponent {
   logout(): void {
     if (this.cola.total && !confirm('Hay ' + this.cola.total + ' cambios guardados en este celular que aún no se suben. Si cierras sesión se subirán la próxima vez que entres con tu cuenta. ¿Cerrar sesión?')) return;
     this.quitarPushAlSalir();
+    clearInterval(this.novedadesTimer); this.novedadesTimer = null; this.vigilando = ''; this.avisoApp = null;
     try { localStorage.removeItem('dozzer_ui_' + this.email); } catch { /* */ }
     this.uiGuardado = '';
     this.pushEstado = 'cargando';
@@ -6035,6 +6060,109 @@ export class AppComponent {
     this.menuTrasAvisos = false;
   }
 
+  // ----- Novedades: se revisan cada minuto y al llegar un aviso; se muestran en la app y en la pestaña -----
+  avisoApp: { titulo: string; cuerpo: string; ir: string } | null = null;
+  private avisoAppTimer: any;
+  private novedadesTimer: any;
+  private escuchaVisibilidad = false;
+  private vistosRq: Map<any, string> | null = null;
+  private vistosSol: Map<any, string> | null = null;
+
+  private vigilando = '';
+
+  private iniciarVigilancia(): void {
+    if (this.vigilando === this.email && this.novedadesTimer) return;   // ya se vigila esta sesión
+    this.vigilando = this.email;
+    clearInterval(this.novedadesTimer);
+    this.vistosRq = null; this.vistosSol = null;
+    this.novedadesTimer = setInterval(() => this.revisarNovedades(), 60000);
+    if (!this.escuchaVisibilidad) {
+      this.escuchaVisibilidad = true;
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) this.revisarNovedades(); });
+    }
+  }
+
+  revisarNovedades(): void {
+    if (!this.logged || this.mustChangePassword) return;
+    this.http.get<any[]>(this.api + '/requisiciones').subscribe({
+      next: rows => {
+        const ant = this.vistosRq;
+        this.vistosRq = new Map((rows || []).map(r => [r.idDocumento, r.estado + (r.puedoAutorizar || r.puedoAprobar ? '*' : '')]));
+        this.requisiciones = rows || [];
+        if (!ant) return;
+        for (const r of rows || []) {
+          const antes = ant.get(r.idDocumento);
+          const ahora = this.vistosRq.get(r.idDocumento);
+          if (antes === ahora) continue;
+          if ((r.puedoAutorizar || r.puedoAprobar) && !String(antes || '').endsWith('*')) {
+            this.mostrarAvisoApp(r.puedoAutorizar ? 'Requisición por autorizar' : 'Requisición por aprobar', r.folio + ' · ' + this.capitalizarNombre(r.solicitante) + ' · ' + r.resumen, 'requisiciones');
+          } else if (r.mia && antes && antes.replace('*', '') !== r.estado) {
+            this.mostrarAvisoApp('Tu requisición ' + r.folio + ': ' + this.textoEstadoRq(r.estado).toLowerCase(),
+              r.estado === 'RECHAZADA' && r.motivoRechazo ? 'Motivo: ' + r.motivoRechazo : r.resumen, 'requisiciones');
+          }
+        }
+      },
+      error: () => { /* sin señal: se intenta en el siguiente minuto */ }
+    });
+    const endpoint = this.esRevisor ? '/solicitudes-bienes/pendientes' : '/solicitudes-bienes/mis-solicitudes';
+    this.http.get<any[]>(this.api + endpoint).subscribe({
+      next: rows => {
+        const ant = this.vistosSol;
+        this.vistosSol = new Map((rows || []).map(x => [x.idSolicitud, String(x.estado)]));
+        if (!ant) return;
+        let cambio = false;
+        for (const x of rows || []) {
+          const antes = ant.get(x.idSolicitud);
+          if (antes === String(x.estado)) continue;
+          cambio = true;
+          if (this.esRevisor && !antes) this.mostrarAvisoApp('Nueva autorización pendiente', (x.nombreSolicitante || x.correoSolicitante || 'Alguien') + ' · ' + (x.articuloBien || x.claveBien || 'un bien'), 'autorizaciones');
+          else if (!this.esRevisor && antes) this.mostrarAvisoApp('Tu solicitud fue ' + (String(x.estado).toUpperCase() === 'APROBADA' ? 'aprobada ✅' : String(x.estado).toLowerCase()), x.articuloBien || x.claveBien || '', 'solicitudes');
+        }
+        if (cambio || rows.length !== ant.size) this.loadSolicitudes();
+      },
+      error: () => { /* */ }
+    });
+  }
+
+  private capitalizarNombre(t: any): string {
+    return String(t || '').toLowerCase().replace(/(^|\s)\S/g, c => c.toUpperCase());
+  }
+
+  private mostrarAvisoApp(titulo: string, cuerpo: string, ir: string): void {
+    this.avisoApp = { titulo, cuerpo, ir };
+    clearTimeout(this.avisoAppTimer);
+    this.avisoAppTimer = setTimeout(() => this.avisoApp = null, 12000);
+    try {
+      const AC = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (AC) {
+        this.audioCtx = this.audioCtx || new AC();
+        const ctx = this.audioCtx;
+        [0, 0.16].forEach((t, i) => {
+          const o = ctx.createOscillator(), g = ctx.createGain();
+          o.type = 'sine'; o.frequency.value = i ? 1175 : 880;
+          g.gain.setValueAtTime(0.0001, ctx.currentTime + t);
+          g.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + t + 0.02);
+          g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + t + 0.22);
+          o.connect(g); g.connect(ctx.destination); o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + 0.24);
+        });
+      }
+    } catch { /* sin sonido */ }
+    // Pestaña en segundo plano con permiso de avisos: también aviso del sistema (misma etiqueta que el push, no se duplica)
+    try {
+      if (document.hidden && 'Notification' in window && Notification.permission === 'granted' && 'serviceWorker' in navigator) {
+        navigator.serviceWorker.ready.then(reg => reg.showNotification(titulo, {
+          body: cuerpo, icon: 'icono-192.png', badge: 'icono-badge-96.png', tag: 'dozzer-' + ir + '-' + titulo, data: { url: '/?ir=' + ir }
+        } as any)).catch(() => {});
+      }
+    } catch { /* */ }
+  }
+
+  tocarAvisoApp(): void {
+    const a = this.avisoApp;
+    this.avisoApp = null;
+    if (a) this.irDesdeAviso(a.ir);
+  }
+
   // Al iniciar sesión se ofrecen los avisos (si este dispositivo aún no los tiene)
   private ofrecerAvisos(intento: number): void {
     setTimeout(() => {
@@ -6050,6 +6178,9 @@ export class AppComponent {
 
   // Guarda en el dispositivo en qué pantalla vas (y el formulario a medias) para no perderlo al recargar
   ngDoCheck(): void {
+    const n = this.logged && !this.mustChangePassword ? this.pendientesBadge : 0;
+    const titulo = (n > 0 ? '(' + n + ') ' : '') + 'DOZZER';
+    if (document.title !== titulo) document.title = titulo;
     if (!this.logged || this.mustChangePassword || !this.email) return;
     const g = this.cap?.grupo;
     const ui = {
@@ -6168,6 +6299,8 @@ export class AppComponent {
 
   loadAll(): void {
     this.restaurarVista();
+    this.iniciarVigilancia();
+    setTimeout(() => this.revisarNovedades(), 2500);
     this.revisarPush();
     this.contarCola().then(() => this.procesarCola());
     let etiqueta: string | null = null;
