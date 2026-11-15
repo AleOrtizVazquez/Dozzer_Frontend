@@ -101,6 +101,7 @@ interface FormatoDoc {
       <ng-container *ngSwitchCase="'search'"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></ng-container>
       <ng-container *ngSwitchCase="'gear'"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></ng-container>
       <ng-container *ngSwitchCase="'chevright'"><path d="M9 6l6 6-6 6"/></ng-container>
+      <ng-container *ngSwitchCase="'spark'"><path d="M12 3.5l1.9 5.1 5.1 1.9-5.1 1.9L12 17.5l-1.9-5.1L5 10.5l5.1-1.9L12 3.5z"/><path d="M18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2z"/></ng-container>
       <ng-container *ngSwitchCase="'image'"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.8"/><path d="M21 16l-5-5-8 8"/></ng-container>
     </ng-container>
   </svg>`,
@@ -856,10 +857,8 @@ export class IcoComponent { @Input() n = ''; }
 
             <div class="inv-head">
               <div>
-                <button class="inv-back" *ngIf="vistaInv==='bienes' && origenVistaInv!=='menu'" (click)="volverInventario()">← {{ textoVolverInv }}</button>
-                <h1>{{ tituloVistaInv }}</h1>
-                <p class="inv-resumen" *ngIf="!(vistaInv==='bienes' && origenVistaInv==='menu')">{{ subtituloVistaInv }}</p>
-                <p class="inv-resumen" *ngIf="vistaInv==='bienes' && origenVistaInv==='menu'">
+                <h1>Bienes</h1>
+                <p class="inv-resumen">
                   <ng-container *ngIf="bienes.length; else resumenVacio">
                     <span><b>{{ bienes.length | number }}</b> bienes</span>
                     <span *ngIf="bienesBuenEstado"><b>{{ porcentaje(bienesBuenEstado) }}%</b> en buen estado</span>
@@ -869,11 +868,9 @@ export class IcoComponent { @Input() n = ''; }
                 </p>
               </div>
               <div class="heading-actions">
-                <div class="vistas" *ngIf="!(vistaInv==='bienes' && origenVistaInv!=='menu')">
-                  <button [class.on]="vistaInv==='bienes'" (click)="abrirVistaInv('bienes')" title="Bienes en tarjetas" aria-label="Bienes en tarjetas"><ico n="grid"></ico><span>Bienes</span></button>
-                  <button [class.on]="vistaInv==='personas'" (click)="abrirVistaInv('personas')" title="Agrupar por persona" aria-label="Agrupar por persona"><ico n="users"></ico><span>Personas</span></button>
-                  <button *ngIf="isAdmin" [class.on]="vistaInv==='sedes'" (click)="abrirVistaInv('sedes')" title="Agrupar por sede" aria-label="Agrupar por sede"><ico n="building"></ico><span>Sedes</span></button>
-                  <button class="solo-pc" [class.on]="vistaInv==='completo'" (click)="abrirVistaInv('completo')" title="Tabla con columnas" aria-label="Tabla con columnas"><ico n="table"></ico><span>Tabla</span></button>
+                <div class="vistas vistas-txt" role="group" aria-label="Vista">
+                  <button [class.on]="vistaInv==='bienes'" (click)="abrirVistaInv('bienes')" aria-label="Ver en tarjetas"><ico n="grid"></ico><span>Tarjetas</span></button>
+                  <button class="solo-pc" [class.on]="vistaInv==='completo'" (click)="abrirVistaInv('completo')" aria-label="Ver en tabla"><ico n="table"></ico><span>Tabla</span></button>
                 </div>
                 <button class="btn-primary btn-nuevo" (click)="newBien()" title="Dar de alta un bien"><ico n="plus"></ico><span>Nuevo bien</span></button>
               </div>
@@ -918,143 +915,75 @@ export class IcoComponent { @Input() n = ''; }
             <ng-container *ngIf="bienes.length || (!bienesCargando && !bienesError)">
               <div class="fade-in">
 
-                <!-- VISTA: SEDES -->
-                <div class="sede-grid" *ngIf="vistaInv==='sedes'">
-                  <button class="sede-card" *ngFor="let s of resumenSedes" (click)="verBienesDeSede(s)">
-                    <div class="sede-top">
-                      <span class="sede-ico"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h1M14 9h1M9 13h1M14 13h1M10 21v-4h4v4"/></svg></span>
-                      <div>
-                        <strong>{{ s.nombre }}</strong>
-                        <small>{{ s.ubicaciones | number }} {{ s.ubicaciones === 1 ? 'ubicación' : 'ubicaciones' }} · {{ s.personas | number }} personas</small>
-                      </div>
-                    </div>
-                    <div class="sede-num">{{ s.total | number }}<span>bienes</span></div>
-                    <div class="sede-bar"><span [style.width.%]="s.pctBueno"></span></div>
-                    <div class="sede-meta">
-                      <span>{{ s.piezas | number }} piezas</span>
-                      <span>{{ s.pctBueno }}% en buen estado</span>
-                    </div>
-                    <div class="sede-tags">
-                      <span *ngFor="let c of s.top"><i [style.background]="colorDeClasificacion(c.id)"></i>{{ c.nombre | titlecase }} {{ c.total | number }}</span>
-                    </div>
-                    <span class="sede-go">Ver bienes →</span>
-                  </button>
-                  <div class="inv-empty" *ngIf="!resumenSedes.length">No hay bienes registrados en ninguna sede.</div>
-                </div>
-
-                <!-- VISTA: PERSONAS -->
-                <ng-container *ngIf="vistaInv==='personas'">
-                  <div class="people-bar">
-                    <div class="search-box">
-                      <span>⌕</span>
-                      <input [(ngModel)]="busquedaPersonas" (ngModelChange)="personasVisibles=48" placeholder="Buscar persona por nombre...">
-                      <button class="clear-search" *ngIf="busquedaPersonas" (click)="busquedaPersonas=''">×</button>
-                    </div>
-                    <span class="people-count">{{ personasFiltradas.length | number }} {{ personasFiltradas.length === 1 ? 'persona' : 'personas' }}</span>
-                  </div>
-                  <div class="people-grid">
-                    <button class="person-card" *ngFor="let p of personasFiltradas.slice(0, personasVisibles)" (click)="verBienesDePersona(p)">
-                      <span class="person-avatar">{{ inicialesDe(p.nombre) }}</span>
-                      <span class="person-info">
-                        <strong>{{ p.nombre }}</strong>
-                        <small>{{ p.sedes || 'Sin sede' }}</small>
-                        <span class="person-tags">
-                          <span *ngIf="p.responsable">{{ p.responsable }} como responsable</span>
-                          <span *ngIf="p.usuario">{{ p.usuario }} como usuario</span>
-                        </span>
-                      </span>
-                      <span class="person-num">{{ p.total | number }}<em>{{ p.total === 1 ? 'bien' : 'bienes' }}</em></span>
-                    </button>
-                  </div>
-                  <div class="inv-empty" *ngIf="!personasFiltradas.length">{{ busquedaPersonas ? 'Ninguna persona coincide con la búsqueda.' : 'Ningún bien tiene responsable o usuario asignado.' }}</div>
-                  <div class="more-cards" *ngIf="personasFiltradas.length > personasVisibles">
-                    <button class="btn-outline" (click)="personasVisibles = personasVisibles + 48">Mostrar más personas ({{ personasFiltradas.length - personasVisibles | number }} restantes)</button>
-                  </div>
-                </ng-container>
-
-                <!-- BIENES EN TARJETAS / TABLA COMPLETA -->
-                <div class="inventory-panel" [class.cards-mode]="vistaInv==='bienes'" *ngIf="vistaInv==='bienes' || vistaInv==='completo'">
-
-                  <div class="inv-toolbar">
-                    <div class="search-box">
-                      <span>⌕</span>
-                      <input [(ngModel)]="filter" (ngModelChange)="buscarBienes()" placeholder="Buscar por clave, bien, serie, responsable o ubicación…">
-                      <button class="clear-search" *ngIf="filter" (click)="filter=''; aplicarFiltrosBienes()">×</button>
-                    </div>
-                    <div class="table-actions">
-                      <span class="refreshing" *ngIf="bienesCargando"><span class="mini-ring"></span><span class="tb-txt">Actualizando…</span></span>
-                      <div class="column-picker" *ngIf="resumenClasificaciones.length">
-                        <button class="btn-outline tb-btn" [class.filters-active]="filtroClasificacion" (click)="clasifAbierto=!clasifAbierto" title="Clasificación">
-                          <ico n="layers"></ico><span class="tb-txt">{{ nombreClasificacionActual }}</span><ico class="tb-chev" n="chev"></ico>
-                        </button>
-                        <div class="picker-backdrop" *ngIf="clasifAbierto" (click)="clasifAbierto=false"></div>
-                        <div class="picker-menu sheet clasif-menu" *ngIf="clasifAbierto">
-                          <div class="sheet-asa"></div>
-                          <div class="picker-head"><strong>Clasificación</strong><small>Toca una para ver solo esos bienes.</small></div>
-                          <div class="clasif-list">
-                            <button [class.on]="!filtroClasificacion" (click)="setFiltroClasificacion(null); clasifAbierto=false">
-                              <i style="background:#17263d"></i><span>Todas</span><b>{{ bienes.length | number }}</b>
-                            </button>
-                            <button *ngFor="let c of resumenClasificaciones; let i = index" [class.on]="filtroClasificacion===c.id" (click)="setFiltroClasificacion(c.id); clasifAbierto=false">
-                              <i [style.background]="colorClasificacion(i)"></i><span>{{ c.nombre | titlecase }}</span><b>{{ c.total | number }}</b>
-                            </button>
-                          </div>
+                <!-- BÚSQUEDA INTELIGENTE Y ALCANCE -->
+                <div class="sx">
+                  <div class="sx-search" [class.activa]="filter">
+                    <span class="sx-spark"><ico n="spark"></ico></span>
+                    <input [(ngModel)]="filter" (ngModelChange)="buscarBienes()" (keyup.escape)="filter=''; aplicarFiltrosBienes()"
+                           [placeholder]="placeholderBusqueda" aria-label="Buscar o preguntar por bienes" autocomplete="off">
+                    <span class="refreshing" *ngIf="bienesCargando" title="Actualizando"><span class="mini-ring"></span></span>
+                    <button class="sx-clear" *ngIf="filter" (click)="filter=''; aplicarFiltrosBienes()" aria-label="Borrar búsqueda"><ico n="x"></ico></button>
+                    <div class="column-picker sx-filtros">
+                      <button class="sx-fbtn" [class.on]="filtrosChips.length" (click)="columnPickerOpen=!columnPickerOpen" aria-label="Más filtros">
+                        <ico n="sliders"></ico><span class="tb-txt">Filtros</span>
+                        <span class="tab-count" *ngIf="filtrosChips.length">{{ filtrosChips.length }}</span>
+                      </button>
+                      <div class="picker-backdrop" *ngIf="columnPickerOpen" (click)="columnPickerOpen=false"></div>
+                      <div class="picker-menu filters-menu" *ngIf="columnPickerOpen">
+                        <div class="sheet-asa"></div>
+                        <div class="picker-head">
+                          <strong>Más filtros</strong>
+                          <small>Tip: también puedes escribirlos, por ejemplo “mal estado” o “sin etiqueta”.</small>
                         </div>
-                      </div>
-                      <div class="column-picker">
-                        <button class="btn-outline" [class.filters-active]="filtrosActivos.length" (click)="columnPickerOpen=!columnPickerOpen">
-                          <ico n="filter"></ico><span class="tb-txt">Filtros</span>
-                          <span class="tab-count" *ngIf="filtrosActivos.length">{{ filtrosActivos.length }}</span>
-                        </button>
-                        <div class="picker-backdrop" *ngIf="columnPickerOpen" (click)="columnPickerOpen=false"></div>
-                        <div class="picker-menu filters-menu" *ngIf="columnPickerOpen">
-                          <div class="sheet-asa"></div>
-                          <div class="picker-head">
-                            <strong>Filtrar bienes</strong>
-                            <small>Los resultados se actualizan al instante.</small>
-                          </div>
-                          <div class="filter-fields">
-                            <label *ngIf="isAdmin">Sede
-                              <select [(ngModel)]="filtroSede" (ngModelChange)="aplicarFiltrosBienes()">
-                                <option [ngValue]="null">Todas las sedes</option>
-                                <option *ngFor="let s of activos(catalogs.sedes, filtroSede, 'id_sede')" [ngValue]="s.id_sede">{{ s.nombre_sede }}</option>
-                              </select>
-                            </label>
-                            <label>Estatus
-                              <select [(ngModel)]="statusFilter" (ngModelChange)="aplicarFiltrosBienes()">
-                                <option value="">Todos los estatus</option>
-                                <option value="ACTIVO">Activo</option>
-                                <option value="BAJA">Baja</option>
-                                <option value="EN_REPARACION">En reparación</option>
-                              </select>
-                            </label>
-                            <label>Estado físico
-                              <select [(ngModel)]="filtroEstadoFisico" (ngModelChange)="aplicarFiltrosBienes()">
-                                <option value="">Todos</option>
-                                <option value="BUENO">Bueno</option>
-                                <option value="REGULAR">Regular</option>
-                                <option value="MALO">Malo</option>
-                              </select>
-                            </label>
-                            <label>Asignación
-                              <select [(ngModel)]="filtroAsignacion" (ngModelChange)="aplicarFiltrosBienes()">
-                                <option value="">Todos</option>
-                                <option value="ASIGNADO">Asignados</option>
-                                <option value="SIN_ASIGNAR">Sin asignar</option>
-                              </select>
-                            </label>
-                            <label>Calibración y mantenimiento
-                              <select [(ngModel)]="filtroCM" (ngModelChange)="aplicarFiltrosBienes()">
-                                <option value="">Todos</option>
-                                <option value="atencion">⚠ Vencidos o próximos (30 días)</option>
-                                <option value="calibracion">🟢 Requieren calibración</option>
-                                <option value="mantenimiento">🔵 Requieren mantenimiento</option>
-                                <option value="sinfecha">Sin fecha asignada</option>
-                              </select>
-                            </label>
-                          </div>
+                        <div class="filter-fields">
+                          <label *ngIf="resumenClasificaciones.length">Clasificación
+                            <select [ngModel]="filtroClasificacion" (ngModelChange)="setFiltroClasificacion($event)">
+                              <option [ngValue]="null">Todas</option>
+                              <option *ngFor="let c of resumenClasificaciones" [ngValue]="c.id">{{ c.nombre | titlecase }} ({{ c.total | number }})</option>
+                            </select>
+                          </label>
+                          <label>Estado físico
+                            <select [(ngModel)]="filtroEstadoFisico" (ngModelChange)="aplicarFiltrosBienes()">
+                              <option value="">Todos</option>
+                              <option value="BUENO">Bueno</option>
+                              <option value="REGULAR">Regular</option>
+                              <option value="MALO">Malo</option>
+                            </select>
+                          </label>
+                          <label>Estatus
+                            <select [(ngModel)]="statusFilter" (ngModelChange)="aplicarFiltrosBienes()">
+                              <option value="">Todos los estatus</option>
+                              <option value="ACTIVO">Activo</option>
+                              <option value="BAJA">Baja</option>
+                              <option value="EN_REPARACION">En reparación</option>
+                            </select>
+                          </label>
+                          <label>Asignación
+                            <select [(ngModel)]="filtroAsignacion" (ngModelChange)="aplicarFiltrosBienes()">
+                              <option value="">Todos</option>
+                              <option value="ASIGNADO">Asignados</option>
+                              <option value="SIN_ASIGNAR">Sin asignar</option>
+                            </select>
+                          </label>
+                          <label>Etiqueta y foto
+                            <select [(ngModel)]="filtroExtra" (ngModelChange)="aplicarFiltrosBienes()">
+                              <option value="">Todos</option>
+                              <option value="sinetiqueta">Sin etiqueta QR</option>
+                              <option value="sinfoto">Sin foto</option>
+                            </select>
+                          </label>
+                          <label>Calibración y mantenimiento
+                            <select [(ngModel)]="filtroCM" (ngModelChange)="aplicarFiltrosBienes()">
+                              <option value="">Todos</option>
+                              <option value="atencion">Vencidos o próximos (30 días)</option>
+                              <option value="calibracion">Requieren calibración</option>
+                              <option value="mantenimiento">Requieren mantenimiento</option>
+                              <option value="sinfecha">Sin fecha asignada</option>
+                            </select>
+                          </label>
+                        </div>
 
-                          <ng-container *ngIf="vistaInv==='completo'">
+                        <ng-container *ngIf="vistaInv==='completo'">
                           <div class="picker-head picker-subhead">
                             <strong>Columnas visibles</strong>
                             <small>Elige qué información muestra la tabla.</small>
@@ -1070,66 +999,106 @@ export class IcoComponent { @Input() n = ''; }
                               {{ c.label }} <small *ngIf="c.fija">fija</small>
                             </label>
                           </div>
+                        </ng-container>
 
-                          </ng-container>
-
-                          <div class="picker-footer">
-                            <button class="link-button inline" [disabled]="!filtrosActivos.length" (click)="limpiarFiltrosBienes()">Limpiar filtros</button>
-                            <button class="btn-primary btn-small" (click)="columnPickerOpen=false">Ver {{ bienesVista.length | number }} bienes</button>
-                          </div>
+                        <div class="picker-footer">
+                          <button class="link-button inline" [disabled]="!hayFiltrosBienes" (click)="limpiarFiltrosBienes()">Limpiar todo</button>
+                          <button class="btn-primary btn-small" (click)="columnPickerOpen=false">Ver {{ bienesVista.length | number }} bienes</button>
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  <div class="search-row inventory-filters" *ngIf="filtrosActivos.length">
-                    <div class="active-filters">
-                      <span class="filter-chip" *ngFor="let f of filtrosActivos">
-                        {{ f.etiqueta }}: <b>{{ f.valor }}</b>
-                        <button title="Quitar filtro" (click)="quitarFiltro(f.clave)">×</button>
-                      </span>
-                    </div>
-                    <button class="link-button inline" *ngIf="hayFiltrosBienes" (click)="limpiarFiltrosBienes()">Limpiar filtros</button>
+                  <div class="sx-ia" *ngIf="interpretacion.length">
+                    <span class="sx-ia-tit"><ico n="spark"></ico>Entendí</span>
+                    <span class="sx-ia-chip" *ngFor="let c of interpretacion">
+                      <small>{{ c.etiqueta }}</small>{{ c.valor }}
+                      <button (click)="quitarInterpretacion(c)" [attr.aria-label]="'Quitar ' + c.valor"><ico n="x"></ico></button>
+                    </span>
                   </div>
 
-                  <!-- Bienes como tarjetas -->
-                  <ng-container *ngIf="vistaInv==='bienes'">
-                    <div class="bcs">
-                      <div class="bc" *ngFor="let b of bienesVista.slice(0, tarjetasVisibles); trackBy: trackBien" [class.open]="bienAbierto===b.id_bien">
-                        <div class="bc-row" (click)="bienAbierto = bienAbierto===b.id_bien ? null : b.id_bien">
-                          <button type="button" class="bc-foto" [class.vacia]="!b.foto_mini" [title]="b.foto_mini ? 'Ver foto en grande' : 'Sin foto todavía'"
-                                  (click)="tocarFotoTarjeta($event, b)">
-                            <img *ngIf="b.foto_mini" [src]="b.foto_mini" alt="" loading="lazy">
-                            <img *ngIf="!b.foto_mini" class="bc-logo" src="logo-dozzer.png" alt="">
-                          </button>
-                          <div class="bc-main">
-                            <strong class="bc-nombre">{{ (b.articulo | titlecase) || 'Bien sin nombre' }}</strong>
-                            <small class="bc-desc">{{ descripcionBien(b) | titlecase }}</small>
-                            <span class="bc-meta">
-                              <span class="edot" [ngClass]="claseEstadoFisico(b.estado_fisico)" [title]="estadoCorto(b)"></span>
-                              <span class="bc-clave">{{ b.clave || 'Sin clave' }}</span>
-                              <span class="bc-mini" *ngIf="b.ubicacion" [title]="'Ubicación: ' + b.ubicacion"><ico n="pin"></ico>{{ b.ubicacion | titlecase }}</span>
-                            </span>
-                          </div>
-                          <ico class="bc-chev" n="chev"></ico>
-                        </div>
-                        <div class="bc-body" *ngIf="bienAbierto===b.id_bien">
-                          <ng-container *ngTemplateOutlet="infoBienTpl; context: { $implicit: b }"></ng-container>
-                          <ng-container *ngTemplateOutlet="accionesBienTpl; context: { $implicit: b }"></ng-container>
-                        </div>
+                  <div class="sx-scope">
+                    <div class="sx-seg sx-sedes" *ngIf="isAdmin && sedesScope.length > 1" role="group" aria-label="Sede">
+                      <button [class.on]="!filtroSede" (click)="setSedeInv(null)">Todas</button>
+                      <button *ngFor="let s of sedesScope" [class.on]="filtroSede===s.id" (click)="setSedeInv(s.id)">{{ s.nombre | titlecase }}<small>{{ s.total | number }}</small></button>
+                    </div>
+                    <label class="sx-persona" [class.on]="filtroPersona">
+                      <ico n="user"></ico>
+                      <select [ngModel]="filtroPersona" (ngModelChange)="setPersonaInv($event)" aria-label="Persona">
+                        <option [ngValue]="null">Todas las personas</option>
+                        <option *ngFor="let p of personasScope" [ngValue]="p.id">{{ p.nombre | titlecase }} · {{ p.total | number }}</option>
+                      </select>
+                    </label>
+                    <div class="sx-agrupar" *ngIf="vistaInv==='bienes'">
+                      <span>Agrupar</span>
+                      <div class="sx-seg" role="group" aria-label="Agrupar por">
+                        <button *ngFor="let g of opcionesAgrupar" [class.on]="agruparInv===g.v" (click)="setAgruparInv(g.v)">{{ g.l }}</button>
                       </div>
                     </div>
-                    <div class="inv-empty" *ngIf="!bienesVista.length">
-                      {{ hayFiltrosBienes ? 'Ningún bien coincide con los filtros.' : 'Aún no hay bienes registrados.' }}
-                      <button class="link-button inline" *ngIf="hayFiltrosBienes" (click)="limpiarFiltrosBienes()">Limpiar filtros</button>
-                    </div>
-                    <div class="more-cards" *ngIf="bienesVista.length">
-                      <span>Mostrando {{ (bienesVista.length < tarjetasVisibles ? bienesVista.length : tarjetasVisibles) | number }} de {{ bienesVista.length | number }} bienes</span>
-                      <button class="btn-outline" *ngIf="bienesVista.length > tarjetasVisibles" (click)="tarjetasVisibles = tarjetasVisibles + 36">Mostrar más</button>
-                    </div>
-                  </ng-container>
+                  </div>
 
-                  <ng-container *ngIf="vistaInv==='completo'">
+                  <div class="sx-tipos" *ngIf="tiposVista.length > 1">
+                    <button [class.on]="!filtroTipos.length && !tipoInterpretado" (click)="setTipoInv(null)">Todos</button>
+                    <button *ngFor="let t of tiposVista" [class.on]="t.on" (click)="setTipoInv(t.id)">{{ t.nombre }}<small>{{ t.total | number }}</small></button>
+                  </div>
+
+                  <div class="sx-ins" *ngIf="sugerenciasIA.length">
+                    <span class="sx-ins-tit"><ico n="spark"></ico>Atajos</span>
+                    <button *ngFor="let s of sugerenciasIA" [ngClass]="'t-' + s.tono" (click)="aplicarSugerenciaIA(s.clave)"><b>{{ s.total | number }}</b>{{ s.texto }}</button>
+                  </div>
+
+                  <div class="sx-ctx">
+                    <span class="sx-total"><b>{{ bienesVista.length | number }}</b> {{ bienesVista.length === 1 ? 'bien' : 'bienes' }}<ng-container *ngIf="bienesVista.length !== bienes.length"> de {{ bienes.length | number }}</ng-container></span>
+                    <span class="filter-chip" *ngFor="let f of filtrosChips">
+                      {{ f.etiqueta }}: <b>{{ f.valor }}</b>
+                      <button title="Quitar filtro" (click)="quitarFiltro(f.clave)">×</button>
+                    </span>
+                    <button class="sx-limpiar" *ngIf="hayFiltrosBienes" (click)="limpiarFiltrosBienes()">Limpiar todo</button>
+                  </div>
+                </div>
+
+                <!-- BIENES EN TARJETAS -->
+                <ng-container *ngIf="vistaInv==='bienes'">
+                  <div class="bk-grid">
+                    <ng-container *ngFor="let g of gruposVista">
+                      <div class="bk-gh" *ngIf="g.titulo"><span>{{ g.titulo }}</span><b>{{ g.total | number }}</b></div>
+                      <button type="button" class="bk" *ngFor="let b of g.items; trackBy: trackBien" (click)="abrirBien(b)" [class.sel]="bienSeleccionado?.id_bien===b.id_bien">
+                        <span class="bk-media" [class.vacia]="!b.foto_mini" [style.background]="b.foto_mini ? null : tonoBien(b, '17')" [style.color]="tonoBien(b, '')">
+                          <img *ngIf="b.foto_mini" [src]="b.foto_mini" alt="" loading="lazy">
+                          <span *ngIf="!b.foto_mini" class="bk-mono">{{ inicialesDe(b.articulo) }}</span>
+                          <span class="bk-estado" [ngClass]="claseEstadoFisico(b.estado_fisico)"><i></i><span>{{ estadoCorto(b) }}</span></span>
+                          <span class="bk-flags">
+                            <span *ngIf="alertaCMBien(b)" class="bk-alerta" title="Calibración o mantenimiento vencido o próximo"><ico n="gauge"></ico></span>
+                            <span *ngIf="b.etiqueta" title="Tiene etiqueta QR"><ico n="qr"></ico></span>
+                          </span>
+                        </span>
+                        <span class="bk-body">
+                          <strong class="bk-nombre">{{ (b.articulo | titlecase) || 'Bien sin nombre' }}</strong>
+                          <small class="bk-desc">{{ descripcionBien(b) | titlecase }}</small>
+                          <span class="bk-foot">
+                            <span class="bk-av" [class.vacio]="!b.responsable">{{ b.responsable ? inicialesDe(b.responsable) : '—' }}</span>
+                            <span class="bk-who"><span>{{ (b.responsable | titlecase) || 'Sin responsable' }}</span><em>{{ (b.ubicacion | titlecase) || 'Sin ubicación' }}</em></span>
+                            <code class="bk-clave">{{ b.clave || '—' }}</code>
+                          </span>
+                        </span>
+                      </button>
+                    </ng-container>
+                  </div>
+                  <div class="bk-vacio" *ngIf="!bienesVista.length">
+                    <span class="sx-spark grande"><ico n="spark"></ico></span>
+                    <strong>{{ hayFiltrosBienes ? 'No encontré bienes con eso' : 'Aún no hay bienes registrados' }}</strong>
+                    <p>{{ hayFiltrosBienes ? 'Prueba con otras palabras o quita algún filtro.' : 'Registra el primer bien para comenzar.' }}</p>
+                    <button class="btn-outline" *ngIf="hayFiltrosBienes" (click)="limpiarFiltrosBienes()">Limpiar todo</button>
+                    <button class="btn-primary" *ngIf="!hayFiltrosBienes" (click)="newBien()">Nuevo bien</button>
+                  </div>
+                  <div class="more-cards" *ngIf="bienesVista.length">
+                    <span>Mostrando {{ (bienesVista.length < tarjetasVisibles ? bienesVista.length : tarjetasVisibles) | number }} de {{ bienesVista.length | number }} bienes</span>
+                    <button class="btn-outline" *ngIf="bienesVista.length > tarjetasVisibles" (click)="tarjetasVisibles = tarjetasVisibles + 36">Mostrar más</button>
+                  </div>
+                </ng-container>
+
+                <!-- TABLA COMPLETA -->
+                <div class="inventory-panel" *ngIf="vistaInv==='completo'">
                   <div class="table-container">
                     <table class="inventory-table">
                       <thead>
@@ -1164,7 +1133,7 @@ export class IcoComponent { @Input() n = ''; }
                             <div class="empty-icon">▦</div>
                             <strong>{{ hayFiltrosBienes ? 'Ningún bien coincide con los filtros' : 'Aún no hay bienes registrados' }}</strong>
                             <p>{{ hayFiltrosBienes ? 'Prueba con otra búsqueda o limpia los filtros.' : 'Registra el primer bien para comenzar.' }}</p>
-                            <button class="btn-outline" *ngIf="hayFiltrosBienes" (click)="limpiarFiltrosBienes()">Limpiar filtros</button>
+                            <button class="btn-outline" *ngIf="hayFiltrosBienes" (click)="limpiarFiltrosBienes()">Limpiar todo</button>
                             <button class="btn-primary" *ngIf="!hayFiltrosBienes" (click)="newBien()">Nuevo registro</button>
                           </td>
                         </tr>
@@ -1188,7 +1157,6 @@ export class IcoComponent { @Input() n = ''; }
                       <button class="btn-outline btn-small" [disabled]="paginaActualBienes>=totalPaginasBienes" (click)="paginaActualBienes=paginaActualBienes+1">›</button>
                     </div>
                   </div>
-                  </ng-container>
                 </div>
               </div>
             </ng-container>
@@ -4068,6 +4036,133 @@ export class IcoComponent { @Input() n = ''; }
     .edot.status-good{background:#26a269}
     .edot.status-warning{background:#e3a21a}
     .edot.status-bad{background:#d24c55}
+
+    /* ===== Bienes: búsqueda inteligente ===== */
+    .vistas.vistas-txt button span{display:inline}
+    .sx{display:flex;flex-direction:column;gap:12px;margin-bottom:18px}
+    .sx-search{position:relative;display:flex;align-items:center;gap:10px;height:58px;padding:0 8px 0 16px;border-radius:18px;border:1.5px solid #e2e8f0;background:#fff;box-shadow:0 1px 2px #17263d0a,0 8px 24px #17263d08;transition:border-color .2s,box-shadow .2s}
+    .sx-search:focus-within,.sx-search.activa{border-color:transparent;background:linear-gradient(#fff,#fff) padding-box,linear-gradient(115deg,#3d6fb0,#7a5fc0 45%,#2f9b78) border-box;box-shadow:0 10px 30px #5a4fc01f}
+    .sx-search input{flex:1;min-width:0;border:0;outline:none;background:transparent;font-size:16.5px;color:#14243a;height:100%;padding:0}
+    .sx-search input::placeholder{color:#8a96a6}
+    .sx-spark{display:grid;place-items:center;width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,#eef2fd,#f2edfc);color:#6a54c9;flex-shrink:0}
+    .sx-spark ico{width:19px;height:19px}
+    .sx-search:focus-within .sx-spark ico{animation:sxBrillo 2.4s ease-in-out infinite}
+    @keyframes sxBrillo{0%,100%{transform:scale(1) rotate(0)}50%{transform:scale(1.12) rotate(12deg)}}
+    .sx-spark.grande{width:56px;height:56px;border-radius:18px}
+    .sx-spark.grande ico{width:28px;height:28px}
+    .sx-clear{border:0;width:28px;height:28px;border-radius:50%;background:#e9edf3;color:#5d6d82;display:grid;place-items:center;cursor:pointer;flex-shrink:0}
+    .sx-clear ico{width:14px;height:14px}
+    .sx-filtros{position:relative}
+    .sx-fbtn{display:inline-flex;align-items:center;gap:7px;height:42px;padding:0 14px;border-radius:12px;border:0;background:#f2f5f9;color:#25364c;font:inherit;font-size:14px;font-weight:700;cursor:pointer}
+    .sx-fbtn:hover{background:#e9eef5}
+    .sx-fbtn.on{background:#17263d;color:#fff}
+    .sx-fbtn ico{width:18px;height:18px}
+    .sx-ia{display:flex;flex-wrap:wrap;align-items:center;gap:8px;animation:fadeIn .25s ease both}
+    .sx-ia-tit{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:800;letter-spacing:.2px;background:linear-gradient(115deg,#3d6fb0,#7a5fc0);-webkit-background-clip:text;background-clip:text;color:transparent}
+    .sx-ia-tit ico{width:16px;height:16px;color:#7a5fc0}
+    .sx-ia-chip{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 6px 0 12px;border-radius:999px;background:#f1eefc;color:#3f2f94;font-size:13.5px;font-weight:700;animation:zoomIn .2s ease both}
+    .sx-ia-chip small{font-size:11.5px;font-weight:600;color:#7666b8}
+    .sx-ia-chip button{border:0;width:22px;height:22px;border-radius:50%;background:#e2dcf8;color:#4b3ca8;display:grid;place-items:center;cursor:pointer;padding:0}
+    .sx-ia-chip button ico{width:12px;height:12px}
+    .sx-scope{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+    .sx-seg{display:inline-flex;gap:2px;padding:3px;border-radius:12px;background:#e8ecf2;max-width:100%;overflow-x:auto;scrollbar-width:none}
+    .sx-seg::-webkit-scrollbar{display:none}
+    .sx-seg button{border:0;background:transparent;color:#4a5a70;font:inherit;font-size:13.5px;font-weight:700;padding:7px 12px;border-radius:9px;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:6px;transition:background .15s,color .15s,box-shadow .15s}
+    .sx-seg button small{font-size:12px;font-weight:600;color:#7d8a9c}
+    .sx-seg button.on{background:#fff;color:#14243a;box-shadow:0 1px 3px #17263d24}
+    .sx-persona{display:inline-flex;align-items:center;gap:6px;height:38px;padding:0 4px 0 12px;margin:0;border-radius:12px;background:#fff;border:1px solid #e2e8f0;color:#5d6d82;max-width:100%}
+    .sx-persona.on{border-color:#17263d;color:#17263d}
+    .sx-persona ico{width:17px;height:17px;flex-shrink:0}
+    .sx-persona select{border:0;outline:none;background:transparent;font:inherit;font-size:13.5px;font-weight:700;color:#14243a;height:36px;padding:0 4px;width:auto;max-width:240px;cursor:pointer}
+    .sx-agrupar{display:inline-flex;align-items:center;gap:8px;margin-left:auto;max-width:100%}
+    .sx-agrupar>span{font-size:12.5px;font-weight:700;color:#6b7a8d}
+    .sx-tipos{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 4px;scrollbar-width:none;-webkit-mask-image:linear-gradient(90deg,#000 92%,transparent);mask-image:linear-gradient(90deg,#000 92%,transparent)}
+    .sx-tipos::-webkit-scrollbar{display:none}
+    .sx-tipos button{flex-shrink:0;display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 14px;border-radius:999px;border:1px solid #e2e8f0;background:#fff;color:#25364c;font:inherit;font-size:14px;font-weight:700;cursor:pointer;transition:all .15s}
+    .sx-tipos button small{font-size:12px;font-weight:600;color:#8592a3}
+    .sx-tipos button:hover{border-color:#c8d3e1}
+    .sx-tipos button.on{background:#17263d;border-color:#17263d;color:#fff}
+    .sx-tipos button.on small{color:#b9c6d8}
+    .sx-ins{display:flex;align-items:center;gap:8px;overflow-x:auto;scrollbar-width:none}
+    .sx-ins::-webkit-scrollbar{display:none}
+    .sx-ins-tit{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:800;color:#6a54c9;flex-shrink:0}
+    .sx-ins-tit ico{width:15px;height:15px}
+    .sx-ins button{flex-shrink:0;display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:10px;border:0;font:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:transform .15s,filter .15s}
+    .sx-ins button:hover{transform:translateY(-1px);filter:brightness(.97)}
+    .sx-ins button b{font-weight:800}
+    .sx-ins .t-rojo{background:#fdeeee;color:#a3262e}
+    .sx-ins .t-ambar{background:#fff3df;color:#8a4b00}
+    .sx-ins .t-azul{background:#e8f1fb;color:#1f4f86}
+    .sx-ins .t-gris{background:#eef1f5;color:#3d4b5e}
+    .sx-ins .t-morado{background:#f1eefc;color:#4b3ca8}
+    .sx-ctx{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:14px;color:#5d6d82;min-height:28px}
+    .sx-total b{color:#14243a;font-weight:800}
+    .sx-limpiar{border:0;background:transparent;color:#3d6fb0;font:inherit;font-size:13.5px;font-weight:700;cursor:pointer;padding:4px 6px}
+    .sx-limpiar:hover{text-decoration:underline}
+
+    /* ===== Bienes: tarjetas ===== */
+    .bk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:16px}
+    .bk-gh{grid-column:1/-1;display:flex;align-items:center;gap:10px;margin:10px 2px -4px;font-size:13px;font-weight:800;letter-spacing:.3px;text-transform:uppercase;color:#4a5a70}
+    .bk-gh:first-child{margin-top:0}
+    .bk-gh b{font-size:12px;font-weight:700;color:#5d6d82;background:#e8ecf2;border-radius:999px;padding:2px 9px;letter-spacing:0}
+    .bk-gh::after{content:"";flex:1;height:1px;background:#e3e8ef}
+    .bk{display:flex;flex-direction:column;text-align:left;padding:0;font:inherit;color:inherit;background:#fff;border:1px solid #e6ebf2;border-radius:20px;overflow:hidden;cursor:pointer;box-shadow:0 1px 2px #17263d08;transition:transform .2s cubic-bezier(.2,.8,.2,1),box-shadow .2s,border-color .2s;animation:fadeUp .3s ease both}
+    .bk:hover{transform:translateY(-4px);border-color:#d5deea;box-shadow:0 18px 40px #17263d1c}
+    .bk:active{transform:translateY(-1px) scale(.99)}
+    .bk:focus-visible{outline:3px solid #7a5fc066;outline-offset:2px}
+    .bk.sel{border-color:#17263d}
+    .bk-media{position:relative;display:grid;place-items:center;aspect-ratio:4/3;background:#f3f6fa;overflow:hidden}
+    .bk-media img{width:100%;height:100%;object-fit:cover;transition:transform .4s ease}
+    .bk:hover .bk-media img{transform:scale(1.04)}
+    .bk-mono{font-size:46px;font-weight:800;letter-spacing:-2px;opacity:.85;line-height:1}
+    .bk-media.vacia::after{content:"";position:absolute;inset:0;background:radial-gradient(circle at 30% 20%,#ffffff99,transparent 60%)}
+    .bk-estado{position:absolute;z-index:1;left:10px;bottom:10px;display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;background:#ffffffd9;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);color:#25364c;font-size:12px;font-weight:700;box-shadow:0 1px 4px #17263d1a}
+    .bk-estado i{width:8px;height:8px;border-radius:50%;background:#b6c0cd}
+    .bk-estado.status-good i{background:#26a269}
+    .bk-estado.status-warning i{background:#e3a21a}
+    .bk-estado.status-bad i{background:#d24c55}
+    .bk-flags{position:absolute;z-index:1;top:10px;right:10px;display:flex;gap:6px}
+    .bk-flags>span{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:#ffffffd9;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);color:#25364c;box-shadow:0 1px 4px #17263d1a}
+    .bk-flags ico{width:15px;height:15px}
+    .bk-flags .bk-alerta{background:#fff3df;color:#a35a00}
+    .bk-body{display:flex;flex-direction:column;gap:3px;padding:14px 16px 14px;min-width:0}
+    .bk-nombre{font-size:16px;font-weight:750;color:#14243a;letter-spacing:-.2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .bk-desc{font-size:13.5px;color:#6b7a8d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .bk-foot{display:flex;align-items:center;gap:9px;margin-top:10px;padding-top:11px;border-top:1px solid #eff2f6;min-width:0}
+    .bk-av{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;flex-shrink:0;background:#e6edf7;color:#2c4a72;font-size:11.5px;font-weight:800}
+    .bk-av.vacio{background:#f1f3f6;color:#9aa5b4}
+    .bk-who{display:flex;flex-direction:column;min-width:0;flex:1;line-height:1.25}
+    .bk-who span{font-size:13px;font-weight:650;color:#25364c;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .bk-who em{font-style:normal;font-size:12px;color:#8592a3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .bk-clave{flex-shrink:0;font-family:"SFMono-Regular",Consolas,monospace;font-size:11.5px;font-weight:700;color:#4a5a70;background:#f2f5f9;border-radius:7px;padding:3px 7px}
+    .bk-vacio{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;padding:48px 20px;background:#fff;border:1px dashed #d8e0ea;border-radius:20px}
+    .bk-vacio strong{font-size:17px;color:#14243a;margin-top:6px}
+    .bk-vacio p{margin:0 0 8px;color:#6b7a8d;font-size:14px}
+    @media(max-width:700px){
+      .sx-search{height:54px;border-radius:16px;padding-left:12px}
+      .sx-search input{font-size:16px}
+      .sx-fbtn .tb-txt{display:none}
+      .sx-fbtn{width:42px;padding:0;justify-content:center;position:relative}
+      .sx-fbtn .tab-count{position:absolute;top:-4px;right:-4px}
+      .sx-scope{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0 -2px;padding:0 2px}
+      .sx-scope::-webkit-scrollbar{display:none}
+      .sx-scope>*{flex-shrink:0}
+      .sx-seg{overflow:visible}
+      .sx-agrupar{margin-left:0}
+      .bk-grid{grid-template-columns:1fr;gap:10px}
+      .bk{flex-direction:row;border-radius:16px}
+      .bk:hover{transform:none}
+      .bk-media{width:104px;aspect-ratio:auto;flex-shrink:0}
+      .bk-mono{font-size:30px;letter-spacing:-1px}
+      .bk-estado{left:6px;bottom:6px;height:auto;padding:5px}
+      .bk-estado span{display:none}
+      .bk-flags{top:6px;right:6px}
+      .bk-flags>span{width:24px;height:24px}
+      .bk-flags>span:not(.bk-alerta){display:none}
+      .bk-body{padding:12px 12px 10px;flex:1}
+      .bk-foot{margin-top:8px;padding-top:8px}
+      .bk-av{width:26px;height:26px;font-size:10.5px}
+    }
     .bi{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px 18px}
     .bi li{display:flex;align-items:flex-start;gap:10px;font-size:14px;color:#25364c;min-width:0}
     .bi li>ico{width:20px;height:20px;color:#5f7590;margin-top:1px}
@@ -5987,6 +6082,8 @@ export class AppComponent {
       lista.push({ clave: 'persona', etiqueta: 'Persona', valor: p?.nombre || '#' + this.filtroPersona });
     }
     if (this.filtroAsignacion) lista.push({ clave: 'asignacion', etiqueta: 'Asignación', valor: this.filtroAsignacion === 'ASIGNADO' ? 'Asignados' : 'Sin asignar' });
+    if (this.filtroTipos.length) lista.push({ clave: 'tipo', etiqueta: 'Tipo', valor: this.filtroTipos.map(t => this.nombresTipo.get(t) || t).join(', ') });
+    if (this.filtroExtra) lista.push({ clave: 'extra', etiqueta: 'Falta', valor: this.filtroExtra === 'sinetiqueta' ? 'Etiqueta QR' : 'Foto' });
     if (this.filtroCM) lista.push({ clave: 'cm', etiqueta: 'Calibración/mant.', valor: ({ atencion: 'Vencidos o próximos', calibracion: 'Requieren calibración', mantenimiento: 'Requieren mantenimiento', sinfecha: 'Sin fecha' } as any)[this.filtroCM] });
     return lista;
   }
@@ -5999,6 +6096,8 @@ export class AppComponent {
     if (clave === 'asignacion') this.filtroAsignacion = '';
     if (clave === 'persona') this.filtroPersona = null;
     if (clave === 'cm') this.filtroCM = '';
+    if (clave === 'tipo') this.filtroTipos = [];
+    if (clave === 'extra') this.filtroExtra = '';
     this.aplicarFiltrosBienes();
   }
 
@@ -6110,6 +6209,9 @@ export class AppComponent {
     this.filtroAsignacion = '';
     this.filtroPersona = null;
     this.filtroCM = '';
+    this.filtroTipos = [];
+    this.filtroExtra = '';
+    this.agruparInv = 'ninguno';
     this.vistaInv = 'bienes';
     this.origenVistaInv = 'menu';
     this.filtroSolicitudes = '';
@@ -6357,7 +6459,7 @@ export class AppComponent {
     const permitidas = ['inicio', 'bienes', 'solicitudes', 'documentos', 'requisiciones']
       .concat(this.verInventarioAnual ? ['anual'] : [], this.isAdmin ? ['catalogos'] : [], this.isAdmin || this.canAuthorize ? ['calibracion'] : []);
     if (permitidas.includes(ui.s)) this.section = ui.s;
-    if (['bienes', 'personas', 'completo'].includes(ui.v) || (ui.v === 'sedes' && this.isAdmin)) this.vistaInv = ui.v;
+    this.vistaInv = ui.v === 'completo' ? 'completo' : 'bienes';
     if (this.section === 'documentos' && ['menu', 'ALTA', 'BAJA', 'ACTAS', 'RESGUARDO', 'REQUISICION'].includes(ui.d)) { this.docsVista = ui.d; this.loadDocumentos(); }
     if (this.section === 'requisiciones') this.loadRequisiciones();
     if (ui.f && typeof ui.f === 'object' && !ui.f.idBien) {
@@ -6888,10 +6990,12 @@ export class AppComponent {
   private ponerBienes(v: any[]): void {
     this.bienes = v.map(b => ({
       ...b,
-      _busqueda: [b.clave, b.etiqueta, b.articulo, b.modelo, b.marca, b.numero_serie, b.responsable, b.usuario_directo,
-                  b.ubicacion, b.sede, b.clasificacion, b.subcategoria, b.color]
-        .filter(x => x !== null && x !== undefined).join(' ').toLowerCase()
+      ...this.tipoDe(b.articulo),
+      _busqueda: this.norm([b.clave, b.etiqueta, b.articulo, b.modelo, b.marca, b.numero_serie, b.responsable, b.usuario_directo,
+                  b.ubicacion, b.sede, b.clasificacion, b.subcategoria, b.color, b.caracteristicas]
+        .filter(x => x !== null && x !== undefined).join(' '))
     }));
+    this.calcularTipos();
     this.calcularResumenBienes();
     this.aplicarFiltrosBienes(false);
     if (this.bienSeleccionado) {
@@ -6989,11 +7093,7 @@ export class AppComponent {
   // Navegación entre las vistas del inventario
   abrirVistaInv(vista: 'sedes' | 'bienes' | 'personas' | 'completo'): void {
     this.origenVistaInv = 'menu';
-    if (vista === 'bienes' || vista === 'completo') {
-      this.filtroPersona = null;
-      if (this.isAdmin) this.filtroSede = null;
-      this.aplicarFiltrosBienes();
-    }
+    if (vista === 'bienes' || vista === 'completo') this.aplicarFiltrosBienes(false);
     if (vista === 'personas') { this.busquedaPersonas = ''; this.personasVisibles = 48; }
     this.vistaInv = vista;
     this.subirAlInicio();
@@ -7071,19 +7171,42 @@ export class AppComponent {
   }
 
   aplicarFiltrosBienes(reiniciarPagina = true): void {
-    const texto = this.filter.toLowerCase().trim();
-    const palabras = texto ? texto.split(/\s+/) : [];
+    // La búsqueda se interpreta: "laptops en mal estado de la sede norte" se convierte en filtros
+    const r = this.interpretar(this.filter);
+    this.interpretacion = r.chips;
+    this.tipoInterpretado = !this.filtroTipos.length && r.tipos.length > 0;
+    const sede = this.filtroSede ?? r.sede;
+    const persona = this.filtroPersona ?? r.persona;
+    const tipos = this.filtroTipos.length ? this.filtroTipos : r.tipos;
+    const estado = this.filtroEstadoFisico || r.estado;
+    const asignacion = this.filtroAsignacion || r.asignacion;
+    const estatus = this.statusFilter || r.estatus;
+    const cm = this.filtroCM || r.cm;
+    const extra = this.filtroExtra || r.extra;
+    const palabras = r.resto.map(p => this.expandir(p));
 
-    let lista = this.bienes.filter(b =>
-      (!this.statusFilter || b.estatus_inventario === this.statusFilter) &&
-      (!this.filtroSede || b.id_sede === this.filtroSede) &&
+    const sinTipo = this.bienes.filter(b =>
+      (!estatus || b.estatus_inventario === estatus) &&
+      (!sede || b.id_sede === sede) &&
       (!this.filtroClasificacion || b.id_clasificacion === this.filtroClasificacion) &&
-      (!this.filtroEstadoFisico || String(b.estado_fisico || '').toUpperCase() === this.filtroEstadoFisico) &&
-      (!this.filtroAsignacion || String(b.estatus_asignacion || '').toUpperCase() === this.filtroAsignacion) &&
-      (!this.filtroCM || this.coincideCM(b, this.filtroCM)) &&
-      (!this.filtroPersona || b.id_responsable_area === this.filtroPersona || b.id_usuario_directo === this.filtroPersona) &&
-      palabras.every(p => b._busqueda.includes(p))
+      (!estado || String(b.estado_fisico || '').toUpperCase() === estado) &&
+      (!asignacion || String(b.estatus_asignacion || '').toUpperCase() === asignacion) &&
+      (!cm || this.coincideCM(b, cm)) &&
+      (!extra || (extra === 'sinetiqueta' ? !b.etiqueta : !b.foto_mini)) &&
+      (!persona || b.id_responsable_area === persona || b.id_usuario_directo === persona) &&
+      palabras.every(alternativas => alternativas.some(p => b._busqueda.includes(p)))
     );
+    let lista = tipos.length ? sinTipo.filter(b => tipos.includes(b._tipo)) : sinTipo;
+
+    // Chips de tipo con su conteo dentro del alcance actual
+    const conteo = new Map<string, number>();
+    for (const b of sinTipo) if (b._tipo) conteo.set(b._tipo, (conteo.get(b._tipo) || 0) + 1);
+    const orden = Array.from(conteo.entries()).sort((a, b) => b[1] - a[1]);
+    const top = orden.slice(0, 12).map(x => x[0]);
+    for (const t of tipos) if (!top.includes(t) && conteo.has(t)) top.push(t);
+    this.tiposVista = top.map(id => ({ id, nombre: this.nombresTipo.get(id) || id, total: conteo.get(id) || 0, on: tipos.includes(id) }));
+
+    this.calcularSugerenciasIA(lista, { estado, extra, asignacion, cm });
 
     const { key, dir } = this.ordenBienes;
     if (key) {
@@ -7099,10 +7222,327 @@ export class AppComponent {
           : String(va).localeCompare(String(vb), 'es', { numeric: true })) * factor;
       });
     }
+    if (this.agruparInv !== 'ninguno') {
+      const sinGrupo = (g: string) => g.startsWith('Sin ') ? 1 : 0;
+      lista = lista.map((b, i) => ({ b, i, g: this.grupoDe(b) }))
+        .sort((x, y) => sinGrupo(x.g) - sinGrupo(y.g) || x.g.localeCompare(y.g, 'es') || x.i - y.i)
+        .map(x => x.b);
+    }
 
     this.bienesVista = lista;
     if (reiniciarPagina) { this.paginaActualBienes = 1; this.tarjetasVisibles = 36; }
     else this.paginaActualBienes = Math.min(this.paginaActualBienes, this.totalPaginasBienes);
+  }
+
+  // =========================
+  // BÚSQUEDA INTELIGENTE DE BIENES
+  // =========================
+  agruparInv: 'ninguno' | 'sede' | 'persona' | 'tipo' | 'ubicacion' = 'ninguno';
+  readonly opcionesAgrupar: { v: 'ninguno' | 'sede' | 'persona' | 'tipo' | 'ubicacion'; l: string }[] = [
+    { v: 'ninguno', l: 'Nada' }, { v: 'tipo', l: 'Tipo' }, { v: 'sede', l: 'Sede' }, { v: 'persona', l: 'Responsable' }, { v: 'ubicacion', l: 'Ubicación' }
+  ];
+  filtroTipos: string[] = [];
+  filtroExtra: '' | 'sinetiqueta' | 'sinfoto' = '';
+  tipoInterpretado = false;
+  interpretacion: { clave: string; etiqueta: string; valor: string; palabras: string[] }[] = [];
+  tiposVista: { id: string; nombre: string; total: number; on: boolean }[] = [];
+  sugerenciasIA: { clave: string; texto: string; total: number; tono: string }[] = [];
+  private nombresTipo = new Map<string, string>();
+  private tiposTop: string[] = [];
+  private phIdx = 0;
+  private phTimer = setInterval(() => { if (this.section === 'bienes' && !this.filter) this.phIdx++; }, 4500);
+  private gruposCache: any = null;
+  private personasIdx: { ref: any; lista: { id: any; w: string[] }[] } = { ref: null, lista: [] };
+
+  // Palabras que significan lo mismo al buscar
+  private readonly sinonimos: string[][] = [
+    ['laptop', 'portatil', 'notebook', 'lap'],
+    ['computadora', 'cpu', 'pc', 'desktop', 'ordenador'],
+    ['monitor', 'pantalla', 'display'],
+    ['impresora', 'multifuncional', 'printer'],
+    ['silla', 'sillon'],
+    ['telefono', 'celular', 'smartphone'],
+    ['proyector', 'canon', 'beamer'],
+    ['regulador', 'nobreak', 'ups'],
+    ['archivero', 'gaveta'],
+    ['escritorio', 'workstation']
+  ];
+  private readonly vacias = new Set(['de', 'del', 'la', 'las', 'el', 'los', 'en', 'con', 'y', 'e', 'o', 'que', 'todo', 'todos', 'toda', 'todas',
+    'mis', 'mi', 'a', 'al', 'por', 'para', 'ver', 'muestrame', 'mostrar', 'dame', 'busca', 'buscar', 'hay', 'cuantos', 'cuantas', 'estado',
+    'sede', 'sedes', 'bienes', 'bien', 'un', 'una', 'unos', 'unas', 'sus', 'su', 'lo', 'quiero', 'tiene', 'tienen', 'esta', 'estan', 'area']);
+
+  norm(s: any): string {
+    return String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+  }
+
+  // Singular aproximado en español: "monitores" → "monitor", "sillas" → "silla"
+  private raiz(w: string): string {
+    if (w.length > 5 && /[^aeiou]es$/.test(w)) return w.slice(0, -2);
+    if (w.length > 3 && w.endsWith('s')) return w.slice(0, -1);
+    return w;
+  }
+
+  private parecido(a: string, b: string): boolean {
+    return a === b || (a.length >= 4 && b.length >= 4 && (a.startsWith(b) || b.startsWith(a)));
+  }
+
+  private expandir(p: string): string[] {
+    const r = this.raiz(p);
+    const grupo = this.sinonimos.find(g => g.some(s => this.parecido(s, r)));
+    return Array.from(new Set([r, ...(grupo || [])]));
+  }
+
+  // El "tipo" de un bien es la primera palabra de su nombre: "LAPTOP DELL" → laptop
+  private tipoDe(articulo: any): { _tipo: string; _tipoNombre: string } {
+    const orig = String(articulo ?? '').trim().split(/\s+/).filter(Boolean);
+    const pal = orig.map(w => this.norm(w).replace(/[^a-z0-9]/g, '')).filter(Boolean);
+    if (!pal.length) return { _tipo: '', _tipoNombre: 'Sin nombre' };
+    const n = pal[0].length < 3 && pal[1] ? 2 : 1;
+    const id = pal.slice(0, n).map(w => this.raiz(w)).join(' ');
+    const nombre = orig.slice(0, n).join(' ').toLowerCase();
+    return { _tipo: id, _tipoNombre: nombre.charAt(0).toUpperCase() + nombre.slice(1) };
+  }
+
+  private calcularTipos(): void {
+    const conteo = new Map<string, number>();
+    this.nombresTipo = new Map();
+    for (const b of this.bienes) {
+      if (!b._tipo) continue;
+      conteo.set(b._tipo, (conteo.get(b._tipo) || 0) + 1);
+      if (!this.nombresTipo.has(b._tipo)) this.nombresTipo.set(b._tipo, b._tipoNombre);
+    }
+    this.tiposTop = Array.from(conteo.entries()).sort((a, b) => b[1] - a[1]).slice(0, 4).map(x => this.nombresTipo.get(x[0]) || x[0]);
+  }
+
+  get placeholderBusqueda(): string {
+    const t = this.tiposTop.map(x => x.toLowerCase());
+    const sede = this.isAdmin ? this.resumenSedes.find(s => s.id)?.nombre : null;
+    const ejemplos = [
+      t[0] ? t[0] + ' en mal estado' : 'en mal estado',
+      t[1] ? t[1] + ' sin etiqueta' : 'sin etiqueta',
+      t[2] && sede ? t[2] + ' de ' + this.norm(sede) : 'sin foto',
+      'sin asignar',
+      t[3] ? t[3] + ' en buen estado' : 'calibración vencida'
+    ];
+    return 'Busca o pregunta: “' + ejemplos[this.phIdx % ejemplos.length] + '”';
+  }
+
+  // Convierte una frase en filtros. Lo que no reconoce se queda como texto libre.
+  private interpretar(texto: string) {
+    const r = {
+      tipos: [] as string[], sede: null as any, persona: null as any, estado: '', asignacion: '', estatus: '', cm: '' as any, extra: '' as any,
+      resto: [] as string[], chips: [] as { clave: string; etiqueta: string; valor: string; palabras: string[] }[]
+    };
+    const orig = String(texto || '').trim().split(/\s+/).filter(Boolean);
+    if (!orig.length) return r;
+    const w = orig.map(x => this.norm(x).replace(/[^a-z0-9-]/g, ''));
+    const usado = w.map(x => !x);
+    const tomar = (i: number, n: number) => { for (let k = i; k < i + n; k++) usado[k] = true; return orig.slice(i, i + n); };
+    const chip = (clave: string, etiqueta: string, valor: string, palabras: string[]) => {
+      const previo = r.chips.find(c => c.clave === clave);
+      if (previo) { previo.palabras.push(...palabras); return; }
+      r.chips.push({ clave, etiqueta, valor, palabras });
+    };
+
+    // Frases de dos palabras
+    for (let i = 0; i < w.length - 1; i++) {
+      if (usado[i] || usado[i + 1]) continue;
+      const a = w[i], b = this.raiz(w[i + 1]);
+      if (a === 'sin' && ['etiqueta', 'qr', 'codigo'].includes(b)) { r.extra = 'sinetiqueta'; chip('extra', 'Falta', 'Etiqueta QR', tomar(i, 2)); }
+      else if (a === 'sin' && ['foto', 'imagen'].includes(b)) { r.extra = 'sinfoto'; chip('extra', 'Falta', 'Foto', tomar(i, 2)); }
+      else if (a === 'sin' && ['asignar', 'responsable', 'usuario', 'dueno', 'asignacion'].includes(b)) { r.asignacion = 'SIN_ASIGNAR'; chip('asignacion', 'Asignación', 'Sin asignar', tomar(i, 2)); }
+      else if (['mal', 'malo'].includes(a) && b === 'estado') { r.estado = 'MALO'; chip('estado', 'Estado', 'Malo', tomar(i, 2)); }
+      else if (['buen', 'bueno'].includes(a) && b === 'estado') { r.estado = 'BUENO'; chip('estado', 'Estado', 'Bueno', tomar(i, 2)); }
+      else if (a === 'no' && b === 'break') { tomar(i, 2); r.resto.push('nobreak'); }
+    }
+
+    // Palabras sueltas con significado
+    const estados: Record<string, string> = { bueno: 'BUENO', buena: 'BUENO', regular: 'REGULAR', regulare: 'REGULAR', malo: 'MALO', mala: 'MALO',
+      danado: 'MALO', danada: 'MALO', descompuesto: 'MALO', descompuesta: 'MALO', roto: 'MALO', rota: 'MALO', averiado: 'MALO' };
+    w.forEach((x, i) => {
+      if (usado[i]) return;
+      const y = this.raiz(x);
+      if (estados[y]) { r.estado = estados[y]; chip('estado', 'Estado', this.textoCampo(estados[y]), tomar(i, 1)); }
+      else if (y === 'baja') { r.estatus = 'BAJA'; chip('estatus', 'Estatus', 'Baja', tomar(i, 1)); }
+      else if (y === 'reparacion') { r.estatus = 'EN_REPARACION'; chip('estatus', 'Estatus', 'En reparación', tomar(i, 1)); }
+      else if (['vencido', 'vencida', 'atrasado', 'atrasada', 'pendiente'].includes(y)) { r.cm = 'atencion'; chip('cm', 'Calibración/mant.', 'Vencidos o próximos', tomar(i, 1)); }
+      else if (['calibracion', 'calibrar'].includes(y)) { r.cm = r.cm || 'calibracion'; chip('cm', 'Requiere', 'Calibración', tomar(i, 1)); }
+      else if (y === 'mantenimiento') { r.cm = r.cm || 'mantenimiento'; chip('cm', 'Requiere', 'Mantenimiento', tomar(i, 1)); }
+      else if (['asignado', 'asignada'].includes(y)) { r.asignacion = 'ASIGNADO'; chip('asignacion', 'Asignación', 'Asignados', tomar(i, 1)); }
+      else if (['disponible', 'libre'].includes(y)) { r.asignacion = 'SIN_ASIGNAR'; chip('asignacion', 'Asignación', 'Sin asignar', tomar(i, 1)); }
+    });
+
+    // Sede: su nombre completo o una palabra que solo aparece en una sede
+    if (this.isAdmin) {
+      const sedes = this.resumenSedes.filter(s => s.id).map(s => ({ id: s.id, nombre: s.nombre, w: this.norm(s.nombre).replace(/[^a-z0-9 ]/g, ' ').split(' ').filter(p => p && !this.vacias.has(p)) }));
+      for (const s of sedes) {
+        if (r.sede || !s.w.length) continue;
+        for (let i = 0; i + s.w.length <= w.length; i++) {
+          if (s.w.every((p, k) => !usado[i + k] && w[i + k] === p)) { r.sede = s.id; chip('sede', 'Sede', this.titulo(s.nombre), tomar(i, s.w.length)); break; }
+        }
+      }
+      if (!r.sede) {
+        w.forEach((x, i) => {
+          if (r.sede || usado[i] || x.length < 4) return;
+          const cand = sedes.filter(s => s.w.includes(x));
+          if (cand.length === 1) { r.sede = cand[0].id; chip('sede', 'Sede', this.titulo(cand[0].nombre), tomar(i, 1)); }
+        });
+      }
+    }
+
+    // Tipo de bien (con sinónimos): "laptops", "portátiles", "sillas"…
+    w.forEach((x, i) => {
+      if (usado[i] || x.length < 3 || this.vacias.has(x)) return;
+      const alternativas = this.expandir(x);
+      const ids = Array.from(this.nombresTipo.keys()).filter(id => alternativas.some(a => this.parecido(id.split(' ')[0], a)));
+      if (!ids.length) return;
+      for (const id of ids) if (!r.tipos.includes(id)) r.tipos.push(id);
+      chip('tipo', 'Tipo', r.tipos.map(id => this.nombresTipo.get(id) || id).join(', '), tomar(i, 1));
+    });
+
+    // Persona: dos o más palabras de su nombre, o una palabra que solo tiene una persona
+    if (this.personasIdx.ref !== this.resumenPersonas) {
+      this.personasIdx = { ref: this.resumenPersonas, lista: this.resumenPersonas.map(p => ({ id: p.id, nombre: p.nombre, w: this.norm(p.nombre).split(' ') })) as any };
+    }
+    const libres = w.map((x, i) => ({ x, i })).filter(o => !usado[o.i] && o.x.length >= 3 && !this.vacias.has(o.x));
+    const coincide = (p: any, x: string) => p.w.some((n: string) => n === x || (x.length >= 4 && n.startsWith(x)));
+    for (let n = Math.min(3, libres.length); n >= 1 && !r.persona; n--) {
+      for (let s = 0; s + n <= libres.length && !r.persona; s++) {
+        const grupo = libres.slice(s, s + n);
+        if (grupo.some((g, k) => k > 0 && g.i !== grupo[k - 1].i + 1)) continue;
+        const cand = this.personasIdx.lista.filter(p => grupo.every(g => coincide(p, g.x)));
+        if (cand.length === 1 && (n > 1 || !this.bienes.some(b => b._busqueda.includes(grupo[0].x) && !this.norm((b.responsable || '') + ' ' + (b.usuario_directo || '')).includes(grupo[0].x)))) {
+          r.persona = cand[0].id;
+          chip('persona', 'Persona', this.titulo((cand[0] as any).nombre), grupo.map(g => orig[g.i]));
+          grupo.forEach(g => usado[g.i] = true);
+        }
+      }
+    }
+
+    w.forEach((x, i) => { if (!usado[i] && !this.vacias.has(x) && x !== 'sin' && x !== 'no') r.resto.push(this.norm(orig[i])); });
+    return r;
+  }
+
+  quitarInterpretacion(c: { palabras: string[] }): void {
+    const quitar = c.palabras.slice();
+    this.filter = this.filter.trim().split(/\s+/).filter(p => {
+      const k = quitar.indexOf(p);
+      if (k >= 0) { quitar.splice(k, 1); return false; }
+      return true;
+    }).join(' ');
+    this.aplicarFiltrosBienes();
+  }
+
+  private calcularSugerenciasIA(lista: any[], activos: { estado: string; extra: string; asignacion: string; cm: string }): void {
+    const n = lista.length;
+    if (!n) { this.sugerenciasIA = []; return; }
+    let malo = 0, sinEtq = 0, sinFoto = 0, sinAsig = 0, cm = 0;
+    const verCM = this.isAdmin || this.canAuthorize;
+    for (const b of lista) {
+      if (String(b.estado_fisico || '').toUpperCase() === 'MALO') malo++;
+      if (!b.etiqueta) sinEtq++;
+      if (!b.foto_mini) sinFoto++;
+      if (String(b.estatus_asignacion || '').toUpperCase() === 'SIN_ASIGNAR') sinAsig++;
+      if (verCM && this.coincideCM(b, 'atencion')) cm++;
+    }
+    const s: { clave: string; texto: string; total: number; tono: string }[] = [];
+    const util = (x: number) => x > 0 && x < n;
+    if (!activos.cm && util(cm)) s.push({ clave: 'cm', texto: 'por calibrar o mantener', total: cm, tono: 'ambar' });
+    if (!activos.estado && util(malo)) s.push({ clave: 'malo', texto: 'en mal estado', total: malo, tono: 'rojo' });
+    if (!activos.extra && util(sinEtq)) s.push({ clave: 'sinetiqueta', texto: 'sin etiqueta QR', total: sinEtq, tono: 'azul' });
+    if (!activos.extra && util(sinFoto)) s.push({ clave: 'sinfoto', texto: 'sin foto', total: sinFoto, tono: 'gris' });
+    if (!activos.asignacion && util(sinAsig)) s.push({ clave: 'sinasignar', texto: 'sin asignar', total: sinAsig, tono: 'morado' });
+    this.sugerenciasIA = s.slice(0, 4);
+  }
+
+  aplicarSugerenciaIA(clave: string): void {
+    if (clave === 'cm') this.filtroCM = 'atencion';
+    if (clave === 'malo') this.filtroEstadoFisico = 'MALO';
+    if (clave === 'sinetiqueta') this.filtroExtra = 'sinetiqueta';
+    if (clave === 'sinfoto') this.filtroExtra = 'sinfoto';
+    if (clave === 'sinasignar') this.filtroAsignacion = 'SIN_ASIGNAR';
+    this.aplicarFiltrosBienes();
+  }
+
+  get sedesScope(): any[] {
+    return this.resumenSedes.filter(s => s.id);
+  }
+
+  get personasScope(): any[] {
+    if (!this.filtroSede) return this.resumenPersonas;
+    const sede = this.resumenSedes.find(s => s.id === this.filtroSede)?.nombre;
+    return this.resumenPersonas.filter(p => p.id === this.filtroPersona || !sede || String(p.sedes || '').split(', ').includes(sede));
+  }
+
+  setSedeInv(id: any): void {
+    this.filtroSede = id;
+    if (this.filtroPersona && id && !this.personasScope.some(p => p.id === this.filtroPersona)) this.filtroPersona = null;
+    this.aplicarFiltrosBienes();
+  }
+
+  setPersonaInv(id: any): void {
+    this.filtroPersona = id;
+    this.aplicarFiltrosBienes();
+  }
+
+  setTipoInv(id: string | null): void {
+    const yaSolo = this.filtroTipos.length === 1 && this.filtroTipos[0] === id;
+    this.filtroTipos = !id || yaSolo ? [] : [id];
+    // Si el tipo venía de la búsqueda, se quita del texto para que no se contradigan
+    const chipTipo = this.interpretacion.find(c => c.clave === 'tipo');
+    if (chipTipo) { this.quitarInterpretacion(chipTipo); return; }
+    this.aplicarFiltrosBienes();
+  }
+
+  setAgruparInv(v: 'ninguno' | 'sede' | 'persona' | 'tipo' | 'ubicacion'): void {
+    this.agruparInv = v;
+    this.aplicarFiltrosBienes();
+  }
+
+  grupoDe(b: any): string {
+    switch (this.agruparInv) {
+      case 'sede': return b.sede ? this.titulo(b.sede) : 'Sin sede';
+      case 'persona': return b.responsable ? this.titulo(b.responsable) : 'Sin responsable';
+      case 'tipo': return b._tipoNombre || 'Sin nombre';
+      case 'ubicacion': return b.ubicacion ? this.titulo(b.ubicacion) : 'Sin ubicación';
+      default: return '';
+    }
+  }
+
+  get gruposVista(): { titulo: string; total: number; items: any[] }[] {
+    const c = this.gruposCache;
+    if (c && c.src === this.bienesVista && c.n === this.tarjetasVisibles && c.k === this.agruparInv) return c.v;
+    const items = this.bienesVista.slice(0, this.tarjetasVisibles);
+    let v: { titulo: string; total: number; items: any[] }[];
+    if (this.agruparInv === 'ninguno') {
+      v = [{ titulo: '', total: items.length, items }];
+    } else {
+      const totales = new Map<string, number>();
+      for (const b of this.bienesVista) { const g = this.grupoDe(b); totales.set(g, (totales.get(g) || 0) + 1); }
+      v = [];
+      let actual: any = null;
+      for (const b of items) {
+        const g = this.grupoDe(b);
+        if (!actual || actual.titulo !== g) { actual = { titulo: g, total: totales.get(g) || 0, items: [] }; v.push(actual); }
+        actual.items.push(b);
+      }
+    }
+    this.gruposCache = { src: this.bienesVista, n: this.tarjetasVisibles, k: this.agruparInv, v };
+    return v;
+  }
+
+  // Filtros que no se ven en la barra de alcance (sede, persona y tipo ya se ven ahí)
+  get filtrosChips(): { clave: string; etiqueta: string; valor: string }[] {
+    return this.filtrosActivos.filter(f => !['sede', 'persona', 'tipo'].includes(f.clave));
+  }
+
+  tonoBien(b: any, alfa: string): string {
+    const c = this.coloresClasificacion[String(b?.id_clasificacion)] || '#5b6b80';
+    return c + alfa;
+  }
+
+  alertaCMBien(b: any): boolean {
+    return (this.isAdmin || this.canAuthorize) && this.coincideCM(b, 'atencion');
   }
 
   ordenarBienes(key: string): void {
@@ -7397,6 +7837,8 @@ export class AppComponent {
     this.filtroAsignacion = '';
     this.filtroPersona = null;
     this.filtroCM = '';
+    this.filtroTipos = [];
+    this.filtroExtra = '';
     this.aplicarFiltrosBienes();
   }
 
