@@ -855,36 +855,22 @@ export class IcoComponent { @Input() n = ''; }
 
           <section *ngIf="section==='bienes'">
 
-            <div class="inv-head">
+            <div class="bx-head">
               <div>
                 <h1>Bienes</h1>
-                <p class="inv-resumen">
-                  <ng-container *ngIf="bienes.length; else resumenVacio">
-                    <span><b>{{ bienes.length | number }}</b> bienes</span>
-                    <span *ngIf="bienesBuenEstado"><b>{{ porcentaje(bienesBuenEstado) }}%</b> en buen estado</span>
-                    <span class="inv-scope">{{ isAdmin ? 'Todas las sedes' : 'Tu sede' }}</span>
-                  </ng-container>
-                  <ng-template #resumenVacio>{{ bienesCargando ? 'Cargando…' : 'Bienes y equipo de la empresa' }}</ng-template>
+                <p class="bx-sub">
+                  <ng-container *ngIf="bienes.length; else subVacio">{{ bienesVista.length | number }}<ng-container *ngIf="bienesVista.length !== bienes.length"> de {{ bienes.length | number }}</ng-container> bienes</ng-container>
+                  <ng-template #subVacio>{{ bienesCargando ? 'Cargando…' : 'Sin bienes todavía' }}</ng-template>
                 </p>
               </div>
-              <div class="heading-actions">
-                <div class="vistas vistas-txt" role="group" aria-label="Vista">
-                  <button [class.on]="vistaInv==='bienes'" (click)="abrirVistaInv('bienes')" aria-label="Ver en tarjetas"><ico n="grid"></ico><span>Tarjetas</span></button>
-                  <button class="solo-pc" [class.on]="vistaInv==='completo'" (click)="abrirVistaInv('completo')" aria-label="Ver en tabla"><ico n="table"></ico><span>Tabla</span></button>
+              <div class="bx-acciones">
+                <div class="bx-vista solo-pc" role="group" aria-label="Vista">
+                  <button [class.on]="vistaInv==='bienes'" (click)="abrirVistaInv('bienes')" title="Cuadrícula" aria-label="Cuadrícula"><ico n="grid"></ico></button>
+                  <button [class.on]="vistaInv==='completo'" (click)="abrirVistaInv('completo')" title="Lista detallada" aria-label="Lista detallada"><ico n="lista"></ico></button>
                 </div>
-                <button class="btn-primary btn-nuevo" (click)="newBien()" title="Dar de alta un bien"><ico n="plus"></ico><span>Nuevo bien</span></button>
+                <button class="bx-nuevo" (click)="newBien()" title="Dar de alta un bien"><ico n="plus"></ico><span>Nuevo bien</span></button>
               </div>
             </div>
-
-            <button class="cm-banner" *ngIf="(isAdmin || canAuthorize) && (alertasCM.vencidas || alertasCM.proximas) && vistaInv!=='completo'" (click)="irA('calibracion'); calFiltro = alertasCM.vencidas ? 'vencida' : 'proxima'">
-              <span class="cm-banner-ico">🛠</span>
-              <span>
-                <b *ngIf="alertasCM.vencidas">{{ alertasCM.vencidas }} con calibración o mantenimiento vencido</b>
-                <ng-container *ngIf="alertasCM.vencidas && alertasCM.proximas"> · </ng-container>
-                <ng-container *ngIf="alertasCM.proximas">{{ alertasCM.proximas }} vencen en 30 días</ng-container>
-              </span>
-              <em>Ver →</em>
-            </button>
 
             <!-- CARGA INICIAL: ESQUELETOS ANIMADOS -->
             <ng-container *ngIf="bienesCargando && !bienes.length">
@@ -915,145 +901,98 @@ export class IcoComponent { @Input() n = ''; }
             <ng-container *ngIf="bienes.length || (!bienesCargando && !bienesError)">
               <div class="fade-in">
 
-                <!-- BÚSQUEDA INTELIGENTE Y ALCANCE -->
-                <div class="sx">
+                <!-- BÚSQUEDA: un solo campo; los filtros viven en un panel -->
+                <div class="bx-buscar">
                   <div class="sx-search" [class.activa]="filter">
-                    <span class="sx-spark"><ico n="spark"></ico></span>
+                    <ico class="bx-lupa" n="search"></ico>
                     <input [(ngModel)]="filter" (ngModelChange)="buscarBienes()" (keyup.escape)="filter=''; aplicarFiltrosBienes()"
-                           [placeholder]="placeholderBusqueda" aria-label="Buscar o preguntar por bienes" autocomplete="off">
+                           [placeholder]="placeholderBusqueda" aria-label="Buscar bienes" autocomplete="off">
                     <span class="refreshing" *ngIf="bienesCargando" title="Actualizando"><span class="mini-ring"></span></span>
                     <button class="sx-clear" *ngIf="filter" (click)="filter=''; aplicarFiltrosBienes()" aria-label="Borrar búsqueda"><ico n="x"></ico></button>
-                    <div class="column-picker sx-filtros">
-                      <button class="sx-fbtn" [class.on]="filtrosChips.length" (click)="columnPickerOpen=!columnPickerOpen" aria-label="Más filtros">
-                        <ico n="sliders"></ico><span class="tb-txt">Filtros</span>
-                        <span class="tab-count" *ngIf="filtrosChips.length">{{ filtrosChips.length }}</span>
-                      </button>
-                      <div class="picker-backdrop" *ngIf="columnPickerOpen" (click)="columnPickerOpen=false"></div>
-                      <div class="picker-menu filters-menu" *ngIf="columnPickerOpen">
-                        <div class="sheet-asa"></div>
-                        <div class="picker-head">
-                          <strong>Más filtros</strong>
-                          <small>Tip: también puedes escribirlos, por ejemplo “mal estado” o “sin etiqueta”.</small>
-                        </div>
-                        <div class="filter-fields">
-                          <label *ngIf="resumenClasificaciones.length">Clasificación
-                            <select [ngModel]="filtroClasificacion" (ngModelChange)="setFiltroClasificacion($event)">
-                              <option [ngValue]="null">Todas</option>
-                              <option *ngFor="let c of resumenClasificaciones" [ngValue]="c.id">{{ c.nombre | titlecase }} ({{ c.total | number }})</option>
-                            </select>
-                          </label>
-                          <label>Estado físico
-                            <select [(ngModel)]="filtroEstadoFisico" (ngModelChange)="aplicarFiltrosBienes()">
-                              <option value="">Todos</option>
-                              <option value="BUENO">Bueno</option>
-                              <option value="REGULAR">Regular</option>
-                              <option value="MALO">Malo</option>
-                            </select>
-                          </label>
-                          <label>Estatus
-                            <select [(ngModel)]="statusFilter" (ngModelChange)="aplicarFiltrosBienes()">
-                              <option value="">Todos los estatus</option>
-                              <option value="ACTIVO">Activo</option>
-                              <option value="BAJA">Baja</option>
-                              <option value="EN_REPARACION">En reparación</option>
-                            </select>
-                          </label>
-                          <label>Asignación
-                            <select [(ngModel)]="filtroAsignacion" (ngModelChange)="aplicarFiltrosBienes()">
-                              <option value="">Todos</option>
-                              <option value="ASIGNADO">Asignados</option>
-                              <option value="SIN_ASIGNAR">Sin asignar</option>
-                            </select>
-                          </label>
-                          <label>Etiqueta y foto
-                            <select [(ngModel)]="filtroExtra" (ngModelChange)="aplicarFiltrosBienes()">
-                              <option value="">Todos</option>
-                              <option value="sinetiqueta">Sin etiqueta QR</option>
-                              <option value="sinfoto">Sin foto</option>
-                            </select>
-                          </label>
-                          <label>Calibración y mantenimiento
-                            <select [(ngModel)]="filtroCM" (ngModelChange)="aplicarFiltrosBienes()">
-                              <option value="">Todos</option>
-                              <option value="atencion">Vencidos o próximos (30 días)</option>
-                              <option value="calibracion">Requieren calibración</option>
-                              <option value="mantenimiento">Requieren mantenimiento</option>
-                              <option value="sinfecha">Sin fecha asignada</option>
-                            </select>
-                          </label>
-                        </div>
+                    <button class="bx-fbtn" [class.on]="columnPickerOpen || filtrosActivos.length || agruparInv!=='ninguno'" (click)="columnPickerOpen=!columnPickerOpen" title="Filtros" aria-label="Filtros">
+                      <ico n="sliders"></ico><i *ngIf="filtrosActivos.length">{{ filtrosActivos.length }}</i>
+                    </button>
+                  </div>
 
-                        <ng-container *ngIf="vistaInv==='completo'">
-                          <div class="picker-head picker-subhead">
-                            <strong>Columnas visibles</strong>
-                            <small>Elige qué información muestra la tabla.</small>
-                          </div>
-                          <div class="picker-presets">
-                            <button (click)="aplicarVistaColumnas('basica')">Básica</button>
-                            <button (click)="aplicarVistaColumnas('ubicacion')">Ubicación</button>
-                            <button (click)="aplicarVistaColumnas('completa')">Completa</button>
-                          </div>
-                          <div class="picker-list">
-                            <label *ngFor="let c of columnasDisponibles" [class.locked]="c.fija">
-                              <input type="checkbox" [checked]="columnaVisible(c.key)" [disabled]="c.fija" (change)="toggleColumna(c.key)">
-                              {{ c.label }} <small *ngIf="c.fija">fija</small>
-                            </label>
-                          </div>
-                        </ng-container>
-
-                        <div class="picker-footer">
-                          <button class="link-button inline" [disabled]="!hayFiltrosBienes" (click)="limpiarFiltrosBienes()">Limpiar todo</button>
-                          <button class="btn-primary btn-small" (click)="columnPickerOpen=false">Ver {{ bienesVista.length | number }} bienes</button>
+                  <div class="fx-back" *ngIf="columnPickerOpen" (click)="columnPickerOpen=false"></div>
+                  <div class="fx" *ngIf="columnPickerOpen" role="dialog" aria-label="Filtros">
+                    <div class="fx-asa"></div>
+                    <div class="fx-scroll">
+                      <section *ngIf="isAdmin && sedesScope.length > 1">
+                        <h4>Sede</h4>
+                        <div class="fx-opts">
+                          <button [class.on]="!filtroSede" (click)="setSedeInv(null)">Todas</button>
+                          <button *ngFor="let s of sedesScope" [class.on]="filtroSede===s.id" (click)="setSedeInv(filtroSede===s.id ? null : s.id)">{{ s.nombre | titlecase }}</button>
                         </div>
-                      </div>
+                      </section>
+                      <section>
+                        <h4>Persona</h4>
+                        <select class="fx-select" [ngModel]="filtroPersona" (ngModelChange)="setPersonaInv($event)" aria-label="Persona">
+                          <option [ngValue]="null">Cualquiera</option>
+                          <option *ngFor="let p of personasScope" [ngValue]="p.id">{{ p.nombre | titlecase }}</option>
+                        </select>
+                      </section>
+                      <section *ngIf="tiposVista.length > 1">
+                        <h4>Tipo</h4>
+                        <div class="fx-opts">
+                          <button *ngFor="let t of tiposVista" [class.on]="t.on" (click)="setTipoInv(t.id)">{{ t.nombre }}<small>{{ t.total | number }}</small></button>
+                        </div>
+                      </section>
+                      <section>
+                        <h4>Estado</h4>
+                        <div class="fx-opts">
+                          <button *ngFor="let e of opcionesEstado" [class.on]="filtroEstadoFisico===e.v" (click)="alternarFiltro('fisico', e.v)"><i class="edot" [ngClass]="e.c"></i>{{ e.l }}<small>{{ conteosInv[e.v] || 0 | number }}</small></button>
+                        </div>
+                      </section>
+                      <section>
+                        <h4>Pendientes</h4>
+                        <div class="fx-opts">
+                          <button [class.on]="filtroExtra==='sinetiqueta'" (click)="alternarFiltro('extra', 'sinetiqueta')">Sin QR<small>{{ conteosInv['sinetiqueta'] || 0 | number }}</small></button>
+                          <button [class.on]="filtroExtra==='sinfoto'" (click)="alternarFiltro('extra', 'sinfoto')">Sin foto<small>{{ conteosInv['sinfoto'] || 0 | number }}</small></button>
+                          <button [class.on]="filtroAsignacion==='SIN_ASIGNAR'" (click)="alternarFiltro('asignacion', 'SIN_ASIGNAR')">Sin asignar<small>{{ conteosInv['sinasignar'] || 0 | number }}</small></button>
+                          <button *ngIf="isAdmin || canAuthorize" [class.on]="filtroCM==='atencion'" (click)="alternarFiltro('cm', 'atencion')">Por calibrar<small>{{ conteosInv['cm'] || 0 | number }}</small></button>
+                          <button [class.on]="statusFilter==='EN_REPARACION'" (click)="alternarFiltro('estatus', 'EN_REPARACION')">En reparación</button>
+                          <button [class.on]="statusFilter==='BAJA'" (click)="alternarFiltro('estatus', 'BAJA')">De baja</button>
+                        </div>
+                      </section>
+                      <section *ngIf="resumenClasificaciones.length > 1">
+                        <h4>Clasificación</h4>
+                        <select class="fx-select" [ngModel]="filtroClasificacion" (ngModelChange)="setFiltroClasificacion($event)" aria-label="Clasificación">
+                          <option [ngValue]="null">Cualquiera</option>
+                          <option *ngFor="let c of resumenClasificaciones" [ngValue]="c.id">{{ c.nombre | titlecase }}</option>
+                        </select>
+                      </section>
+                      <section *ngIf="vistaInv==='bienes'">
+                        <h4>Agrupar</h4>
+                        <div class="fx-opts">
+                          <button *ngFor="let g of opcionesAgrupar" [class.on]="agruparInv===g.v" (click)="setAgruparInv(g.v)">{{ g.l }}</button>
+                        </div>
+                      </section>
+                      <section *ngIf="vistaInv==='completo'">
+                        <h4>Columnas</h4>
+                        <div class="fx-opts">
+                          <button (click)="aplicarVistaColumnas('basica')">Básicas</button>
+                          <button (click)="aplicarVistaColumnas('ubicacion')">Ubicación</button>
+                          <button (click)="aplicarVistaColumnas('completa')">Todas</button>
+                        </div>
+                        <div class="fx-cols">
+                          <label *ngFor="let c of columnasDisponibles" [class.locked]="c.fija">
+                            <input type="checkbox" [checked]="columnaVisible(c.key)" [disabled]="c.fija" (change)="toggleColumna(c.key)">{{ c.label }}
+                          </label>
+                        </div>
+                      </section>
+                    </div>
+                    <div class="fx-pie">
+                      <button class="fx-limpiar" [disabled]="!hayFiltrosBienes && agruparInv==='ninguno'" (click)="limpiarFiltrosBienes(); setAgruparInv('ninguno')">Restablecer</button>
+                      <button class="fx-ver" (click)="columnPickerOpen=false">Ver {{ bienesVista.length | number }}</button>
                     </div>
                   </div>
 
-                  <div class="sx-ia" *ngIf="interpretacion.length">
-                    <span class="sx-ia-tit"><ico n="spark"></ico>Entendí</span>
-                    <span class="sx-ia-chip" *ngFor="let c of interpretacion">
-                      <small>{{ c.etiqueta }}</small>{{ c.valor }}
-                      <button (click)="quitarInterpretacion(c)" [attr.aria-label]="'Quitar ' + c.valor"><ico n="x"></ico></button>
-                    </span>
-                  </div>
-
-                  <div class="sx-scope">
-                    <div class="sx-seg sx-sedes" *ngIf="isAdmin && sedesScope.length > 1" role="group" aria-label="Sede">
-                      <button [class.on]="!filtroSede" (click)="setSedeInv(null)">Todas</button>
-                      <button *ngFor="let s of sedesScope" [class.on]="filtroSede===s.id" (click)="setSedeInv(s.id)">{{ s.nombre | titlecase }}<small>{{ s.total | number }}</small></button>
-                    </div>
-                    <label class="sx-persona" [class.on]="filtroPersona">
-                      <ico n="user"></ico>
-                      <select [ngModel]="filtroPersona" (ngModelChange)="setPersonaInv($event)" aria-label="Persona">
-                        <option [ngValue]="null">Todas las personas</option>
-                        <option *ngFor="let p of personasScope" [ngValue]="p.id">{{ p.nombre | titlecase }} · {{ p.total | number }}</option>
-                      </select>
-                    </label>
-                    <div class="sx-agrupar" *ngIf="vistaInv==='bienes'">
-                      <span>Agrupar</span>
-                      <div class="sx-seg" role="group" aria-label="Agrupar por">
-                        <button *ngFor="let g of opcionesAgrupar" [class.on]="agruparInv===g.v" (click)="setAgruparInv(g.v)">{{ g.l }}</button>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class="sx-tipos" *ngIf="tiposVista.length > 1">
-                    <button [class.on]="!filtroTipos.length && !tipoInterpretado" (click)="setTipoInv(null)">Todos</button>
-                    <button *ngFor="let t of tiposVista" [class.on]="t.on" (click)="setTipoInv(t.id)">{{ t.nombre }}<small>{{ t.total | number }}</small></button>
-                  </div>
-
-                  <div class="sx-ins" *ngIf="sugerenciasIA.length">
-                    <span class="sx-ins-tit"><ico n="spark"></ico>Atajos</span>
-                    <button *ngFor="let s of sugerenciasIA" [ngClass]="'t-' + s.tono" (click)="aplicarSugerenciaIA(s.clave)"><b>{{ s.total | number }}</b>{{ s.texto }}</button>
-                  </div>
-
-                  <div class="sx-ctx">
-                    <span class="sx-total"><b>{{ bienesVista.length | number }}</b> {{ bienesVista.length === 1 ? 'bien' : 'bienes' }}<ng-container *ngIf="bienesVista.length !== bienes.length"> de {{ bienes.length | number }}</ng-container></span>
-                    <span class="filter-chip" *ngFor="let f of filtrosChips">
-                      {{ f.etiqueta }}: <b>{{ f.valor }}</b>
-                      <button title="Quitar filtro" (click)="quitarFiltro(f.clave)">×</button>
-                    </span>
-                    <button class="sx-limpiar" *ngIf="hayFiltrosBienes" (click)="limpiarFiltrosBienes()">Limpiar todo</button>
+                  <div class="bx-chips" *ngIf="chipsActivos.length">
+                    <button class="bx-chip" *ngFor="let c of chipsActivos; trackBy: trackChip" [class.ia]="c.ia" (click)="quitarChip(c)" [attr.aria-label]="'Quitar ' + c.valor">
+                      <ico *ngIf="c.ia" class="bx-ia" n="spark"></ico>{{ c.valor }}<ico class="bx-x" n="x"></ico>
+                    </button>
+                    <button class="bx-limpiar" *ngIf="chipsActivos.length > 1" (click)="limpiarFiltrosBienes()">Limpiar</button>
                   </div>
                 </div>
 
@@ -4039,66 +3978,77 @@ export class IcoComponent { @Input() n = ''; }
 
     /* ===== Bienes: búsqueda inteligente ===== */
     .vistas.vistas-txt button span{display:inline}
-    .sx{display:flex;flex-direction:column;gap:12px;margin-bottom:18px}
     .sx-search{position:relative;display:flex;align-items:center;gap:10px;height:58px;padding:0 8px 0 16px;border-radius:18px;border:1.5px solid #e2e8f0;background:#fff;box-shadow:0 1px 2px #17263d0a,0 8px 24px #17263d08;transition:border-color .2s,box-shadow .2s}
     .sx-search:focus-within,.sx-search.activa{border-color:transparent;background:linear-gradient(#fff,#fff) padding-box,linear-gradient(115deg,#3d6fb0,#7a5fc0 45%,#2f9b78) border-box;box-shadow:0 10px 30px #5a4fc01f}
     .sx-search input{flex:1;min-width:0;border:0;outline:none;background:transparent;font-size:16.5px;color:#14243a;height:100%;padding:0}
     .sx-search input::placeholder{color:#8a96a6}
     .sx-spark{display:grid;place-items:center;width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,#eef2fd,#f2edfc);color:#6a54c9;flex-shrink:0}
     .sx-spark ico{width:19px;height:19px}
-    .sx-search:focus-within .sx-spark ico{animation:sxBrillo 2.4s ease-in-out infinite}
-    @keyframes sxBrillo{0%,100%{transform:scale(1) rotate(0)}50%{transform:scale(1.12) rotate(12deg)}}
     .sx-spark.grande{width:56px;height:56px;border-radius:18px}
     .sx-spark.grande ico{width:28px;height:28px}
     .sx-clear{border:0;width:28px;height:28px;border-radius:50%;background:#e9edf3;color:#5d6d82;display:grid;place-items:center;cursor:pointer;flex-shrink:0}
     .sx-clear ico{width:14px;height:14px}
-    .sx-filtros{position:relative}
-    .sx-fbtn{display:inline-flex;align-items:center;gap:7px;height:42px;padding:0 14px;border-radius:12px;border:0;background:#f2f5f9;color:#25364c;font:inherit;font-size:14px;font-weight:700;cursor:pointer}
-    .sx-fbtn:hover{background:#e9eef5}
-    .sx-fbtn.on{background:#17263d;color:#fff}
-    .sx-fbtn ico{width:18px;height:18px}
-    .sx-ia{display:flex;flex-wrap:wrap;align-items:center;gap:8px;animation:fadeIn .25s ease both}
-    .sx-ia-tit{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:800;letter-spacing:.2px;background:linear-gradient(115deg,#3d6fb0,#7a5fc0);-webkit-background-clip:text;background-clip:text;color:transparent}
-    .sx-ia-tit ico{width:16px;height:16px;color:#7a5fc0}
-    .sx-ia-chip{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 6px 0 12px;border-radius:999px;background:#f1eefc;color:#3f2f94;font-size:13.5px;font-weight:700;animation:zoomIn .2s ease both}
-    .sx-ia-chip small{font-size:11.5px;font-weight:600;color:#7666b8}
-    .sx-ia-chip button{border:0;width:22px;height:22px;border-radius:50%;background:#e2dcf8;color:#4b3ca8;display:grid;place-items:center;cursor:pointer;padding:0}
-    .sx-ia-chip button ico{width:12px;height:12px}
-    .sx-scope{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
-    .sx-seg{display:inline-flex;gap:2px;padding:3px;border-radius:12px;background:#e8ecf2;max-width:100%;overflow-x:auto;scrollbar-width:none}
-    .sx-seg::-webkit-scrollbar{display:none}
-    .sx-seg button{border:0;background:transparent;color:#4a5a70;font:inherit;font-size:13.5px;font-weight:700;padding:7px 12px;border-radius:9px;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:6px;transition:background .15s,color .15s,box-shadow .15s}
-    .sx-seg button small{font-size:12px;font-weight:600;color:#7d8a9c}
-    .sx-seg button.on{background:#fff;color:#14243a;box-shadow:0 1px 3px #17263d24}
-    .sx-persona{display:inline-flex;align-items:center;gap:6px;height:38px;padding:0 4px 0 12px;margin:0;border-radius:12px;background:#fff;border:1px solid #e2e8f0;color:#5d6d82;max-width:100%}
-    .sx-persona.on{border-color:#17263d;color:#17263d}
-    .sx-persona ico{width:17px;height:17px;flex-shrink:0}
-    .sx-persona select{border:0;outline:none;background:transparent;font:inherit;font-size:13.5px;font-weight:700;color:#14243a;height:36px;padding:0 4px;width:auto;max-width:240px;cursor:pointer}
-    .sx-agrupar{display:inline-flex;align-items:center;gap:8px;margin-left:auto;max-width:100%}
-    .sx-agrupar>span{font-size:12.5px;font-weight:700;color:#6b7a8d}
-    .sx-tipos{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 4px;scrollbar-width:none;-webkit-mask-image:linear-gradient(90deg,#000 92%,transparent);mask-image:linear-gradient(90deg,#000 92%,transparent)}
-    .sx-tipos::-webkit-scrollbar{display:none}
-    .sx-tipos button{flex-shrink:0;display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 14px;border-radius:999px;border:1px solid #e2e8f0;background:#fff;color:#25364c;font:inherit;font-size:14px;font-weight:700;cursor:pointer;transition:all .15s}
-    .sx-tipos button small{font-size:12px;font-weight:600;color:#8592a3}
-    .sx-tipos button:hover{border-color:#c8d3e1}
-    .sx-tipos button.on{background:#17263d;border-color:#17263d;color:#fff}
-    .sx-tipos button.on small{color:#b9c6d8}
-    .sx-ins{display:flex;align-items:center;gap:8px;overflow-x:auto;scrollbar-width:none}
-    .sx-ins::-webkit-scrollbar{display:none}
-    .sx-ins-tit{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:800;color:#6a54c9;flex-shrink:0}
-    .sx-ins-tit ico{width:15px;height:15px}
-    .sx-ins button{flex-shrink:0;display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:10px;border:0;font:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:transform .15s,filter .15s}
-    .sx-ins button:hover{transform:translateY(-1px);filter:brightness(.97)}
-    .sx-ins button b{font-weight:800}
-    .sx-ins .t-rojo{background:#fdeeee;color:#a3262e}
-    .sx-ins .t-ambar{background:#fff3df;color:#8a4b00}
-    .sx-ins .t-azul{background:#e8f1fb;color:#1f4f86}
-    .sx-ins .t-gris{background:#eef1f5;color:#3d4b5e}
-    .sx-ins .t-morado{background:#f1eefc;color:#4b3ca8}
-    .sx-ctx{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:14px;color:#5d6d82;min-height:28px}
-    .sx-total b{color:#14243a;font-weight:800}
-    .sx-limpiar{border:0;background:transparent;color:#3d6fb0;font:inherit;font-size:13.5px;font-weight:700;cursor:pointer;padding:4px 6px}
-    .sx-limpiar:hover{text-decoration:underline}
+    .bx-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px}
+    .bx-head h1{margin:0;font-size:32px;font-weight:800;letter-spacing:-.9px;color:#14243a;line-height:1.1}
+    .bx-sub{margin:4px 0 0;font-size:14.5px;color:#7a8799;font-variant-numeric:tabular-nums}
+    .bx-acciones{display:flex;align-items:center;gap:10px}
+    .bx-vista{display:inline-flex;padding:3px;border-radius:12px;background:#e9edf2}
+    .bx-vista button{width:38px;height:34px;border:0;border-radius:9px;background:transparent;color:#7a8799;display:grid;place-items:center;cursor:pointer;transition:background .15s,color .15s}
+    .bx-vista button ico{width:19px;height:19px}
+    .bx-vista button.on{background:#fff;color:#14243a;box-shadow:0 1px 3px #17263d26}
+    .bx-nuevo{display:inline-flex;align-items:center;gap:7px;height:42px;padding:0 18px 0 14px;border:0;border-radius:13px;background:#14243a;color:#fff;font:inherit;font-size:14.5px;font-weight:700;cursor:pointer;box-shadow:0 6px 16px #14243a33;transition:transform .15s,box-shadow .15s}
+    .bx-nuevo:hover{transform:translateY(-1px);box-shadow:0 10px 22px #14243a40}
+    .bx-nuevo ico{width:18px;height:18px}
+    .bx-buscar{position:relative;margin-bottom:20px}
+    .bx-lupa{width:21px;height:21px;color:#8a96a6;flex-shrink:0}
+    .sx-search:focus-within .bx-lupa,.sx-search.activa .bx-lupa{color:#6a54c9}
+    .bx-fbtn{position:relative;width:42px;height:42px;border:0;border-radius:12px;background:transparent;color:#5d6d82;display:grid;place-items:center;cursor:pointer;flex-shrink:0;transition:background .15s,color .15s}
+    .bx-fbtn:hover{background:#f2f5f9}
+    .bx-fbtn.on{background:#14243a;color:#fff}
+    .bx-fbtn ico{width:20px;height:20px}
+    .bx-fbtn i{position:absolute;top:-3px;right:-3px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#6a54c9;color:#fff;font-style:normal;font-size:11px;font-weight:800;display:grid;place-items:center;border:2px solid #fff}
+    .bx-chips{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px}
+    .bx-chip{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 10px 0 13px;border:0;border-radius:999px;background:#14243a;color:#fff;font:inherit;font-size:13.5px;font-weight:650;cursor:pointer;animation:zoomIn .18s ease both;transition:opacity .15s}
+    .bx-chip:hover{opacity:.85}
+    .bx-chip.ia{background:#efeafd;color:#3f2f94}
+    .bx-chip .bx-ia{width:14px;height:14px}
+    .bx-chip .bx-x{width:13px;height:13px;opacity:.6}
+    .bx-limpiar{border:0;background:transparent;color:#7a8799;font:inherit;font-size:13.5px;font-weight:600;cursor:pointer;padding:4px 6px}
+    .bx-limpiar:hover{color:#14243a}
+    .fx-back{position:fixed;inset:0;z-index:60;background:transparent}
+    .fx{position:absolute;z-index:61;top:66px;right:0;width:420px;max-width:calc(100vw - 24px);max-height:min(620px,calc(100vh - 220px));display:flex;flex-direction:column;background:#fff;border-radius:20px;box-shadow:0 0 0 1px #17263d0f,0 24px 60px #17263d2e;overflow:hidden;animation:zoomIn .18s ease both}
+    .fx-asa{display:none}
+    .fx-scroll{overflow-y:auto;padding:8px 20px 6px}
+    .fx section{padding:14px 0;border-bottom:1px solid #f0f2f6}
+    .fx section:last-child{border-bottom:0}
+    .fx h4{margin:0 0 10px;font-size:12px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#8a96a6}
+    .fx-opts{display:flex;flex-wrap:wrap;gap:7px}
+    .fx-opts button{display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 13px;border:1px solid #e4e9f0;border-radius:999px;background:#fff;color:#25364c;font:inherit;font-size:13.5px;font-weight:600;cursor:pointer;transition:all .15s}
+    .fx-opts button:hover{border-color:#c9d3e0}
+    .fx-opts button small{font-size:12px;font-weight:600;color:#9aa5b4;font-variant-numeric:tabular-nums}
+    .fx-opts button.on{background:#14243a;border-color:#14243a;color:#fff}
+    .fx-opts button.on small{color:#a9b7ca}
+    .fx-opts .edot{width:8px;height:8px}
+    .fx-select{width:100%;height:42px;border:1px solid #e4e9f0;border-radius:12px;padding:0 12px;font:inherit;font-size:14.5px;font-weight:600;color:#14243a;background:#fff}
+    .fx-cols{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;margin-top:12px}
+    .fx-cols label{display:flex;align-items:center;gap:8px;margin:0;font-size:13.5px;font-weight:500;color:#25364c}
+    .fx-cols label.locked{color:#9aa5b4}
+    .fx-cols input{width:16px;height:16px;margin:0}
+    .fx-pie{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 20px;border-top:1px solid #f0f2f6;background:#fbfcfd}
+    .fx-limpiar{border:0;background:transparent;color:#5d6d82;font:inherit;font-size:14px;font-weight:600;cursor:pointer;padding:8px 4px}
+    .fx-limpiar:disabled{opacity:.4;cursor:default}
+    .fx-ver{height:42px;padding:0 22px;border:0;border-radius:12px;background:#14243a;color:#fff;font:inherit;font-size:14.5px;font-weight:700;cursor:pointer}
+    @media(max-width:700px){
+      .bx-head{margin-bottom:14px}
+      .bx-head h1{font-size:28px}
+      .bx-nuevo{width:42px;padding:0;justify-content:center}
+      .bx-nuevo span{display:none}
+      .fx-back{background:#0f1a2a66;animation:fadeIn .2s ease both}
+      .fx{position:fixed;top:auto;left:0;right:0;bottom:0;width:100%;max-width:none;max-height:86vh;max-height:86dvh;border-radius:22px 22px 0 0;animation:fadeUp .25s ease both}
+      .fx-asa{display:block;width:40px;height:5px;border-radius:3px;background:#d5dce6;margin:10px auto 2px;flex-shrink:0}
+      .fx-pie{padding-bottom:calc(12px + env(safe-area-inset-bottom))}
+      .fx-ver{flex:1}
+    }
 
     /* ===== Bienes: tarjetas ===== */
     .bk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:16px}
@@ -4141,14 +4091,6 @@ export class IcoComponent { @Input() n = ''; }
     @media(max-width:700px){
       .sx-search{height:54px;border-radius:16px;padding-left:12px}
       .sx-search input{font-size:16px}
-      .sx-fbtn .tb-txt{display:none}
-      .sx-fbtn{width:42px;padding:0;justify-content:center;position:relative}
-      .sx-fbtn .tab-count{position:absolute;top:-4px;right:-4px}
-      .sx-scope{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0 -2px;padding:0 2px}
-      .sx-scope::-webkit-scrollbar{display:none}
-      .sx-scope>*{flex-shrink:0}
-      .sx-seg{overflow:visible}
-      .sx-agrupar{margin-left:0}
       .bk-grid{grid-template-columns:1fr;gap:10px}
       .bk{flex-direction:row;border-radius:16px}
       .bk:hover{transform:none}
@@ -7239,7 +7181,7 @@ export class AppComponent {
   // =========================
   agruparInv: 'ninguno' | 'sede' | 'persona' | 'tipo' | 'ubicacion' = 'ninguno';
   readonly opcionesAgrupar: { v: 'ninguno' | 'sede' | 'persona' | 'tipo' | 'ubicacion'; l: string }[] = [
-    { v: 'ninguno', l: 'Nada' }, { v: 'tipo', l: 'Tipo' }, { v: 'sede', l: 'Sede' }, { v: 'persona', l: 'Responsable' }, { v: 'ubicacion', l: 'Ubicación' }
+    { v: 'ninguno', l: 'No agrupar' }, { v: 'tipo', l: 'Tipo' }, { v: 'sede', l: 'Sede' }, { v: 'persona', l: 'Responsable' }, { v: 'ubicacion', l: 'Ubicación' }
   ];
   filtroTipos: string[] = [];
   filtroExtra: '' | 'sinetiqueta' | 'sinfoto' = '';
@@ -7324,7 +7266,7 @@ export class AppComponent {
       'sin asignar',
       t[3] ? t[3] + ' en buen estado' : 'calibración vencida'
     ];
-    return 'Busca o pregunta: “' + ejemplos[this.phIdx % ejemplos.length] + '”';
+    return 'Buscar…  ej. ' + ejemplos[this.phIdx % ejemplos.length];
   }
 
   // Convierte una frase en filtros. Lo que no reconoce se queda como texto libre.
@@ -7348,11 +7290,11 @@ export class AppComponent {
     for (let i = 0; i < w.length - 1; i++) {
       if (usado[i] || usado[i + 1]) continue;
       const a = w[i], b = this.raiz(w[i + 1]);
-      if (a === 'sin' && ['etiqueta', 'qr', 'codigo'].includes(b)) { r.extra = 'sinetiqueta'; chip('extra', 'Falta', 'Etiqueta QR', tomar(i, 2)); }
-      else if (a === 'sin' && ['foto', 'imagen'].includes(b)) { r.extra = 'sinfoto'; chip('extra', 'Falta', 'Foto', tomar(i, 2)); }
+      if (a === 'sin' && ['etiqueta', 'qr', 'codigo'].includes(b)) { r.extra = 'sinetiqueta'; chip('extra', 'Falta', 'Sin QR', tomar(i, 2)); }
+      else if (a === 'sin' && ['foto', 'imagen'].includes(b)) { r.extra = 'sinfoto'; chip('extra', 'Falta', 'Sin foto', tomar(i, 2)); }
       else if (a === 'sin' && ['asignar', 'responsable', 'usuario', 'dueno', 'asignacion'].includes(b)) { r.asignacion = 'SIN_ASIGNAR'; chip('asignacion', 'Asignación', 'Sin asignar', tomar(i, 2)); }
-      else if (['mal', 'malo'].includes(a) && b === 'estado') { r.estado = 'MALO'; chip('estado', 'Estado', 'Malo', tomar(i, 2)); }
-      else if (['buen', 'bueno'].includes(a) && b === 'estado') { r.estado = 'BUENO'; chip('estado', 'Estado', 'Bueno', tomar(i, 2)); }
+      else if (['mal', 'malo'].includes(a) && b === 'estado') { r.estado = 'MALO'; chip('estado', 'Estado', 'Mal estado', tomar(i, 2)); }
+      else if (['buen', 'bueno'].includes(a) && b === 'estado') { r.estado = 'BUENO'; chip('estado', 'Estado', 'Buen estado', tomar(i, 2)); }
       else if (a === 'no' && b === 'break') { tomar(i, 2); r.resto.push('nobreak'); }
     }
 
@@ -7362,12 +7304,12 @@ export class AppComponent {
     w.forEach((x, i) => {
       if (usado[i]) return;
       const y = this.raiz(x);
-      if (estados[y]) { r.estado = estados[y]; chip('estado', 'Estado', this.textoCampo(estados[y]), tomar(i, 1)); }
-      else if (y === 'baja') { r.estatus = 'BAJA'; chip('estatus', 'Estatus', 'Baja', tomar(i, 1)); }
+      if (estados[y]) { r.estado = estados[y]; chip('estado', 'Estado', this.textoEstado(estados[y]), tomar(i, 1)); }
+      else if (y === 'baja') { r.estatus = 'BAJA'; chip('estatus', 'Estatus', 'De baja', tomar(i, 1)); }
       else if (y === 'reparacion') { r.estatus = 'EN_REPARACION'; chip('estatus', 'Estatus', 'En reparación', tomar(i, 1)); }
-      else if (['vencido', 'vencida', 'atrasado', 'atrasada', 'pendiente'].includes(y)) { r.cm = 'atencion'; chip('cm', 'Calibración/mant.', 'Vencidos o próximos', tomar(i, 1)); }
-      else if (['calibracion', 'calibrar'].includes(y)) { r.cm = r.cm || 'calibracion'; chip('cm', 'Requiere', 'Calibración', tomar(i, 1)); }
-      else if (y === 'mantenimiento') { r.cm = r.cm || 'mantenimiento'; chip('cm', 'Requiere', 'Mantenimiento', tomar(i, 1)); }
+      else if (['vencido', 'vencida', 'atrasado', 'atrasada', 'pendiente'].includes(y)) { r.cm = 'atencion'; chip('cm', 'Calibración', 'Por calibrar', tomar(i, 1)); }
+      else if (['calibracion', 'calibrar'].includes(y)) { r.cm = r.cm || 'calibracion'; chip('cm', 'Requiere', 'Requiere calibración', tomar(i, 1)); }
+      else if (y === 'mantenimiento') { r.cm = r.cm || 'mantenimiento'; chip('cm', 'Requiere', 'Requiere mantenimiento', tomar(i, 1)); }
       else if (['asignado', 'asignada'].includes(y)) { r.asignacion = 'ASIGNADO'; chip('asignacion', 'Asignación', 'Asignados', tomar(i, 1)); }
       else if (['disponible', 'libre'].includes(y)) { r.asignacion = 'SIN_ASIGNAR'; chip('asignacion', 'Asignación', 'Sin asignar', tomar(i, 1)); }
     });
@@ -7433,36 +7375,68 @@ export class AppComponent {
     this.aplicarFiltrosBienes();
   }
 
-  private calcularSugerenciasIA(lista: any[], activos: { estado: string; extra: string; asignacion: string; cm: string }): void {
-    const n = lista.length;
-    if (!n) { this.sugerenciasIA = []; return; }
-    let malo = 0, sinEtq = 0, sinFoto = 0, sinAsig = 0, cm = 0;
+  // Conteos del resultado actual, para mostrarlos junto a cada opción del panel de filtros
+  conteosInv: Record<string, number> = {};
+  readonly opcionesEstado = [
+    { v: 'BUENO', l: 'Bueno', c: 'status-good' },
+    { v: 'REGULAR', l: 'Regular', c: 'status-warning' },
+    { v: 'MALO', l: 'Malo', c: 'status-bad' }
+  ];
+
+  private calcularSugerenciasIA(lista: any[], _activos?: any): void {
+    const c: Record<string, number> = { BUENO: 0, REGULAR: 0, MALO: 0, sinetiqueta: 0, sinfoto: 0, sinasignar: 0, cm: 0 };
     const verCM = this.isAdmin || this.canAuthorize;
     for (const b of lista) {
-      if (String(b.estado_fisico || '').toUpperCase() === 'MALO') malo++;
-      if (!b.etiqueta) sinEtq++;
-      if (!b.foto_mini) sinFoto++;
-      if (String(b.estatus_asignacion || '').toUpperCase() === 'SIN_ASIGNAR') sinAsig++;
-      if (verCM && this.coincideCM(b, 'atencion')) cm++;
+      const e = String(b.estado_fisico || '').toUpperCase();
+      if (c[e] !== undefined) c[e]++;
+      if (!b.etiqueta) c['sinetiqueta']++;
+      if (!b.foto_mini) c['sinfoto']++;
+      if (String(b.estatus_asignacion || '').toUpperCase() === 'SIN_ASIGNAR') c['sinasignar']++;
+      if (verCM && this.coincideCM(b, 'atencion')) c['cm']++;
     }
-    const s: { clave: string; texto: string; total: number; tono: string }[] = [];
-    const util = (x: number) => x > 0 && x < n;
-    if (!activos.cm && util(cm)) s.push({ clave: 'cm', texto: 'por calibrar o mantener', total: cm, tono: 'ambar' });
-    if (!activos.estado && util(malo)) s.push({ clave: 'malo', texto: 'en mal estado', total: malo, tono: 'rojo' });
-    if (!activos.extra && util(sinEtq)) s.push({ clave: 'sinetiqueta', texto: 'sin etiqueta QR', total: sinEtq, tono: 'azul' });
-    if (!activos.extra && util(sinFoto)) s.push({ clave: 'sinfoto', texto: 'sin foto', total: sinFoto, tono: 'gris' });
-    if (!activos.asignacion && util(sinAsig)) s.push({ clave: 'sinasignar', texto: 'sin asignar', total: sinAsig, tono: 'morado' });
-    this.sugerenciasIA = s.slice(0, 4);
+    this.conteosInv = c;
   }
 
-  aplicarSugerenciaIA(clave: string): void {
-    if (clave === 'cm') this.filtroCM = 'atencion';
-    if (clave === 'malo') this.filtroEstadoFisico = 'MALO';
-    if (clave === 'sinetiqueta') this.filtroExtra = 'sinetiqueta';
-    if (clave === 'sinfoto') this.filtroExtra = 'sinfoto';
-    if (clave === 'sinasignar') this.filtroAsignacion = 'SIN_ASIGNAR';
+  // Un toque activa la opción; otro toque la quita
+  alternarFiltro(clave: 'fisico' | 'extra' | 'asignacion' | 'cm' | 'estatus', valor: any): void {
+    if (clave === 'fisico') this.filtroEstadoFisico = this.filtroEstadoFisico === valor ? '' : valor;
+    if (clave === 'extra') this.filtroExtra = this.filtroExtra === valor ? '' : valor;
+    if (clave === 'asignacion') this.filtroAsignacion = this.filtroAsignacion === valor ? '' : valor;
+    if (clave === 'cm') this.filtroCM = this.filtroCM === valor ? '' : valor;
+    if (clave === 'estatus') this.statusFilter = this.statusFilter === valor ? '' : valor;
     this.aplicarFiltrosBienes();
   }
+
+  textoEstado(v: string): string {
+    return ({ BUENO: 'Buen estado', REGULAR: 'Estado regular', MALO: 'Mal estado' } as any)[v] || v;
+  }
+
+  // Todo lo que está filtrando, en una sola fila de chips cortos (lo escrito y lo elegido)
+  get chipsActivos(): { clave: string; valor: string; ia: boolean; ref?: any }[] {
+    const out: { clave: string; valor: string; ia: boolean; ref?: any }[] =
+      this.interpretacion.map(c => ({ clave: 'ia-' + c.clave, valor: c.valor, ia: true, ref: c }));
+    const add = (clave: string, valor: string) => out.push({ clave, valor, ia: false });
+    if (this.filtroSede) add('sede', this.titulo(this.resumenSedes.find(x => x.id === this.filtroSede)?.nombre || 'Sede'));
+    if (this.filtroPersona) add('persona', this.titulo(this.resumenPersonas.find(x => x.id === this.filtroPersona)?.nombre || 'Persona'));
+    if (this.filtroTipos.length) add('tipo', this.filtroTipos.map(t => this.nombresTipo.get(t) || t).join(', '));
+    if (this.filtroEstadoFisico) add('fisico', this.textoEstado(this.filtroEstadoFisico));
+    if (this.filtroExtra) add('extra', this.filtroExtra === 'sinetiqueta' ? 'Sin QR' : 'Sin foto');
+    if (this.filtroAsignacion) add('asignacion', this.filtroAsignacion === 'ASIGNADO' ? 'Asignados' : 'Sin asignar');
+    if (this.filtroCM) add('cm', ({ atencion: 'Por calibrar', calibracion: 'Requiere calibración', mantenimiento: 'Requiere mantenimiento', sinfecha: 'Sin fecha de calibración' } as any)[this.filtroCM]);
+    if (this.statusFilter) add('estatus', ({ BAJA: 'De baja', EN_REPARACION: 'En reparación', ACTIVO: 'Activos' } as any)[this.statusFilter] || this.statusFilter);
+    if (this.filtroClasificacion) add('clasificacion', this.titulo(this.resumenClasificaciones.find(x => x.id === this.filtroClasificacion)?.nombre || 'Clasificación'));
+    return out;
+  }
+
+  trackChip(_: number, c: any): string {
+    return c.clave + '|' + c.valor;
+  }
+
+  quitarChip(c: { clave: string; ia: boolean; ref?: any }): void {
+    if (c.ia) this.quitarInterpretacion(c.ref);
+    else this.quitarFiltro(c.clave);
+  }
+
 
   get sedesScope(): any[] {
     return this.resumenSedes.filter(s => s.id);
