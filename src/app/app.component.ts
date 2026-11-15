@@ -6401,7 +6401,7 @@ export class AppComponent {
     const permitidas = ['inicio', 'bienes', 'solicitudes', 'documentos', 'requisiciones']
       .concat(this.verInventarioAnual ? ['anual'] : [], this.isAdmin ? ['catalogos'] : [], this.isAdmin || this.canAuthorize ? ['calibracion'] : []);
     if (permitidas.includes(ui.s)) this.section = ui.s;
-    this.vistaInv = ui.v === 'completo' ? 'completo' : 'bienes';
+    this.vistaInv = 'bienes'; // Bienes siempre abre en tarjetas; la tabla se elige a mano
     if (this.section === 'documentos' && ['menu', 'ALTA', 'BAJA', 'ACTAS', 'RESGUARDO', 'REQUISICION'].includes(ui.d)) { this.docsVista = ui.d; this.loadDocumentos(); }
     if (this.section === 'requisiciones') this.loadRequisiciones();
     if (ui.f && typeof ui.f === 'object' && !ui.f.idBien) {
