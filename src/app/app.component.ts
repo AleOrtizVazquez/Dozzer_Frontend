@@ -6,6 +6,7 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
 import * as XLSX from 'xlsx';
 import * as QRCode from 'qrcode';
 import { API_URL, QR_FICHA_URL } from './config';
+import { tokenVencido } from './auth.interceptor';
 import { jsPDF } from 'jspdf';
 import jsQR from 'jsqr';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
@@ -6136,6 +6137,14 @@ export class AppComponent {
 
   constructor(private http: HttpClient, private sanitizer: DomSanitizer) {
     document.addEventListener('keydown', this.alTeclaLector, true);
+    window.addEventListener('dozzer-sesion-vencida', () => this.alSesionVencida());
+    // Se abrió la app con una sesión que ya venció: directo a iniciar sesión
+    if (this.logged && navigator.onLine !== false && tokenVencido(localStorage.getItem('dozzer_token'))) {
+      this.logged = false;
+      ['dozzer_token', 'dozzer_roles', 'dozzer_permissions'].forEach(k => localStorage.removeItem(k));
+      try { this.login.correo = localStorage.getItem('dozzer_email') || this.login.correo; } catch { /* */ }
+      this.error = 'Tu sesión venció por seguridad. Vuelve a entrar para seguir trabajando.';
+    }
     this.despertarServidor();
     this.prepararApp();
     if (this.logged && !this.mustChangePassword) {
@@ -6568,6 +6577,7 @@ export class AppComponent {
 
   doLogin(): void {
     this.error = '';
+    this.sesionAvisada = false;
     this.loading = true;
     this.loginLento = false;
     const lento = setTimeout(() => { if (this.loading) this.loginLento = true; }, 2500);
@@ -6619,8 +6629,19 @@ export class AppComponent {
     });
   }
 
-  logout(): void {
-    if (this.cola.total && !confirm('Hay ' + this.cola.total + ' cambios guardados en este celular que aún no se suben. Si cierras sesión se subirán la próxima vez que entres con tu cuenta. ¿Cerrar sesión?')) return;
+  // La sesión venció (8 h): se pide entrar de nuevo en vez de seguir mostrando datos que ya no se pueden guardar
+  private sesionAvisada = false;
+  private alSesionVencida = () => {
+    if (!this.logged || this.sesionAvisada) return;
+    this.sesionAvisada = true;
+    const correo = this.email;
+    this.logout(true);
+    this.error = 'Tu sesión venció por seguridad. Vuelve a entrar para seguir trabajando.';
+    try { if (correo && this.login) (this.login as any).correo = (this.login as any).correo || correo; } catch { /* */ }
+  };
+
+  logout(forzado = false): void {
+    if (!forzado && this.cola.total && !confirm('Hay ' + this.cola.total + ' cambios guardados en este celular que aún no se suben. Si cierras sesión se subirán la próxima vez que entres con tu cuenta. ¿Cerrar sesión?')) return;
     this.quitarPushAlSalir();
     clearInterval(this.novedadesTimer); this.novedadesTimer = null; this.vigilando = ''; this.avisoApp = null;
     try { localStorage.removeItem('dozzer_ui_' + this.email); } catch { /* */ }
