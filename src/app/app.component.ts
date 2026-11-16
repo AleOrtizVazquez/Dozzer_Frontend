@@ -1,5 +1,5 @@
 
-import { Component, ElementRef, EventEmitter, Input, OnInit, Output, ViewChild } from '@angular/core';
+import { Component, ElementRef, EventEmitter, Input, OnChanges, OnInit, Output, SimpleChanges, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
@@ -154,12 +154,20 @@ export class IcoComponent { @Input() n = ''; }
       </ng-container>
 
       <div class="df-vista" *ngIf="modo==='mia'"><img [src]="miFirma" alt="Mi firma"></div>
+      <div class="df-vista" *ngIf="modo==='guardada'"><img [src]="guardada" alt="Su firma guardada"></div>
       <p class="df-papel" *ngIf="modo==='papel'">Firmará a mano en el formato impreso.</p>
 
       <p class="df-error" *ngIf="error">{{ error }}</p>
       <label class="df-recordar" *ngIf="propia && (modo==='dedo' || modo==='foto' || modo==='archivo') && valor">
         <input type="checkbox" [(ngModel)]="recordar" (ngModelChange)="avisarMia()"> Guardar como mi firma
       </label>
+      <ng-container *ngIf="!propia && (modo==='dedo' || modo==='foto' || modo==='archivo')">
+        <label class="df-recordar" *ngIf="guardada && valor">
+          <input type="checkbox" [(ngModel)]="reemplazar" (ngModelChange)="avisarPersona()"> Reemplazar su firma guardada
+        </label>
+        <small class="df-nota" *ngIf="!guardada && idPersona">Se guardará como su firma para sus siguientes documentos.</small>
+        <small class="df-nota" *ngIf="!idPersona">No está en el catálogo de personas: su firma no se guardará.</small>
+      </ng-container>
     </ng-container>
   </div>`,
   styles: [`
@@ -191,9 +199,10 @@ export class IcoComponent { @Input() n = ''; }
     .df-link{align-self:flex-start;border:0;background:transparent;padding:0;color:#3d6fb0;font:inherit;font-size:13.5px;font-weight:700;cursor:pointer}
     .df-recordar{display:flex;align-items:center;gap:8px;margin:0;font-size:13.5px;color:#25364c;cursor:pointer}
     .df-recordar input{width:17px;height:17px;margin:0}
+    .df-nota{font-size:12.5px;color:#7a8799}
   `]
 })
-export class FirmaComponent implements OnInit {
+export class FirmaComponent implements OnInit, OnChanges {
   @Input() nombre = '';
   @Input() rol = '';
   @Input() actual: string | null = null;
@@ -206,9 +215,14 @@ export class FirmaComponent implements OnInit {
   @Input() papel = false;
   @Output() papelChange = new EventEmitter<boolean>();
   @Output() guardarMia = new EventEmitter<string>();
+  // Persona del catálogo que firma y su firma guardada (si ya firmó antes)
+  @Input() idPersona: any = null;
+  @Input() guardada = '';
+  @Output() guardarPersona = new EventEmitter<{ id: any; firma: string }>();
   @ViewChild('lienzo') lienzo?: ElementRef<HTMLCanvasElement>;
 
-  modo: 'dedo' | 'foto' | 'archivo' | 'mia' | 'papel' | 'hecha' = 'dedo';
+  modo: 'dedo' | 'foto' | 'archivo' | 'mia' | 'guardada' | 'papel' | 'hecha' = 'dedo';
+  reemplazar = false;
   trazos = false;
   imagen = '';
   procesando = false;
@@ -220,11 +234,21 @@ export class FirmaComponent implements OnInit {
     if (this.actual) this.modo = 'hecha';
     else if (this.papel) this.modo = 'papel';
     else if (this.propia && this.miFirma) { this.modo = 'mia'; setTimeout(() => this.emitir(this.miFirma)); }
+    else if (!this.propia && this.guardada) { this.modo = 'guardada'; setTimeout(() => this.emitir(this.guardada)); }
+  }
+
+  // La firma guardada llega después (se consulta al servidor): si aún no firmó, se le propone
+  ngOnChanges(c: SimpleChanges): void {
+    const sinFirmar = !this.actual && !this.papel && !this.valor && !this.trazos && !this.imagen && this.modo === 'dedo';
+    if (!sinFirmar) return;
+    if (c['miFirma'] && this.propia && this.miFirma) { this.modo = 'mia'; setTimeout(() => this.emitir(this.miFirma)); }
+    else if (c['guardada'] && !this.propia && this.guardada) { this.modo = 'guardada'; setTimeout(() => this.emitir(this.guardada)); }
   }
 
   get opciones(): { k: any; t: string }[] {
     const l: { k: any; t: string }[] = [];
     if (this.propia && this.miFirma) l.push({ k: 'mia', t: 'Mi firma' });
+    else if (!this.propia && this.guardada) l.push({ k: 'guardada', t: 'Su firma' });
     l.push({ k: 'dedo', t: 'Dedo' }, { k: 'foto', t: 'Foto' }, { k: 'archivo', t: 'Archivo' });
     if (this.permitirPapel) l.push({ k: 'papel', t: 'Papel' });
     return l;
@@ -240,6 +264,13 @@ export class FirmaComponent implements OnInit {
     this.valor = v;
     this.valorChange.emit(v);
     if (v && this.recordar && this.modo !== 'mia') this.guardarMia.emit(v);
+    // Primera firma de la persona: se guarda sola; si ya tenía, solo si pide reemplazarla
+    if (v && !this.propia && this.idPersona !== null && this.idPersona !== undefined
+        && this.modo !== 'guardada' && (!this.guardada || this.reemplazar)) this.guardarPersona.emit({ id: this.idPersona, firma: v });
+  }
+
+  avisarPersona(): void {
+    if (this.reemplazar && this.valor && this.idPersona !== null && this.idPersona !== undefined) this.guardarPersona.emit({ id: this.idPersona, firma: this.valor });
   }
   private ponerPapel(p: boolean): void {
     if (this.papel === p) return;
@@ -253,13 +284,14 @@ export class FirmaComponent implements OnInit {
     if (m === 'papel') { this.ponerPapel(true); this.emitir(null); return; }
     this.ponerPapel(false);
     if (m === 'mia') this.emitir(this.miFirma);
+    else if (m === 'guardada') this.emitir(this.guardada);
     else if (m === 'dedo') this.emitir(this.trazos && this.lienzo ? this.lienzo.nativeElement.toDataURL('image/png') : null);
     else this.emitir(this.imagen || null);
   }
 
   rehacer(): void {
-    this.modo = this.propia && this.miFirma ? 'mia' : 'dedo';
-    this.emitir(this.modo === 'mia' ? this.miFirma : null);
+    this.modo = this.propia && this.miFirma ? 'mia' : (!this.propia && this.guardada ? 'guardada' : 'dedo');
+    this.emitir(this.modo === 'mia' ? this.miFirma : this.modo === 'guardada' ? this.guardada : null);
   }
 
   avisarMia(): void {
@@ -813,7 +845,7 @@ export class ElegirComponent {
           <div class="form-section">
             <div class="df-lista">
               <dz-firma *ngFor="let f of fd.lugares" [nombre]="f.nombre" [rol]="f.rol" [actual]="f.actual"
-                        [(valor)]="fd.img[f.k]" [(papel)]="fd.papel[f.k]" [propia]="soyYo(f.nombre)" [miFirma]="miFirma" (guardarMia)="guardarMiFirma($event)"></dz-firma>
+                        [(valor)]="fd.img[f.k]" [(papel)]="fd.papel[f.k]" [idPersona]="idPersonaDe(f.nombre)" [guardada]="firmaDePersona(idPersonaDe(f.nombre))" (guardarPersona)="guardarFirmaPersona($event)" [propia]="soyYo(f.nombre)" [miFirma]="miFirma" (guardarMia)="guardarMiFirma($event)"></dz-firma>
             </div>
           </div>
           <div class="inline-error" *ngIf="fd.error" style="margin:0 24px 12px">{{ fd.error }}</div>
@@ -2638,7 +2670,7 @@ export class ElegirComponent {
                   </button>
                   <div class="df-lista">
                     <dz-firma *ngFor="let p of r.participantes; let i = index" [nombre]="p.nombre" [rol]="p.cargo"
-                              [(valor)]="z.img[i]" [(papel)]="z.papel[i]" [propia]="soyYo(p.nombre)" [miFirma]="miFirma" (guardarMia)="guardarMiFirma($event)"></dz-firma>
+                              [(valor)]="z.img[i]" [(papel)]="z.papel[i]" [idPersona]="idPersonaDe(p.nombre)" [guardada]="firmaDePersona(idPersonaDe(p.nombre))" (guardarPersona)="guardarFirmaPersona($event)" [propia]="soyYo(p.nombre)" [miFirma]="miFirma" (guardarMia)="guardarMiFirma($event)"></dz-firma>
                   </div>
                 </div>
 
@@ -2823,7 +2855,7 @@ export class ElegirComponent {
                 <div class="cap-step">
                   <div class="step-title"><span>{{ t.pendientes.length ? 3 : 2 }}</span> Firmas</div>
                   <div class="df-lista">
-                    <dz-firma [nombre]="cap.grupo?.nombre" rol="Resguardante" [opcional]="!t.conforme" [permitirPapel]="false" [(valor)]="t.imgA"></dz-firma>
+                    <dz-firma [nombre]="cap.grupo?.nombre" rol="Resguardante" [opcional]="!t.conforme" [permitirPapel]="false" [(valor)]="t.imgA" [idPersona]="cap.grupo?.id" [guardada]="firmaDePersona(cap.grupo?.id)" (guardarPersona)="guardarFirmaPersona($event)"></dz-firma>
                     <dz-firma [nombre]="nombreUsuario || email" rol="Responsable del inventario" [propia]="true" [miFirma]="miFirma" [permitirPapel]="false"
                               [(valor)]="t.imgB" (guardarMia)="guardarMiFirma($event)"></dz-firma>
                   </div>
@@ -3084,7 +3116,7 @@ export class ElegirComponent {
                   </button>
                   <div class="df-lista">
                     <dz-firma *ngFor="let p of fi.ps; let i = index" [nombre]="p.nombre" [rol]="p.cargo"
-                              [(valor)]="fi.img[i]" [(papel)]="fi.papel[i]" [propia]="soyYo(p.nombre)" [miFirma]="miFirma" (guardarMia)="guardarMiFirma($event)"></dz-firma>
+                              [(valor)]="fi.img[i]" [(papel)]="fi.papel[i]" [idPersona]="idPersonaDe(p.nombre)" [guardada]="firmaDePersona(idPersonaDe(p.nombre))" (guardarPersona)="guardarFirmaPersona($event)" [propia]="soyYo(p.nombre)" [miFirma]="miFirma" (guardarMia)="guardarMiFirma($event)"></dz-firma>
                   </div>
                 </div>
                 <div class="inline-error" *ngIf="fi.error" style="margin:0 24px 12px">{{ fi.error }}</div>
@@ -11770,6 +11802,56 @@ export class AppComponent {
       next: () => this.notificar('exito', 'Firma guardada', 'Ya puedes usarla en cualquier celular o computadora.', 2500),
       error: () => this.notificar('info', 'Firma guardada en este equipo', 'Se usará aquí; en otros equipos estará disponible cuando se actualice el servidor.', 3500)
     });
+  }
+
+  // ----- Firmas guardadas de las personas del catálogo -----
+  firmasPersona: Record<string, string> = {};
+  private firmasPedidas = new Set<string>();
+  private firmasPorPedir: string[] = [];
+  private firmasTimer: any = null;
+
+  // Persona del catálogo con ese nombre (solo si hay una sola que coincida)
+  idPersonaDe(nombre: any): any {
+    const n = this.norm(nombre);
+    if (!n) return null;
+    const c = (this.catalogs.personas || []).filter((p: any) => this.norm(p.nombre_completo) === n);
+    return c.length === 1 ? c[0].id_persona : null;
+  }
+
+  firmaDePersona(id: any): string {
+    if (id === null || id === undefined || id === '') return '';
+    const k = String(id);
+    if (!(k in this.firmasPersona) && !this.firmasPedidas.has(k)) {
+      this.firmasPedidas.add(k);
+      try { const local = localStorage.getItem('dozzer_firmap_' + k); if (local) this.firmasPersona[k] = local; } catch { /* */ }
+      this.firmasPorPedir.push(k);
+      clearTimeout(this.firmasTimer);
+      this.firmasTimer = setTimeout(() => this.pedirFirmasPersonas(), 60);
+    }
+    return this.firmasPersona[k] || '';
+  }
+
+  private pedirFirmasPersonas(): void {
+    const ids = this.firmasPorPedir.splice(0, 60);
+    if (!ids.length) return;
+    this.http.get<any>(this.api + '/personas/firmas', { params: { ids: ids.join(',') } }).subscribe({
+      next: r => {
+        Object.entries(r || {}).forEach(([k, v]) => {
+          this.firmasPersona = { ...this.firmasPersona, [k]: String(v) };
+          try { localStorage.setItem('dozzer_firmap_' + k, String(v)); } catch { /* */ }
+        });
+      },
+      error: () => { /* servidor sin esta función: se usa la copia del equipo */ }
+    });
+    if (this.firmasPorPedir.length) this.firmasTimer = setTimeout(() => this.pedirFirmasPersonas(), 60);
+  }
+
+  guardarFirmaPersona(e: { id: any; firma: string }): void {
+    if (!e?.firma || e.id === null || e.id === undefined) return;
+    const k = String(e.id);
+    this.firmasPersona = { ...this.firmasPersona, [k]: e.firma };
+    try { localStorage.setItem('dozzer_firmap_' + k, e.firma); } catch { /* */ }
+    this.http.put(this.api + '/personas/' + k + '/firma', { firma: e.firma }).subscribe({ error: () => { /* queda en el equipo */ } });
   }
 
   // ¿Ese nombre es el del usuario de la sesión? (para ofrecerle su firma guardada)
