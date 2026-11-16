@@ -5237,6 +5237,18 @@ export class ElegirComponent {
     .wiz-ops button{border:0;background:transparent;color:#244c78;font-size:16px;cursor:pointer}
     .wiz-summary{margin-top:14px;font-size:14px;color:#41546b;background:#f1f6fc;border-radius:10px;padding:12px 14px}
     .cap{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+    /* Inventario en laptop y monitor: aprovechar el ancho (en el celular queda igual) */
+    @media(min-width:1000px){
+      .cap{max-width:1080px}
+      .res{max-width:1280px}
+      .av-areas{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start}
+      .chk-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+      .cap-big,.cap-scanner{width:100%;max-width:620px;margin-left:auto;margin-right:auto}
+    }
+    @media(min-width:1500px){
+      .cap{max-width:1320px}
+      .chk-list{grid-template-columns:repeat(3,minmax(0,1fr))}
+    }
     .cap-top{position:sticky;top:0;z-index:5;background:#f4f6fa;padding:4px 0 10px;display:flex;flex-direction:column;gap:6px}
     .cap-top strong{font-size:17px;color:#14243a}
     .cap-top small{font-size:13px;color:#7d8a9b}
