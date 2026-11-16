@@ -2794,8 +2794,12 @@ export class ElegirComponent {
                     <input [(ngModel)]="cap.clave" placeholder="Ej. CE0004" (keyup.enter)="buscarPorClave()">
                     <button class="btn-primary" (click)="buscarPorClave()">Buscar</button>
                   </div>
-
-
+                  <div class="cap-acciones-wrap" *ngIf="!esChecklist">
+                  <div class="cap-acciones">
+                    <button (click)="abrirNuevoBienCap()"><ico n="plus"></ico><span><b>Bien que no está en la lista</b><small>Registrarlo con foto, etiqueta y estado</small></span></button>
+                    <button (click)="abrirBuscarGeneral()"><ico n="search"></ico><span><b>Es de otra sede</b><small>Buscarlo y traerlo a esta sede</small></span></button>
+                  </div>
+                  </div>
                 </ng-container>
 
                 <!-- Checklist de la persona: sus bienes, primero los pendientes -->
@@ -2814,6 +2818,10 @@ export class ElegirComponent {
                       </span>
                       <span class="av-go">›</span>
                     </button>
+                  </div>
+                  <div class="cap-acciones">
+                    <button (click)="abrirNuevoBienCap()"><ico n="plus"></ico><span><b>Bien que no está en la lista</b><small>Registrarlo con foto, etiqueta y estado</small></span></button>
+                    <button (click)="abrirBuscarGeneral()"><ico n="search"></ico><span><b>Es de otra sede</b><small>Buscarlo y traerlo a esta sede</small></span></button>
                   </div>
                   <div class="chk-pie" *ngIf="cap.grupo.modo==='persona'">
                     <button class="btn-primary chk-terminar" (click)="abrirTerminarPersona()"><ico n="edit"></ico> Terminar con {{ nombreCorto(cap.grupo.nombre) }}</button>
@@ -4975,6 +4983,13 @@ export class ElegirComponent {
     .cap-sig-av ico{width:20px;height:20px}
     .cap-area-chip{display:inline-flex;align-items:center;gap:6px}
     .cap-atras{width:15px;height:15px;transform:rotate(90deg)}
+    .cap-acciones{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-top:10px}
+    .cap-acciones button{display:flex;align-items:center;gap:12px;min-height:64px;padding:12px 14px;border:1px solid #dfe5ec;border-radius:14px;background:#fff;color:#14243a;font:inherit;text-align:left;cursor:pointer}
+    .cap-acciones button:hover{border-color:#c3ccd8}
+    .cap-acciones ico{width:22px;height:22px;flex-shrink:0;color:#3d6fb0}
+    .cap-acciones span{display:flex;flex-direction:column;gap:2px}
+    .cap-acciones b{font-size:15px}
+    .cap-acciones small{font-size:12.5px;color:#7a8799}
     .chk-pie{position:sticky;bottom:0;z-index:4;padding:10px 0 calc(10px + env(safe-area-inset-bottom));background:linear-gradient(transparent,#f4f6fa 30%)}
     .chk-pie .chk-terminar{width:100%;display:inline-flex;align-items:center;justify-content:center;gap:9px;box-shadow:0 8px 20px #17263d26}
     .chk-pie .chk-terminar ico{width:19px;height:19px}
