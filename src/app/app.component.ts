@@ -1,5 +1,5 @@
 
-import { Component, ElementRef, Input, ViewChild } from '@angular/core';
+import { Component, ElementRef, EventEmitter, Input, Output, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
@@ -30,7 +30,7 @@ interface DialogoConfirmacion {
 
 // Datos para llenar los formatos oficiales FA-04-02-03 (Alta) y FA-04-02-04 (Baja)
 interface FormatoDoc {
-  tipo: 'ALTA' | 'BAJA' | 'ACTA_INICIO' | 'ACTA_CIERRE' | 'RESGUARDO' | 'REQUISICION';
+  tipo: 'ALTA' | 'BAJA' | 'ACTA_INICIO' | 'ACTA_CIERRE' | 'RESGUARDO' | 'REQUISICION' | 'TRANSFERENCIA';
   folio: string;
   sede: string;
   fecha: string;
@@ -113,10 +113,135 @@ interface FormatoDoc {
 })
 export class IcoComponent { @Input() n = ''; }
 
+// Selector propio (reemplaza al <select> del navegador, que en el celular se ve oscuro y sin búsqueda).
+// En la computadora se abre como menú bajo el campo; en el celular, como hoja desde abajo.
+export interface OpcionElegir { v: any; t: string; s?: string; }
+
+@Component({
+  selector: 'dz-elegir',
+  standalone: true,
+  imports: [CommonModule, FormsModule],
+  template: `
+  <button type="button" class="de-campo" [class.vacio]="!elegida" [class.abierto]="abierto" [disabled]="deshabilitado" (click)="abrir()" #campo>
+    <span class="de-txt">{{ elegida ? elegida.t : placeholder }}</span>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+  </button>
+  <ng-container *ngIf="abierto">
+    <div class="de-fondo" (click)="cerrar()"></div>
+    <div class="de-panel" [ngStyle]="estiloPanel" role="listbox">
+      <div class="de-asa"></div>
+      <div class="de-cab" *ngIf="titulo">{{ titulo }}</div>
+      <input *ngIf="buscable && opciones.length > 7" class="de-buscar" [(ngModel)]="q" placeholder="Buscar…" autocomplete="off" #buscador>
+      <div class="de-lista">
+        <button type="button" *ngFor="let o of filtradas" [class.on]="igual(o.v, valor)" (click)="elegir(o)">
+          <span>{{ o.t }}<small *ngIf="o.s">{{ o.s }}</small></span>
+          <svg *ngIf="igual(o.v, valor)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>
+        </button>
+        <p class="de-nada" *ngIf="!filtradas.length">{{ q ? 'Nada coincide.' : vacio }}</p>
+      </div>
+    </div>
+  </ng-container>`,
+  styles: [`
+    :host{display:block;position:relative}
+    .de-campo{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;padding:0 12px;border:1px solid #dce2ea;border-radius:10px;background:#fff;color:#14243a;font:inherit;font-size:15px;text-align:left;cursor:pointer;transition:border-color .15s,box-shadow .15s}
+    .de-campo:hover:not(:disabled){border-color:#c3ccd8}
+    .de-campo.abierto{border-color:#3d6fb0;box-shadow:0 0 0 3px #3d6fb01f}
+    .de-campo:disabled{background:#f6f8fb;color:#a3aebd;cursor:default}
+    .de-campo.vacio .de-txt{color:#8a96a6}
+    .de-txt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .de-campo svg{width:16px;height:16px;color:#8a96a6;flex-shrink:0}
+    .de-fondo{position:fixed;inset:0;z-index:400}
+    .de-panel{position:fixed;z-index:401;display:flex;flex-direction:column;background:#fff;border-radius:14px;box-shadow:0 0 0 1px #17263d14,0 18px 48px #17263d33;overflow:hidden;animation:dePop .14s ease both}
+    @keyframes dePop{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+    .de-asa,.de-cab{display:none}
+    .de-buscar{margin:8px 8px 4px;height:40px;border:0;border-radius:10px;background:#f2f4f7;padding:0 12px;font:inherit;font-size:15px;outline:none;color:#14243a}
+    .de-lista{overflow-y:auto;padding:4px;display:flex;flex-direction:column}
+    .de-lista button{display:flex;align-items:center;gap:10px;min-height:42px;padding:8px 12px;border:0;border-radius:9px;background:transparent;color:#14243a;font:inherit;font-size:14.5px;text-align:left;cursor:pointer}
+    .de-lista button:hover{background:#f4f6f9}
+    .de-lista button.on{background:#eef3fa;font-weight:650}
+    .de-lista button span{flex:1;min-width:0;display:flex;flex-direction:column}
+    .de-lista small{font-size:12.5px;font-weight:400;color:#8a96a6}
+    .de-lista svg{width:17px;height:17px;color:#3d6fb0;flex-shrink:0}
+    .de-nada{margin:14px;text-align:center;color:#8a96a6;font-size:14px}
+    @media(max-width:700px){
+      .de-fondo{background:#0f1a2a66;animation:deFade .2s ease both}
+      @keyframes deFade{from{opacity:0}}
+      .de-panel{left:0!important;right:0!important;top:auto!important;bottom:0!important;width:auto!important;max-height:78vh!important;max-height:78dvh!important;border-radius:22px 22px 0 0;padding-bottom:env(safe-area-inset-bottom);animation:deSube .22s ease both}
+      @keyframes deSube{from{transform:translateY(30px);opacity:.4}}
+      .de-asa{display:block;width:40px;height:5px;border-radius:3px;background:#d5dce6;margin:10px auto 4px}
+      .de-cab{display:block;padding:6px 18px 4px;font-size:16px;font-weight:700;color:#14243a}
+      .de-buscar{margin:8px 12px 6px;height:44px;font-size:16px}
+      .de-lista{padding:4px 8px 12px}
+      .de-lista button{min-height:50px;font-size:16px}
+    }
+  `]
+})
+export class ElegirComponent {
+  @Input() opciones: OpcionElegir[] = [];
+  @Input() valor: any = null;
+  @Output() valorChange = new EventEmitter<any>();
+  @Input() placeholder = 'Seleccionar';
+  @Input() titulo = '';
+  @Input() vacio = 'No hay opciones.';
+  @Input() buscable = true;
+  @Input() deshabilitado = false;
+  @ViewChild('campo') campo?: ElementRef<HTMLButtonElement>;
+  @ViewChild('buscador') buscador?: ElementRef<HTMLInputElement>;
+  abierto = false;
+  q = '';
+  estiloPanel: any = {};
+
+  igual(a: any, b: any): boolean {
+    if (a === b) return true;
+    if (a === null || a === undefined || b === null || b === undefined) return false;
+    return String(a) === String(b);
+  }
+
+  // Con "nuloEsOpcion", el valor vacío es una opción con nombre (ej. "Quitar responsable")
+  @Input() nuloEsOpcion = false;
+
+  get elegida(): OpcionElegir | undefined {
+    const v = this.valor;
+    if ((v === null || v === undefined) && !this.nuloEsOpcion) return undefined;
+    return (this.opciones || []).find(o => this.igual(o.v, v) || ((v === null || v === undefined) && o.v === null));
+  }
+
+  get filtradas(): OpcionElegir[] {
+    const n = (x: any) => String(x ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    const pal = n(this.q).split(/\s+/).filter(Boolean);
+    const base = this.opciones || [];
+    return pal.length ? base.filter(o => { const t = n(o.t + ' ' + (o.s || '')); return pal.every(w => t.includes(w)); }) : base;
+  }
+
+  abrir(): void {
+    if (this.deshabilitado) return;
+    this.q = '';
+    const r = this.campo?.nativeElement.getBoundingClientRect();
+    if (r) {
+      const abajo = window.innerHeight - r.bottom - 12, arriba = r.top - 12;
+      const alto = Math.min(340, Math.max(abajo, arriba));
+      this.estiloPanel = abajo >= Math.min(260, arriba)
+        ? { left: r.left + 'px', top: (r.bottom + 4) + 'px', width: Math.max(r.width, 240) + 'px', maxHeight: alto + 'px' }
+        : { left: r.left + 'px', bottom: (window.innerHeight - r.top + 4) + 'px', width: Math.max(r.width, 240) + 'px', maxHeight: alto + 'px' };
+    }
+    this.abierto = true;
+    if (window.innerWidth > 700) setTimeout(() => this.buscador?.nativeElement.focus(), 30);
+  }
+
+  cerrar(): void { this.abierto = false; }
+
+  elegir(o: OpcionElegir): void {
+    this.valor = o.v;
+    this.valorChange.emit(o.v);
+    this.abierto = false;
+  }
+}
+
+
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, FormsModule, IcoComponent],
+  imports: [CommonModule, FormsModule, IcoComponent, ElegirComponent],
   template: `
   <div class="app-shell">
 
@@ -626,7 +751,7 @@ export class IcoComponent { @Input() n = ''; }
                 <span class="doc-badge" [class.baja]="d.datos.tipo==='BAJA'" [class.acta]="esActa(d.datos)" [class.resg]="d.datos.tipo==='RESGUARDO'">{{ etiquetaTipoDoc(d.datos) }}</span>
                 <div>
                   <h2>{{ tituloDoc(d.datos) }} <span class="doc-anulado" *ngIf="d.datos.anulado">ANULADO</span><span class="doc-estado borrador" *ngIf="d.datos.borrador">BORRADOR</span><span class="doc-estado" *ngIf="d.datos.historico">HISTÓRICO</span></h2>
-                  <p>Folio {{ d.datos.folio }}<ng-container *ngIf="!esActa(d.datos)"> · {{ d.datos.tipo==='ALTA' ? 'FA-04-02-03' : d.datos.tipo==='BAJA' ? 'FA-04-02-04' : d.datos.tipo==='REQUISICION' ? 'FA-04-01-02' : 'FA-04-02-02' }}</ng-container> · {{ d.datos.tipo==='RESGUARDO' ? d.datos.persona?.nombre : (d.datos.sede || 'Sin sede') }}</p>
+                  <p>Folio {{ d.datos.folio }}<ng-container *ngIf="!esActa(d.datos)"> · {{ d.datos.tipo==='ALTA' ? 'FA-04-02-03' : d.datos.tipo==='BAJA' ? 'FA-04-02-04' : d.datos.tipo==='TRANSFERENCIA' ? 'Transferencia' : d.datos.tipo==='REQUISICION' ? 'FA-04-01-02' : 'FA-04-02-02' }}</ng-container> · {{ d.datos.tipo==='RESGUARDO' ? d.datos.persona?.nombre : (d.datos.sede || 'Sin sede') }}</p>
                 </div>
               </div>
               <button class="close-button" (click)="cerrarFormato()">×</button>
@@ -1219,29 +1344,21 @@ export class IcoComponent { @Input() n = ''; }
                 </div>
                 <div class="form-section" *ngIf="m.paso !== 'revisar'">
                   <p class="mv-ayuda" *ngIf="m.ver === 'todo'">Lo que dejes en “Sin cambio” se queda igual.</p>
-                  <label class="mv-campo" *ngIf="m.ver !== 'persona'">
+                  <div class="mv-campo mv-doble" *ngIf="m.ver !== 'persona'">
                     <span><ico n="pin"></ico>Nueva ubicación</span>
-                    <select [(ngModel)]="m.idUbicacion">
-                      <option [ngValue]="'igual'">Sin cambio</option>
-                      <option *ngFor="let x of activos(catalogs.ubicaciones, null, 'id_ubicacion')" [ngValue]="x.id_ubicacion">{{ x.nombre_area }}{{ x.nombre_sede ? ' · ' + x.nombre_sede : '' }}</option>
-                    </select>
-                  </label>
-                  <label class="mv-campo" *ngIf="m.ver !== 'ubicacion'">
+                    <dz-elegir [opciones]="opcSedesMover" [valor]="m.idSede" (valorChange)="cambiarSedeMover($event)" titulo="Sede"></dz-elegir>
+                    <dz-elegir *ngIf="m.idSede !== 'igual'" [opciones]="opcAreas(m.idSede)" [valor]="m.idUbicacion === 'igual' ? null : m.idUbicacion" (valorChange)="m.idUbicacion = $event"
+                               titulo="Área" placeholder="Elige el área" vacio="Esta sede no tiene áreas registradas."></dz-elegir>
+                  </div>
+                  <div class="mv-campo" *ngIf="m.ver !== 'ubicacion'">
                     <span><ico n="user"></ico>Responsable</span>
-                    <select [(ngModel)]="m.idResponsable">
-                      <option [ngValue]="'igual'">Sin cambio</option>
-                      <option [ngValue]="null">Quitar responsable</option>
-                      <option *ngFor="let x of activos(catalogs.personas, null, 'id_persona')" [ngValue]="x.id_persona">{{ x.nombre_completo }}</option>
-                    </select>
-                  </label>
-                  <label class="mv-campo" *ngIf="m.ver !== 'ubicacion'">
+                    <dz-elegir [opciones]="opcPersonasMover('responsable')" [valor]="m.idResponsable" (valorChange)="m.idResponsable = $event" [nuloEsOpcion]="true" titulo="Responsable"></dz-elegir>
+                  </div>
+                  <div class="mv-campo" *ngIf="m.ver !== 'ubicacion'">
                     <span><ico n="users"></ico>Usuario directo</span>
-                    <select [(ngModel)]="m.idUsuario">
-                      <option [ngValue]="'igual'">Sin cambio</option>
-                      <option [ngValue]="null">Quitar usuario</option>
-                      <option *ngFor="let x of activos(catalogs.personas, null, 'id_persona')" [ngValue]="x.id_persona">{{ x.nombre_completo }}</option>
-                    </select>
-                  </label>
+                    <dz-elegir [opciones]="opcPersonasMover('usuario')" [valor]="m.idUsuario" (valorChange)="m.idUsuario = $event" [nuloEsOpcion]="true" titulo="Usuario directo"></dz-elegir>
+                  </div>
+                  <p class="mv-transf" *ngIf="movCambiaPersona"><ico n="file"></ico>Como cambia la persona, se generará un formato de transferencia para firmar.</p>
                   <label class="mv-campo">
                     <span>Motivo <small>(opcional)</small></span>
                     <input [(ngModel)]="m.motivo" maxlength="300" placeholder="Ej. Cambio de área, renuncia, préstamo…">
@@ -1425,42 +1542,44 @@ export class IcoComponent { @Input() n = ''; }
                       <label>Clave</label>
                       <input [(ngModel)]="bien.clave">
                     </div>
-                    <div *ngIf="!bien.idBien">
-                      <label>Clave</label>
-                      <div class="clave-auto" [class.lista]="claveSiguiente">
-                        <b>{{ claveSiguiente || '—' }}</b>
-                        <small>{{ claveSiguiente ? 'Se asigna sola al guardar' : 'Se genera al elegir la ubicación' }}</small>
-                      </div>
+                    <div>
+                      <label>Sede</label>
+                      <dz-elegir [opciones]="opcSedes" [valor]="sedeForm" (valorChange)="cambiarSedeForm($event)" titulo="Sede" placeholder="Elige la sede"></dz-elegir>
                     </div>
                     <div>
-                      <label>Ubicación</label>
-                      <select [(ngModel)]="bien.idUbicacion" (ngModelChange)="previsualizarClave()">
-                        <option [ngValue]="null">Seleccionar</option>
-                        <option *ngFor="let x of activos(catalogs.ubicaciones, bien.idUbicacion, 'id_ubicacion')" [ngValue]="x.id_ubicacion">{{ x.nombre_area }}{{ x.nombre_sede && isAdmin ? ' · ' + x.nombre_sede : '' }}</option>
-                      </select>
+                      <label>Área</label>
+                      <dz-elegir [opciones]="opcAreas(sedeForm)" [valor]="bien.idUbicacion" (valorChange)="bien.idUbicacion = $event; previsualizarClave()"
+                                 titulo="Área" [placeholder]="sedeForm ? 'Elige el área' : 'Primero elige la sede'" [deshabilitado]="!sedeForm"
+                                 vacio="Esta sede no tiene áreas registradas."></dz-elegir>
+                    </div>
+                    <div class="clave-box" *ngIf="!bien.idBien">
+                      <label>Clave</label>
+                      <ng-container *ngIf="!claveManual">
+                        <div class="clave-auto" [class.lista]="claveInfo?.clave">
+                          <b>{{ claveInfo?.clave || '—' }}</b>
+                          <small *ngIf="claveInfo?.clave && claveInfo.conPrefijo">Prefijo {{ claveInfo.prefijo }} ({{ claveInfo.sede | titlecase }}) + consecutivo {{ claveInfo.numero }}</small>
+                          <small *ngIf="claveInfo?.clave && !claveInfo.conPrefijo">Esta sede no tiene prefijo: se usa B + consecutivo</small>
+                          <small *ngIf="!claveInfo?.clave">Se calcula al elegir el área</small>
+                        </div>
+                        <button type="button" class="link-clave" (click)="claveManual = true">Escribir otra clave</button>
+                        <p class="clave-aviso" *ngIf="claveInfo?.clave && !claveInfo.conPrefijo && isAdmin">Pon el prefijo de la sede en Catálogos → Sedes para que sus claves sean propias.</p>
+                      </ng-container>
+                      <ng-container *ngIf="claveManual">
+                        <input [(ngModel)]="bien.clave" placeholder="Ej. MA1010" autocapitalize="characters" autocomplete="off">
+                        <button type="button" class="link-clave" (click)="claveManual = false; bien.clave = ''">Usar la clave automática</button>
+                      </ng-container>
                     </div>
                     <div>
                       <label>Responsable de área</label>
-                      <select [(ngModel)]="bien.idResponsableArea">
-                        <option [ngValue]="null">Seleccionar</option>
-                        <option *ngFor="let x of activos(catalogs.personas, bien.idResponsableArea, 'id_persona')" [ngValue]="x.id_persona">{{ x.nombre_completo }}</option>
-                      </select>
+                      <dz-elegir [opciones]="opcPersonas" [valor]="bien.idResponsableArea" (valorChange)="bien.idResponsableArea = $event" titulo="Responsable de área"></dz-elegir>
                     </div>
                     <div>
                       <label>Usuario directo</label>
-                      <select [(ngModel)]="bien.idUsuarioDirecto">
-                        <option [ngValue]="null">Seleccionar</option>
-                        <option *ngFor="let x of activos(catalogs.personas, bien.idUsuarioDirecto, 'id_persona')" [ngValue]="x.id_persona">{{ x.nombre_completo }}</option>
-                      </select>
+                      <dz-elegir [opciones]="opcPersonas" [valor]="bien.idUsuarioDirecto" (valorChange)="bien.idUsuarioDirecto = $event" titulo="Usuario directo"></dz-elegir>
                     </div>
                     <div>
                       <label>Estado físico</label>
-                      <select [(ngModel)]="bien.estadoFisico">
-                        <option value="">Seleccionar</option>
-                        <option>BUENO</option>
-                        <option>REGULAR</option>
-                        <option>MALO</option>
-                      </select>
+                      <dz-elegir [opciones]="opcEstadoFisico" [valor]="bien.estadoFisico || null" (valorChange)="bien.estadoFisico = $event" titulo="Estado físico" [buscable]="false"></dz-elegir>
                     </div>
                   </div>
                   <button class="lev-more form-mas" *ngIf="!bien.idBien" (click)="formMas=!formMas">{{ formMas ? '▴ Menos datos' : '▾ Más datos (marca, modelo, serie, clasificación…)' }}</button>
@@ -1468,24 +1587,16 @@ export class IcoComponent { @Input() n = ''; }
                   <div class="form-grid form-grid-mas">
                     <div>
                       <label>Clasificación</label>
-                      <select [(ngModel)]="bien.idClasificacion" (ngModelChange)="onClasificacionBienChange()">
-                        <option [ngValue]="null">Seleccionar</option>
-                        <option *ngFor="let x of catalogs.clasificaciones" [ngValue]="x.id_clasificacion">{{ x.nombre }}</option>
-                      </select>
+                      <dz-elegir [opciones]="opcClasificaciones" [valor]="bien.idClasificacion" (valorChange)="bien.idClasificacion = $event; onClasificacionBienChange()" titulo="Clasificación"></dz-elegir>
                     </div>
                     <div>
                       <label>Subcategoría</label>
-                      <select [(ngModel)]="bien.idSubcategoria" (ngModelChange)="onSubcategoriaBienChange()">
-                        <option [ngValue]="null">{{ subcategoriasBien.length ? 'Seleccionar' : 'Sin subcategorías' }}</option>
-                        <option *ngFor="let x of subcategoriasBien" [ngValue]="x.id_subcategoria">{{ x.nombre_subcategoria }}</option>
-                      </select>
+                      <dz-elegir [opciones]="opcSubcategorias" [valor]="bien.idSubcategoria" (valorChange)="bien.idSubcategoria = $event; onSubcategoriaBienChange()" titulo="Subcategoría"
+                                 [placeholder]="subcategoriasBien.length ? 'Seleccionar' : 'Sin subcategorías'" [deshabilitado]="!subcategoriasBien.length"></dz-elegir>
                     </div>
                     <div>
                       <label>Marca</label>
-                      <select [(ngModel)]="bien.idMarca">
-                        <option [ngValue]="null">Seleccionar</option>
-                        <option *ngFor="let x of catalogs.marcas" [ngValue]="x.id_marca">{{ x.nombre_marca }}</option>
-                      </select>
+                      <dz-elegir [opciones]="opcMarcas" [valor]="bien.idMarca" (valorChange)="bien.idMarca = $event" titulo="Marca"></dz-elegir>
                     </div>
                     <div>
                       <label>Modelo</label>
@@ -1497,10 +1608,7 @@ export class IcoComponent { @Input() n = ''; }
                     </div>
                     <div>
                       <label>Color</label>
-                      <select [(ngModel)]="bien.idColor">
-                        <option [ngValue]="null">Seleccionar</option>
-                        <option *ngFor="let x of catalogs.colores" [ngValue]="x.id_color">{{ x.nombre_color }}</option>
-                      </select>
+                      <dz-elegir [opciones]="opcColores" [valor]="bien.idColor" (valorChange)="bien.idColor = $event" titulo="Color"></dz-elegir>
                     </div>
                     <div>
                       <label>Unidad de medida</label>
@@ -1512,18 +1620,11 @@ export class IcoComponent { @Input() n = ''; }
                     </div>
                     <div>
                       <label>Estatus de inventario</label>
-                      <select [(ngModel)]="bien.estatusInventario">
-                        <option>ACTIVO</option>
-                        <option>BAJA</option>
-                        <option>EN_REPARACION</option>
-                      </select>
+                      <dz-elegir [opciones]="opcEstatusInv" [valor]="bien.estatusInventario" (valorChange)="bien.estatusInventario = $event" titulo="Estatus de inventario" [buscable]="false"></dz-elegir>
                     </div>
                     <div>
                       <label>Estatus de asignación</label>
-                      <select [(ngModel)]="bien.estatusAsignacion">
-                        <option>SIN_ASIGNAR</option>
-                        <option>ASIGNADO</option>
-                      </select>
+                      <dz-elegir [opciones]="opcEstatusAsig" [valor]="bien.estatusAsignacion" (valorChange)="bien.estatusAsignacion = $event" titulo="Estatus de asignación" [buscable]="false"></dz-elegir>
                     </div>
                   </div>
                   <div class="cm-form">
@@ -3295,7 +3396,7 @@ export class IcoComponent { @Input() n = ''; }
             <div class="inv-head">
               <div>
                 <button class="inv-back" *ngIf="docsVista!=='menu'" (click)="docsVista='menu'; docsBusqueda=''">← Documentos</button>
-                <h1>{{ docsVista==='menu' ? 'Documentos' : (docsVista==='ALTA' ? 'Formatos de alta' : docsVista==='BAJA' ? 'Formatos de baja' : docsVista==='RESGUARDO' ? 'Resguardos individuales' : docsVista==='REQUISICION' ? 'Requisiciones autorizadas' : 'Actas de inventario') }}</h1>
+                <h1>{{ docsVista==='menu' ? 'Documentos' : (docsVista==='ALTA' ? 'Formatos de alta' : docsVista==='BAJA' ? 'Formatos de baja' : docsVista==='RESGUARDO' ? 'Resguardos individuales' : docsVista==='TRANSFERENCIA' ? 'Transferencias' : docsVista==='REQUISICION' ? 'Requisiciones autorizadas' : 'Actas de inventario') }}</h1>
                 <p class="inv-resumen">
                   {{ isAdmin || canAuthorize ? 'Formatos autorizados de tu sede.' : 'Tus formatos autorizados.' }}
                   Se generan solos al autorizar y se abren aquí mismo.
@@ -3342,11 +3443,12 @@ export class IcoComponent { @Input() n = ''; }
                 <span class="tile-num">{{ docsCargando && !documentosLista.length ? '…' : conteoDocs('REQUISICION') }}<em>requisiciones</em></span>
                 <span class="tile-go">Ver requisiciones →</span>
               </button>
-              <div class="inv-tile t-transfer disabled">
+              <button class="inv-tile t-transfer" (click)="docsVista='TRANSFERENCIA'">
                 <span class="tile-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h13l-3-3M20 16H7l3 3"/></svg></span>
-                <span class="tile-text"><strong>Transferencia</strong><small>Cambio de ubicación o responsable</small></span>
-                <span class="tile-soon">Próximamente</span>
-              </div>
+                <span class="tile-text"><strong>Transferencia</strong><small>Cuando un bien pasa a otra persona</small></span>
+                <span class="tile-num">{{ docsCargando && !documentosLista.length ? '…' : conteoDocs('TRANSFERENCIA') }}<em>formatos</em></span>
+                <span class="tile-go">Ver transferencias →</span>
+              </button>
               <button class="inv-tile t-resguardo" (click)="docsVista='RESGUARDO'">
                 <svg class="tile-bg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/><path d="M9 12l2 2 4-4"/></svg>
                 <span class="tile-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/><path d="M9 12l2 2 4-4"/></svg></span>
@@ -4316,6 +4418,13 @@ export class IcoComponent { @Input() n = ''; }
     .mv-resumen s{color:#a3aebd;text-decoration-thickness:1px}
     .mv-resumen s::after{content:" →";text-decoration:none;display:inline-block;margin-left:6px;color:#a3aebd}
     .mv-resumen b{color:#14243a;font-weight:700}
+    .clave-box{display:flex;flex-direction:column;gap:6px}
+    .clave-box>label{margin-bottom:0}
+    .link-clave{align-self:flex-start;border:0;background:transparent;padding:0;color:#3d6fb0;font:inherit;font-size:13px;font-weight:700;cursor:pointer}
+    .clave-aviso{margin:0;font-size:12.5px;color:#8a4b00}
+    .mv-doble{gap:8px!important}
+    .mv-transf{display:flex;align-items:flex-start;gap:8px;margin:0;padding:10px 12px;border-radius:10px;background:#eef4fb;color:#1f4f86;font-size:13px}
+    .mv-transf ico{width:16px;height:16px;flex-shrink:0;margin-top:1px}
     .clave-auto{display:flex;flex-direction:column;justify-content:center;min-height:44px;padding:6px 12px;border:1px dashed #d5dce6;border-radius:10px;background:#f8fafc}
     .clave-auto b{font-family:"SFMono-Regular",Consolas,monospace;font-size:15px;color:#a3aebd;letter-spacing:.4px}
     .clave-auto.lista b{color:#14243a}
@@ -5829,7 +5938,7 @@ export class AppComponent {
   private camTimer: any = null;
 
   // Pantalla de Documentos
-  docsVista: 'menu' | 'ALTA' | 'BAJA' | 'ACTAS' | 'RESGUARDO' | 'REQUISICION' = 'menu';
+  docsVista: 'menu' | 'ALTA' | 'BAJA' | 'ACTAS' | 'RESGUARDO' | 'REQUISICION' | 'TRANSFERENCIA' = 'menu';
   documentosLista: any[] = [];
   docsCargando = false;
   docsError = '';
@@ -6929,7 +7038,7 @@ export class AppComponent {
       .concat(this.verInventarioAnual ? ['anual'] : [], this.isAdmin ? ['catalogos'] : [], this.isAdmin || this.canAuthorize ? ['calibracion'] : []);
     if (permitidas.includes(ui.s)) this.section = ui.s;
     this.vistaInv = 'bienes'; // Bienes siempre abre en tarjetas; la tabla se elige a mano
-    if (this.section === 'documentos' && ['menu', 'ALTA', 'BAJA', 'ACTAS', 'RESGUARDO', 'REQUISICION'].includes(ui.d)) { this.docsVista = ui.d; this.loadDocumentos(); }
+    if (this.section === 'documentos' && ['menu', 'ALTA', 'BAJA', 'ACTAS', 'RESGUARDO', 'REQUISICION', 'TRANSFERENCIA'].includes(ui.d)) { this.docsVista = ui.d; this.loadDocumentos(); }
     if (this.section === 'requisiciones') this.loadRequisiciones();
     if (ui.f && typeof ui.f === 'object' && !ui.f.idBien) {
       this.bien = ui.f; this.bienOriginal = null; this.formMas = true; this.editing = true;
@@ -8078,7 +8187,7 @@ export class AppComponent {
       titulo: uno ? this.titulo(uno.articulo || 'Bien') + (uno.ubicacion ? ' · ' + this.titulo(uno.ubicacion) : '') + (uno.responsable ? ' · ' + this.titulo(uno.responsable) : '')
                   : (persona ? 'Bienes de ' + persona : 'Bienes filtrados') + (this.sedeEfectiva ? ' en ' + this.titulo(this.nombreSedeEfectiva) : ''),
       idUbicacion: 'igual', idResponsable: 'igual', idUsuario: 'igual', motivo: '', guardando: false, error: '', ver: lista.length === 1 ? foco : 'todo',
-      paso: 'datos', uno
+      paso: 'datos', uno, idSede: 'igual'
     };
   }
 
@@ -8086,6 +8195,7 @@ export class AppComponent {
     const m = this.mov;
     if (!m) return false;
     const u = m.uno;
+    if (m.idSede !== 'igual' && (m.idUbicacion === 'igual' || m.idUbicacion === null || m.idUbicacion === undefined)) return false;
     const cambia = (nuevo: any, actual: any) => nuevo !== 'igual' && (!u || String(nuevo ?? '') !== String(actual ?? ''));
     return cambia(m.idUbicacion, u?.id_ubicacion) || cambia(m.idResponsable, u?.id_responsable_area) || cambia(m.idUsuario, u?.id_usuario_directo);
   }
@@ -8117,6 +8227,12 @@ export class AppComponent {
       next: r => {
         this.mov = null;
         const ap = Number(r?.aplicados || 0), pe = Number(r?.pendientes || 0);
+        if (r?.idDocumento) {
+          this.loadDocumentos();
+          this.notificar('exito', 'Transferencia registrada', (Number(r.transferidos) === 1 ? 'Se generó' : 'Se generó un solo') + ' formato de transferencia para firmar.', 8000,
+            { texto: '📄 Ver formato', fn: () => this.verOFormato(r.idDocumento, () => ({} as any)) });
+          return;
+        }
         if (pe) this.notificar('pendiente', 'Solicitud enviada', pe === 1 ? 'El cambio espera autorización.' : pe + ' cambios esperan autorización.');
         else if (m.uno && ap === 1) {
           const u = m.uno;
@@ -8928,21 +9044,103 @@ export class AppComponent {
   }
 
   claveSiguiente = '';
+  claveInfo: any = null;
+  claveManual = false;
+  sedeForm: any = null;
+
+  // ----- Opciones de los selectores (ordenadas alfabéticamente y calculadas una sola vez) -----
+  private memoOpc: Record<string, { deps: any[]; v: OpcionElegir[] }> = {};
+  private memo(clave: string, deps: any[], fn: () => OpcionElegir[]): OpcionElegir[] {
+    const m = this.memoOpc[clave];
+    if (m && m.deps.length === deps.length && m.deps.every((d, i) => d === deps[i])) return m.v;
+    const v = fn();
+    this.memoOpc[clave] = { deps, v };
+    return v;
+  }
+  private alfabetico(l: OpcionElegir[]): OpcionElegir[] {
+    return l.sort((a, b) => a.t.localeCompare(b.t, 'es', { sensitivity: 'base', numeric: true }));
+  }
+
+  get opcSedes(): OpcionElegir[] {
+    return this.memo('sedes', [this.catalogs.sedes], () => this.alfabetico((this.catalogs.sedes || []).filter((x: any) => x.estatus !== false)
+      .map((x: any) => ({ v: x.id_sede, t: this.titulo(x.nombre_sede), s: x.prefijo_clave ? 'Claves ' + String(x.prefijo_clave).toUpperCase() : undefined }))));
+  }
+  opcAreas(idSede: any): OpcionElegir[] {
+    return this.memo('areas-' + idSede, [this.catalogs.ubicaciones], () => this.alfabetico((this.catalogs.ubicaciones || [])
+      .filter((x: any) => x.estatus !== false && idSede !== null && idSede !== undefined && String(x.id_sede) === String(idSede))
+      .map((x: any) => ({ v: x.id_ubicacion, t: this.titulo(x.nombre_area), s: x.nombre_tipo_ubicacion ? this.titulo(x.nombre_tipo_ubicacion) : undefined }))));
+  }
+  get opcPersonas(): OpcionElegir[] {
+    return this.memo('personas', [this.catalogs.personas], () => this.alfabetico((this.catalogs.personas || []).filter((x: any) => x.estatus !== false)
+      .map((x: any) => ({ v: x.id_persona, t: this.titulo(x.nombre_completo), s: x.nombre_sede ? this.titulo(x.nombre_sede) : undefined }))));
+  }
+  get opcClasificaciones(): OpcionElegir[] {
+    return this.memo('clasif', [this.catalogs.clasificaciones], () => this.alfabetico((this.catalogs.clasificaciones || []).filter((x: any) => x.estatus !== false)
+      .map((x: any) => ({ v: x.id_clasificacion, t: this.titulo(x.nombre) }))));
+  }
+  get opcSubcategorias(): OpcionElegir[] {
+    const l = this.subcategoriasBien;
+    return this.memo('subcat', [l.length, l[0], this.bien?.idClasificacion], () => this.alfabetico(l.map((x: any) => ({ v: x.id_subcategoria, t: this.titulo(x.nombre_subcategoria) }))));
+  }
+  get opcMarcas(): OpcionElegir[] {
+    return this.memo('marcas', [this.catalogs.marcas], () => this.alfabetico((this.catalogs.marcas || []).filter((x: any) => x.estatus !== false)
+      .map((x: any) => ({ v: x.id_marca, t: x.nombre_marca }))));
+  }
+  get opcColores(): OpcionElegir[] {
+    return this.memo('colores', [this.catalogs.colores], () => this.alfabetico((this.catalogs.colores || []).filter((x: any) => x.estatus !== false)
+      .map((x: any) => ({ v: x.id_color, t: this.titulo(x.nombre_color) }))));
+  }
+  readonly opcEstadoFisico: OpcionElegir[] = [{ v: 'BUENO', t: 'Bueno' }, { v: 'REGULAR', t: 'Regular' }, { v: 'MALO', t: 'Malo' }];
+  readonly opcEstatusInv: OpcionElegir[] = [{ v: 'ACTIVO', t: 'Activo' }, { v: 'EN_REPARACION', t: 'En reparación' }, { v: 'BAJA', t: 'Baja' }];
+  readonly opcEstatusAsig: OpcionElegir[] = [{ v: 'SIN_ASIGNAR', t: 'Sin asignar' }, { v: 'ASIGNADO', t: 'Asignado' }];
+  get opcSedesMover(): OpcionElegir[] {
+    return this.memo('sedes-mover', [this.catalogs.sedes], () => [{ v: 'igual', t: 'Sin cambio' }, ...this.opcSedes]);
+  }
+  opcPersonasMover(tipo: 'responsable' | 'usuario'): OpcionElegir[] {
+    return this.memo('per-mover-' + tipo, [this.catalogs.personas], () =>
+      [{ v: 'igual', t: 'Sin cambio' }, { v: null, t: tipo === 'responsable' ? 'Quitar responsable' : 'Quitar usuario' }, ...this.opcPersonas]);
+  }
+
+  cambiarSedeForm(id: any): void {
+    this.sedeForm = id;
+    const u = (this.catalogs.ubicaciones || []).find((x: any) => String(x.id_ubicacion) === String(this.bien?.idUbicacion));
+    if (!u || String(u.id_sede) !== String(id)) { this.bien.idUbicacion = null; this.claveInfo = null; this.claveSiguiente = ''; }
+  }
+
+  cambiarSedeMover(id: any): void {
+    const m = this.mov;
+    if (!m) return;
+    m.idSede = id;
+    m.idUbicacion = id === 'igual' ? 'igual' : null;
+  }
+
+  // ¿El movimiento cambia de persona? Entonces habrá formato de transferencia
+  get movCambiaPersona(): boolean {
+    const m = this.mov;
+    if (!m) return false;
+    const u = m.uno;
+    const cambia = (nuevo: any, actual: any) => nuevo !== 'igual' && (!u || String(nuevo ?? '') !== String(actual ?? ''));
+    return cambia(m.idResponsable, u?.id_responsable_area) || cambia(m.idUsuario, u?.id_usuario_directo);
+  }
 
   // Muestra la clave que le tocará (prefijo de la sede + consecutivo); la definitiva la pone el servidor al guardar
   previsualizarClave(): void {
     if (this.bien?.idBien) return;
     const id = this.bien?.idUbicacion;
     this.claveSiguiente = '';
+    this.claveInfo = null;
     if (!id) return;
     this.http.get<any>(this.api + '/bienes/siguiente-clave', { params: { idUbicacion: String(id) } }).subscribe({
-      next: r => { if (this.bien?.idUbicacion === id && !this.bien?.idBien) this.claveSiguiente = r?.clave || ''; },
-      error: () => { this.claveSiguiente = ''; }
+      next: r => { if (this.bien?.idUbicacion === id && !this.bien?.idBien) { this.claveSiguiente = r?.clave || ''; this.claveInfo = r?.clave ? r : null; } },
+      error: () => { this.claveSiguiente = ''; this.claveInfo = null; }
     });
   }
 
   newBien(): void {
     this.bienOriginal = null;
+    this.claveManual = false;
+    this.claveInfo = null;
+    this.sedeForm = this.sedeEfectiva || (this.opcSedes.length === 1 ? this.opcSedes[0].v : null);
     this.claveSiguiente = '';
     if (!(this.catalogs.ubicaciones || []).length || !(this.catalogs.personas || []).length) {
       Object.keys(this.catalogs).forEach(k => this.loadCatalog(k));
@@ -9450,6 +9648,8 @@ export class AppComponent {
   }
 
   editBien(b: any): void {
+    this.claveManual = false;
+    this.sedeForm = b?.id_sede ?? (this.catalogs.ubicaciones || []).find((x: any) => String(x.id_ubicacion) === String(b?.id_ubicacion))?.id_sede ?? null;
     this.bienOriginal = b;
     this.bien = this.formularioDeBien(b);
     this.editing = true;
@@ -11611,6 +11811,7 @@ export class AppComponent {
       case 'ACTA_CIERRE': return 'Acta de cierre';
       case 'BAJA': return 'Formato de Baja';
       case 'RESGUARDO': return 'Resguardo individual';
+      case 'TRANSFERENCIA': return 'Formato de transferencia';
       case 'REQUISICION': return 'Requisición de compra';
       default: return 'Formato de Alta';
     }
@@ -12031,6 +12232,7 @@ export class AppComponent {
   private async crearPdfFormato(d: FormatoDoc): Promise<Blob> {
     if (this.esActa(d)) return this.crearPdfActa(d as any);
     if (d.tipo === 'RESGUARDO') return this.crearPdfResguardo(d as any);
+    if (d.tipo === 'TRANSFERENCIA') return this.crearPdfTransferencia(d as any);
     if (d.tipo === 'REQUISICION') return this.crearPdfRequisicion(d as any);
     type RGB = [number, number, number];
     const NAVY: RGB = [23, 38, 61], AZUL: RGB = [36, 76, 120], GRIS: RGB = [110, 120, 135];
@@ -12170,6 +12372,117 @@ export class AppComponent {
       ahora.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false });
     doc.text('Folio ' + d.folio + ' · Generado en DOZZER el ' + sello, R, 269, { align: 'right' });
 
+    return doc.output('blob');
+  }
+
+  // Transferencia: el bien pasa a otra persona. Mismo estilo que Alta/Baja.
+  private async crearPdfTransferencia(d: any): Promise<Blob> {
+    type RGB = [number, number, number];
+    const NAVY: RGB = [23, 38, 61], AZUL: RGB = [36, 76, 120], GRIS: RGB = [110, 120, 135];
+    const CLARO: RGB = [244, 246, 250], LINEA: RGB = [214, 220, 229], ACENTO: RGB = [45, 93, 147];
+    const doc = new jsPDF({ unit: 'mm', format: 'letter', compress: true });
+    const X = 20, W = 176, R = X + W, LIMITE = 246;
+    const ajustar = (t: any, ancho: number) => this.ajustarTexto(doc, String(t ?? ''), ancho);
+    const seccion = (titulo: string, y: number) => { doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(...AZUL); doc.text(titulo, X, y); };
+    const logo = await this.cargarLogo();
+    const encabezado = () => {
+      if (logo) { try { doc.addImage(logo, 'PNG', X, 15, 52, 52 * 227 / 879, 'logo', 'FAST'); } catch { /* sin logo */ } }
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(16); doc.setTextColor(...NAVY);
+      doc.text('FORMATO DE TRANSFERENCIA', R, 21, { align: 'right' });
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...GRIS);
+      doc.text('Cambio de responsable de bienes   ·   Folio ' + (d.folio || ''), R, 27, { align: 'right' });
+      doc.setDrawColor(...NAVY); doc.setLineWidth(0.8); doc.line(X, 34, R, 34);
+      doc.setDrawColor(...ACENTO); doc.setLineWidth(0.8); doc.line(R - 30, 34, R, 34);
+    };
+    encabezado();
+    const cajas: [string, string][] = [['SEDE', d.sede || '—'], ['FOLIO', d.folio || ''], ['FECHA', d.fecha || '']];
+    const anchos = [50, 46, 76];
+    let x = X;
+    cajas.forEach(([l, v], i) => {
+      doc.setFillColor(...CLARO); doc.roundedRect(x, 40, anchos[i], 15, 2, 2, 'F');
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(...GRIS); doc.text(l, x + 4, 45.5);
+      doc.setFontSize(11); doc.setTextColor(...NAVY); doc.text(ajustar(v, anchos[i] - 8), x + 4, 51.5);
+      x += anchos[i] + 2;
+    });
+    // Quién entrega y quién recibe
+    const dest = d.destino || {};
+    seccion('TRANSFERENCIA', 64);
+    const caja = (cx: number, titulo: string, nombre: string, lineas: string[]) => {
+      doc.setFillColor(...CLARO); doc.roundedRect(cx, 67, 86, 24, 2, 2, 'F');
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(...GRIS); doc.text(titulo, cx + 4, 72.5);
+      doc.setFontSize(10.5); doc.setTextColor(...NAVY); doc.text(ajustar(nombre || '—', 78), cx + 4, 78.5);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...GRIS);
+      lineas.filter(Boolean).slice(0, 2).forEach((t, i) => doc.text(ajustar(t, 78), cx + 4, 83.5 + i * 4.2));
+    };
+    caja(X, 'ENTREGA', this.titulo(d.entrega || ''), []);
+    doc.setDrawColor(...ACENTO); doc.setLineWidth(0.7); doc.line(X + 86.8, 76.5, X + 89, 79); doc.line(X + 89, 79, X + 86.8, 81.5);
+    caja(X + 90, 'RECIBE', this.titulo(d.recibe || ''), [
+      [dest.ubicacion, dest.sede].filter(Boolean).map((t: string) => this.titulo(t)).join(' · '),
+      dest.usuario && dest.usuario !== d.recibe ? 'Usuario directo: ' + this.titulo(dest.usuario) : ''
+    ]);
+    // Tabla de bienes
+    let y = 100;
+    seccion('BIENES QUE SE TRANSFIEREN', y);
+    const cols = [10, 26, 64, 76];
+    const titulos = ['Núm.', 'Inventario', 'Descripción del bien', 'Estaba en / con'];
+    const cabTabla = () => {
+      doc.setFillColor(...NAVY); doc.rect(X, y + 3, W, 8, 'F');
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(255, 255, 255);
+      let cx = X; titulos.forEach((t, i) => { doc.text(t, cx + 3, y + 8.2); cx += cols[i]; });
+      y += 11;
+    };
+    cabTabla();
+    (d.filas || []).forEach((fi: any, n: number) => {
+      if (y + 10 > LIMITE) { doc.addPage(); encabezado(); y = 42; cabTabla(); }
+      if (n % 2 === 0) { doc.setFillColor(...CLARO); doc.rect(X, y, W, 10, 'F'); }
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8.3); doc.setTextColor(...NAVY);
+      const desc = [fi.descripcion, fi.modeloSerie].filter((t: any) => t && String(t).trim()).join(' · ');
+      const celdas = [String(n + 1), fi.inventario, desc, this.titulo(fi.origen || '')];
+      let cx = X;
+      celdas.forEach((t, i) => { doc.text(ajustar(t, cols[i] - 5), cx + 3, y + 6.2); cx += cols[i]; });
+      y += 10;
+    });
+    doc.setDrawColor(...LINEA); doc.setLineWidth(0.3); doc.line(X, y, R, y);
+    // Motivo
+    y += 9;
+    if (y + 60 > 262) { doc.addPage(); encabezado(); y = 44; }
+    seccion('MOTIVO Y OBSERVACIONES', y);
+    doc.setFillColor(...CLARO); doc.roundedRect(X, y + 3, W, 18, 2, 2, 'F');
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...NAVY);
+    doc.text(doc.splitTextToSize(d.observaciones || 'Sin observaciones.', W - 8).slice(0, 3), X + 4, y + 9.5);
+    y += 3 + 18 + 12;
+    // Firmas: entrega, recibe y autoriza
+    seccion('FIRMAS', y);
+    const firma = (fx: number, nombre: string, rol: string, img?: string) => {
+      const fy = y + 5, w = 58;
+      if (img) { try { doc.addImage(img, 'PNG', fx + w / 2 - 22, fy + 2, 44, 22); } catch { /* firma ilegible */ } }
+      else {
+        doc.setDrawColor(...LINEA); doc.setLineWidth(0.3); (doc as any).setLineDashPattern([1.2, 1.2], 0);
+        doc.roundedRect(fx + 4, fy, w - 8, 22, 2, 2); (doc as any).setLineDashPattern([], 0);
+        doc.setFont('helvetica', 'italic'); doc.setFontSize(7); doc.setTextColor(170, 178, 190); doc.text('Espacio para firma', fx + w / 2, fy + 12, { align: 'center' });
+      }
+      doc.setDrawColor(...NAVY); doc.setLineWidth(0.35); doc.line(fx + 4, fy + 26, fx + w - 4, fy + 26);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...NAVY);
+      doc.text(ajustar((nombre || 'Nombre').toUpperCase(), w - 6), fx + w / 2, fy + 30.5, { align: 'center' });
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...GRIS); doc.text(rol, fx + w / 2, fy + 34.5, { align: 'center' });
+    };
+    firma(X, d.entrega && !String(d.entrega).startsWith('Varios') ? d.entrega : '', 'Entrega', d.firmas?.solicito);
+    firma(X + 59, d.recibe || '', 'Recibe', d.firmas?.autorizo);
+    firma(X + 118, d.autorizo || '', 'Autorizó', d.firmas?.valido);
+    if (d.anulado) {
+      try { (doc as any).setGState(new (doc as any).GState({ opacity: 0.18 })); } catch { /* */ }
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(72); doc.setTextColor(194, 65, 75);
+      doc.text('ANULADO', 108, 165, { align: 'center', angle: 32 });
+      try { (doc as any).setGState(new (doc as any).GState({ opacity: 1 })); } catch { /* */ }
+    }
+    const paginas = doc.getNumberOfPages();
+    for (let p = 1; p <= paginas; p++) {
+      doc.setPage(p);
+      doc.setDrawColor(...LINEA); doc.setLineWidth(0.3); doc.line(X, 264, R, 264);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(...GRIS);
+      doc.text('DOZZER Construcción y Asesoría S.A. de C.V.', X, 269);
+      doc.text('Folio ' + (d.folio || '') + (paginas > 1 ? ' · Página ' + p + ' de ' + paginas : ''), R, 269, { align: 'right' });
+    }
     return doc.output('blob');
   }
 
