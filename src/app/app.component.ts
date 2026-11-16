@@ -1155,26 +1155,37 @@ export class IcoComponent { @Input() n = ''; }
 
             <!-- ASIGNAR ETIQUETA A UN BIEN (desde su ficha) -->
             <div class="modal-backdrop" *ngIf="etqAsignar">
-              <div class="modal-card wizard">
+              <div class="modal-card wizard aq">
                 <div class="modal-header">
                   <div>
-                    <h2>🏷 Asignar etiqueta</h2>
-                    <p><b>{{ etqAsignar.bien.clave }}</b> · {{ etqAsignar.bien.articulo }}</p>
+                    <h2>{{ etqAsignar.bien.etiqueta ? 'Cambiar etiqueta QR' : 'Asignar etiqueta QR' }}</h2>
+                    <p>{{ (etqAsignar.bien.articulo | titlecase) || 'Bien' }}<ng-container *ngIf="etqAsignar.bien.ubicacion"> · {{ etqAsignar.bien.ubicacion | titlecase }}</ng-container></p>
                   </div>
-                  <button class="close-button" [disabled]="etqAsignar.guardando" (click)="etqAsignar=null">×</button>
+                  <button class="close-button" [disabled]="etqAsignar.guardando" (click)="cerrarAsignarEtiqueta()">×</button>
                 </div>
                 <div class="form-section">
-                  <label>Código de la etiqueta que pegaste</label>
-                  <div class="cap-clave">
-                    <input [(ngModel)]="etqAsignar.codigo" placeholder="Ej. DZ-000123" (keyup.enter)="confirmarAsignarEtiqueta()">
-                    <label class="btn-outline etq-foto">📷<input type="file" accept="image/*" capture="environment" (change)="leerEtiquetaDeFoto($event)" hidden></label>
+                  <div class="aq-cam" *ngIf="etqAsignar.escaneando">
+                    <video #camEtq playsinline muted autoplay (click)="camEtq.play()"></video>
+                    <span class="aq-marco"></span>
+                    <span class="aq-guia">Apunta al QR de la etiqueta que pegaste</span>
+                    <button class="aq-parar" (click)="detenerEscanerEtiqueta()">Escribir el código</button>
                   </div>
-                  <p class="cap-hint">Escribe el código impreso o toma foto del QR.</p>
+
+                  <ng-container *ngIf="!etqAsignar.escaneando">
+                    <div class="aq-leido" *ngIf="etqAsignar.leido"><ico n="check"></ico><span>Etiqueta leída<b>{{ etqAsignar.codigo }}</b></span></div>
+                    <button class="aq-btn" *ngIf="camaraEnVivo && !etqAsignar.leido" (click)="escanearEtiqueta()"><ico n="camera"></ico>Escanear con la cámara</button>
+                    <label class="aq-sub">{{ camaraEnVivo ? 'O escribe el código impreso' : 'Código impreso en la etiqueta' }}</label>
+                    <div class="cap-clave">
+                      <input #etqCodigo [(ngModel)]="etqAsignar.codigo" (ngModelChange)="etqAsignar.leido=false" placeholder="Ej. DZ-000123" (keyup.enter)="confirmarAsignarEtiqueta()" autocomplete="off">
+                      <label class="btn-outline etq-foto" title="Leer el QR desde una foto"><ico n="image"></ico><input type="file" accept="image/*" (change)="leerEtiquetaDeFoto($event)" hidden></label>
+                    </div>
+                    <p class="cap-hint">Con lector de códigos (pistola) solo dispara al QR: el código se escribe solo.</p>
+                  </ng-container>
                   <label class="cm-check" *ngIf="etqAsignar.bien.etiqueta"><input type="checkbox" [(ngModel)]="etqAsignar.reemplazar"> Reemplazar la etiqueta {{ etqAsignar.bien.etiqueta }} (quedará anulada)</label>
                 </div>
                 <div class="inline-error" *ngIf="etqAsignar.error" style="margin:0 24px 12px">{{ etqAsignar.error }}</div>
                 <div class="modal-footer">
-                  <button class="btn-outline" [disabled]="etqAsignar.guardando" (click)="etqAsignar=null">Cancelar</button>
+                  <button class="btn-outline" [disabled]="etqAsignar.guardando" (click)="cerrarAsignarEtiqueta()">Cancelar</button>
                   <button class="btn-primary" [disabled]="etqAsignar.guardando || !etqAsignar.codigo" (click)="confirmarAsignarEtiqueta()">
                     <span class="mini-ring light" *ngIf="etqAsignar.guardando"></span> Asignar
                   </button>
@@ -5043,6 +5054,20 @@ export class IcoComponent { @Input() n = ''; }
     .etq-hojas button{width:44px;height:44px;font-size:20px;padding:0}
     .etq-btns{display:flex;gap:8px;flex-wrap:wrap}
     .etq-vacia{font-size:42px;opacity:.35}
+    .aq-cam{position:relative;border-radius:18px;overflow:hidden;background:#000;aspect-ratio:4/3}
+    .aq-cam video{width:100%;height:100%;object-fit:cover;display:block}
+    .aq-marco{position:absolute;left:50%;top:46%;width:58%;aspect-ratio:1;transform:translate(-50%,-50%);border-radius:20px;box-shadow:0 0 0 2000px #0006;outline:3px solid #ffffffd9;outline-offset:-3px;animation:aqPulso 1.8s ease-in-out infinite}
+    @keyframes aqPulso{0%,100%{outline-color:#ffffffd9}50%{outline-color:#9be7c3}}
+    .aq-guia{position:absolute;left:0;right:0;top:12px;text-align:center;color:#fff;font-size:14px;font-weight:600;text-shadow:0 1px 4px #0008}
+    .aq-parar{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);height:40px;padding:0 18px;border:0;border-radius:999px;background:#ffffffe6;color:#14243a;font:inherit;font-size:14px;font-weight:700;cursor:pointer}
+    .aq-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;height:56px;margin-bottom:16px;border:0;border-radius:15px;background:#14243a;color:#fff;font:inherit;font-size:16px;font-weight:700;cursor:pointer}
+    .aq-btn ico{width:22px;height:22px}
+    .aq-sub{display:block;margin:0 0 8px;font-size:13px;font-weight:600;color:#6b7a8d}
+    .aq-leido{display:flex;align-items:center;gap:12px;margin-bottom:16px;padding:14px 16px;border-radius:14px;background:#e9f6ef;color:#1d7a4c}
+    .aq-leido ico{width:24px;height:24px}
+    .aq-leido span{display:flex;flex-direction:column;font-size:13px;font-weight:600}
+    .aq-leido b{font-size:18px;font-weight:800;letter-spacing:.3px;color:#14243a}
+    .etq-foto ico{width:20px;height:20px}
     .etq-foto{display:inline-flex;align-items:center;justify-content:center;width:52px;cursor:pointer}
     .etq-aviso{background:#f1edfb!important;border-color:#ddd3f5!important;color:#4b3590!important}
     .cm-aviso{display:flex;align-items:center;gap:12px;margin:12px auto 0;max-width:460px;text-align:left;background:#fff;border:1px solid #dfe7f1;border-radius:16px;padding:12px 14px 12px 16px;animation:fadeUp .5s .25s ease both}
@@ -7990,8 +8015,95 @@ export class AppComponent {
     setTimeout(() => ventana.print(), 400);
   }
 
+  @ViewChild('camEtq') camEtq?: ElementRef<HTMLVideoElement>;
+  @ViewChild('etqCodigo') etqCodigo?: ElementRef<HTMLInputElement>;
+  private etqStream: MediaStream | null = null;
+  private etqTimer: any = null;
+
   abrirAsignarEtiqueta(b: any): void {
-    this.etqAsignar = { bien: b, codigo: '', reemplazar: false, guardando: false, error: '' };
+    this.etqAsignar = { bien: b, codigo: '', reemplazar: false, guardando: false, error: '', escaneando: false, leido: false };
+    // En el celular la cámara se abre sola; en la computadora queda listo el campo (sirve también con pistola lectora)
+    let tactil = false;
+    try { tactil = window.matchMedia('(pointer: coarse)').matches; } catch { /* */ }
+    if (this.camaraEnVivo && tactil) setTimeout(() => this.escanearEtiqueta(), 60);
+    else setTimeout(() => this.etqCodigo?.nativeElement.focus(), 80);
+  }
+
+  cerrarAsignarEtiqueta(): void {
+    this.detenerEscanerEtiqueta();
+    this.etqAsignar = null;
+  }
+
+  detenerEscanerEtiqueta(): void {
+    clearTimeout(this.etqTimer);
+    if (this.etqStream) this.etqStream.getTracks().forEach(t => t.stop());
+    this.etqStream = null;
+    if (this.etqAsignar) this.etqAsignar.escaneando = false;
+  }
+
+  async escanearEtiqueta(): Promise<void> {
+    const a = this.etqAsignar;
+    if (!a) return;
+    a.error = '';
+    try {
+      this.etqStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false
+      });
+    } catch (e: any) {
+      a.error = e?.name === 'NotAllowedError'
+        ? 'DOZZER no tiene permiso para usar la cámara. Actívalo en los ajustes del navegador o escribe el código.'
+        : 'No se pudo abrir la cámara. Escribe el código o lee el QR desde una foto.';
+      return;
+    }
+    if (this.etqAsignar !== a) { this.detenerEscanerEtiqueta(); return; }
+    a.escaneando = true;
+    let video: HTMLVideoElement | undefined;
+    for (let i = 0; i < 30 && !video; i++) {
+      await new Promise(r => setTimeout(r, 50));
+      video = this.camEtq?.nativeElement;
+    }
+    if (!video || !this.etqStream) { this.detenerEscanerEtiqueta(); a.error = 'No se pudo mostrar la cámara. Escribe el código.'; return; }
+    video.muted = true;
+    video.setAttribute('muted', '');
+    video.setAttribute('playsinline', '');
+    video.setAttribute('autoplay', '');
+    video.srcObject = this.etqStream;
+    try { await video.play(); } catch { /* algunos iPhone arrancan con el autoplay */ }
+    const inicio = Date.now();
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true } as any) as CanvasRenderingContext2D;
+    const v = video;
+    let avisoAjeno = 0;
+    const leer = () => {
+      if (this.etqAsignar !== a || !a.escaneando) return;
+      if (v.readyState >= v.HAVE_CURRENT_DATA && v.videoWidth) {
+        const escala = Math.min(1, 640 / v.videoWidth);
+        canvas.width = Math.round(v.videoWidth * escala);
+        canvas.height = Math.round(v.videoHeight * escala);
+        ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
+        const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const qr = jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' });
+        const cod = qr?.data ? this.codigoDeTexto(qr.data) : '';
+        if (cod) {
+          this.detenerEscanerEtiqueta();
+          this.avisarEscaneo(qr!.data);
+          a.codigo = cod;
+          a.leido = true;
+          // Bien sin etiqueta: se asigna en cuanto se lee, sin pasos extra
+          if (!a.bien.etiqueta) this.confirmarAsignarEtiqueta();
+          return;
+        }
+        if (qr?.data && Date.now() - avisoAjeno > 2500) { avisoAjeno = Date.now(); a.error = 'Ese QR no es una etiqueta DOZZER.'; }
+      } else if (Date.now() - inicio > 6000) {
+        this.detenerEscanerEtiqueta();
+        a.error = 'La cámara no respondió. Escribe el código o lee el QR desde una foto.';
+        return;
+      } else if (v.paused) {
+        v.play().catch(() => {});
+      }
+      this.etqTimer = setTimeout(leer, 160);
+    };
+    leer();
   }
 
   async leerEtiquetaDeFoto(ev: Event): Promise<void> {
@@ -8008,7 +8120,7 @@ export class AppComponent {
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       const qr = jsQR(ctx.getImageData(0, 0, canvas.width, canvas.height).data, canvas.width, canvas.height);
       const cod = qr?.data ? this.codigoDeTexto(qr.data) : '';
-      if (cod) { this.etqAsignar.codigo = cod; this.etqAsignar.error = ''; }
+      if (cod) { this.etqAsignar.codigo = cod; this.etqAsignar.leido = true; this.etqAsignar.error = ''; }
       else this.etqAsignar.error = 'No se encontró un QR de etiqueta DOZZER en la foto.';
     } catch { this.etqAsignar.error = 'No se pudo leer la foto.'; }
   }
@@ -8017,6 +8129,7 @@ export class AppComponent {
     const a = this.etqAsignar;
     const cod = this.codigoDeTexto(a?.codigo);
     if (!cod) { a.error = 'Escribe un código válido, por ejemplo DZ-000123.'; return; }
+    this.detenerEscanerEtiqueta();
     a.guardando = true; a.error = '';
     this.http.post<any>(this.api + '/etiquetas/' + encodeURIComponent(cod) + '/asignar', { idBien: a.bien.id_bien, reemplazar: !!a.reemplazar }).subscribe({
       next: () => {
