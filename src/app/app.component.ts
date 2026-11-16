@@ -1,5 +1,5 @@
 
-import { Component, ElementRef, EventEmitter, Input, Output, ViewChild } from '@angular/core';
+import { Component, ElementRef, EventEmitter, Input, OnInit, Output, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
@@ -112,6 +112,279 @@ interface FormatoDoc {
   styles: [':host{display:inline-flex;width:1.2em;height:1.2em;flex-shrink:0;vertical-align:-.22em}svg{width:100%;height:100%}']
 })
 export class IcoComponent { @Input() n = ''; }
+
+// Firma: un solo componente para todo DOZZER. Cada firmante elige cómo firmar:
+// con el dedo, con una foto de su firma en papel, subiendo una imagen, su firma guardada, o en papel.
+// Las fotos e imágenes se limpian solas (recorte, fondo transparente y tinta oscura).
+@Component({
+  selector: 'dz-firma',
+  standalone: true,
+  imports: [CommonModule, FormsModule],
+  template: `
+  <div class="df" [class.lista]="estado==='lista'">
+    <div class="df-cab">
+      <div class="df-quien"><b>{{ nombre || 'Sin nombre' }}</b><small *ngIf="rol">{{ rol }}</small></div>
+      <span class="df-estado" [ngClass]="'e-' + estado">{{ estado==='lista' ? '✓ Firmado' : estado==='papel' ? 'En papel' : (opcional ? 'Opcional' : 'Pendiente') }}</span>
+    </div>
+
+    <ng-container *ngIf="modo==='hecha'">
+      <div class="df-vista"><img [src]="actual" alt="Firma"></div>
+      <button type="button" class="df-link" (click)="rehacer()">Volver a firmar</button>
+    </ng-container>
+
+    <ng-container *ngIf="modo!=='hecha'">
+      <div class="df-modos" role="tablist">
+        <button type="button" *ngFor="let o of opciones" [class.on]="modo===o.k" (click)="elegir(o.k)">{{ o.t }}</button>
+      </div>
+
+      <div class="df-pad" [hidden]="modo!=='dedo'">
+        <canvas #lienzo width="600" height="220" (pointerdown)="bajar($event)" (pointermove)="mover($event)"
+                (pointerup)="subir()" (pointercancel)="subir()" (pointerleave)="subir()"></canvas>
+        <span class="df-guia" *ngIf="!trazos">Firma aquí con el dedo</span>
+        <button type="button" class="df-borrar" *ngIf="trazos" (click)="borrar()">Borrar</button>
+      </div>
+
+      <ng-container *ngIf="modo==='foto' || modo==='archivo'">
+        <div class="df-vista" *ngIf="imagen"><img [src]="imagen" alt="Firma"></div>
+        <label class="df-cargar" [class.off]="procesando">
+          <input type="file" accept="image/*" [attr.capture]="modo==='foto' ? 'environment' : null" (change)="cargar($event)" hidden>
+          <span>{{ procesando ? 'Preparando…' : imagen ? (modo==='foto' ? 'Tomar otra foto' : 'Elegir otra imagen') : (modo==='foto' ? '📷 Tomar foto de la firma' : '⬆ Elegir imagen de la firma') }}</span>
+          <small *ngIf="!imagen && !procesando">{{ modo==='foto' ? 'Firma en una hoja blanca y tómale foto de cerca' : 'PNG o JPG de la firma sobre fondo claro' }}</small>
+        </label>
+      </ng-container>
+
+      <div class="df-vista" *ngIf="modo==='mia'"><img [src]="miFirma" alt="Mi firma"></div>
+      <p class="df-papel" *ngIf="modo==='papel'">Firmará a mano en el formato impreso.</p>
+
+      <p class="df-error" *ngIf="error">{{ error }}</p>
+      <label class="df-recordar" *ngIf="propia && (modo==='dedo' || modo==='foto' || modo==='archivo') && valor">
+        <input type="checkbox" [(ngModel)]="recordar" (ngModelChange)="avisarMia()"> Guardar como mi firma
+      </label>
+    </ng-container>
+  </div>`,
+  styles: [`
+    :host{display:block}
+    .df{display:flex;flex-direction:column;gap:10px;padding:14px;border:1px solid #e3e8ef;border-radius:16px;background:#fff}
+    .df.lista{border-color:#cfe8da}
+    .df-cab{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+    .df-quien{display:flex;flex-direction:column;min-width:0}
+    .df-quien b{font-size:15px;color:#14243a}
+    .df-quien small{font-size:12.5px;color:#7a8799}
+    .df-estado{flex-shrink:0;font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;background:#eef1f5;color:#5d6d82}
+    .df-estado.e-lista{background:#e9f6ef;color:#1d7a4c}
+    .df-estado.e-papel{background:#fff3df;color:#8a4b00}
+    .df-modos{display:grid;grid-template-columns:repeat(auto-fit,minmax(58px,1fr));gap:3px;padding:3px;border-radius:12px;background:#eef1f5}
+    .df-modos button{min-width:0;height:34px;padding:0 6px;border:0;border-radius:9px;background:transparent;color:#4a5a70;font:inherit;font-size:13.5px;font-weight:650;cursor:pointer;white-space:nowrap}
+    .df-modos button.on{background:#fff;color:#14243a;box-shadow:0 1px 3px #17263d24}
+    .df-pad{position:relative;border:1.5px dashed #c9d3e0;border-radius:12px;background:#fbfcfd}
+    .df-pad canvas{display:block;width:100%;height:150px;touch-action:none;cursor:crosshair}
+    .df-guia{position:absolute;inset:0;display:grid;place-items:center;color:#a3aebd;font-size:14px;pointer-events:none}
+    .df-borrar{position:absolute;top:6px;right:6px;height:28px;padding:0 10px;border:0;border-radius:8px;background:#eef1f5;color:#4a5a70;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer}
+    .df-vista{display:grid;place-items:center;height:150px;border-radius:12px;background:#fbfcfd;border:1px solid #eef1f5}
+    .df-vista img{max-width:90%;max-height:130px}
+    .df-cargar{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-height:64px;padding:12px;border-radius:12px;background:#eef4fb;color:#1f4f86;cursor:pointer;text-align:center;margin:0}
+    .df-cargar span{font-size:14.5px;font-weight:700}
+    .df-cargar small{font-size:12.5px;color:#4a6a92}
+    .df-cargar.off{opacity:.6;pointer-events:none}
+    .df-papel{margin:0;padding:14px;border-radius:12px;background:#fff8ec;color:#7a4300;font-size:14px;text-align:center}
+    .df-error{margin:0;color:#b42318;font-size:13px}
+    .df-link{align-self:flex-start;border:0;background:transparent;padding:0;color:#3d6fb0;font:inherit;font-size:13.5px;font-weight:700;cursor:pointer}
+    .df-recordar{display:flex;align-items:center;gap:8px;margin:0;font-size:13.5px;color:#25364c;cursor:pointer}
+    .df-recordar input{width:17px;height:17px;margin:0}
+  `]
+})
+export class FirmaComponent implements OnInit {
+  @Input() nombre = '';
+  @Input() rol = '';
+  @Input() actual: string | null = null;
+  @Input() propia = false;
+  @Input() miFirma = '';
+  @Input() permitirPapel = true;
+  @Input() opcional = false;
+  @Input() valor: string | null = null;
+  @Output() valorChange = new EventEmitter<string | null>();
+  @Input() papel = false;
+  @Output() papelChange = new EventEmitter<boolean>();
+  @Output() guardarMia = new EventEmitter<string>();
+  @ViewChild('lienzo') lienzo?: ElementRef<HTMLCanvasElement>;
+
+  modo: 'dedo' | 'foto' | 'archivo' | 'mia' | 'papel' | 'hecha' = 'dedo';
+  trazos = false;
+  imagen = '';
+  procesando = false;
+  error = '';
+  recordar = false;
+  private ultimo: [number, number] | null = null;
+
+  ngOnInit(): void {
+    if (this.actual) this.modo = 'hecha';
+    else if (this.papel) this.modo = 'papel';
+    else if (this.propia && this.miFirma) { this.modo = 'mia'; setTimeout(() => this.emitir(this.miFirma)); }
+  }
+
+  get opciones(): { k: any; t: string }[] {
+    const l: { k: any; t: string }[] = [];
+    if (this.propia && this.miFirma) l.push({ k: 'mia', t: 'Mi firma' });
+    l.push({ k: 'dedo', t: 'Dedo' }, { k: 'foto', t: 'Foto' }, { k: 'archivo', t: 'Archivo' });
+    if (this.permitirPapel) l.push({ k: 'papel', t: 'Papel' });
+    return l;
+  }
+
+  get estado(): 'lista' | 'papel' | 'pendiente' {
+    if (this.modo === 'hecha' || this.valor) return 'lista';
+    if (this.papel) return 'papel';
+    return 'pendiente';
+  }
+
+  private emitir(v: string | null): void {
+    this.valor = v;
+    this.valorChange.emit(v);
+    if (v && this.recordar && this.modo !== 'mia') this.guardarMia.emit(v);
+  }
+  private ponerPapel(p: boolean): void {
+    if (this.papel === p) return;
+    this.papel = p;
+    this.papelChange.emit(p);
+  }
+
+  elegir(m: any): void {
+    this.modo = m;
+    this.error = '';
+    if (m === 'papel') { this.ponerPapel(true); this.emitir(null); return; }
+    this.ponerPapel(false);
+    if (m === 'mia') this.emitir(this.miFirma);
+    else if (m === 'dedo') this.emitir(this.trazos && this.lienzo ? this.lienzo.nativeElement.toDataURL('image/png') : null);
+    else this.emitir(this.imagen || null);
+  }
+
+  rehacer(): void {
+    this.modo = this.propia && this.miFirma ? 'mia' : 'dedo';
+    this.emitir(this.modo === 'mia' ? this.miFirma : null);
+  }
+
+  avisarMia(): void {
+    if (this.recordar && this.valor) this.guardarMia.emit(this.valor);
+  }
+
+  // ----- Dibujo con el dedo -----
+  private punto(ev: PointerEvent): [number, number] {
+    const c = this.lienzo!.nativeElement, r = c.getBoundingClientRect();
+    return [(ev.clientX - r.left) * c.width / r.width, (ev.clientY - r.top) * c.height / r.height];
+  }
+  bajar(ev: PointerEvent): void {
+    if (!this.lienzo) return;
+    ev.preventDefault();
+    try { this.lienzo.nativeElement.setPointerCapture(ev.pointerId); } catch { /* */ }
+    this.ultimo = this.punto(ev);
+    this.trazos = true;
+  }
+  mover(ev: PointerEvent): void {
+    if (!this.ultimo || !this.lienzo) return;
+    ev.preventDefault();
+    const p = this.punto(ev);
+    const ctx = this.lienzo.nativeElement.getContext('2d') as CanvasRenderingContext2D;
+    ctx.strokeStyle = '#0d1b33'; ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(this.ultimo[0], this.ultimo[1]); ctx.lineTo(p[0], p[1]); ctx.stroke();
+    this.ultimo = p;
+  }
+  subir(): void {
+    if (!this.ultimo) return;
+    this.ultimo = null;
+    if (this.lienzo && this.trazos) this.emitir(this.lienzo.nativeElement.toDataURL('image/png'));
+  }
+  borrar(): void {
+    if (!this.lienzo) return;
+    const c = this.lienzo.nativeElement;
+    (c.getContext('2d') as CanvasRenderingContext2D).clearRect(0, 0, c.width, c.height);
+    this.trazos = false;
+    this.emitir(null);
+  }
+
+  // ----- Foto o archivo: se limpia y se deja como firma con fondo transparente -----
+  async cargar(ev: Event): Promise<void> {
+    const input = ev.target as HTMLInputElement;
+    const archivo = input.files?.[0];
+    input.value = '';
+    if (!archivo) return;
+    this.procesando = true;
+    this.error = '';
+    try {
+      const url = await this.limpiar(archivo);
+      this.imagen = url;
+      this.emitir(url);
+    } catch (e: any) {
+      this.error = e?.message || 'No se pudo leer la imagen.';
+    }
+    this.procesando = false;
+  }
+
+  private async abrirImagen(archivo: File): Promise<CanvasImageSource & { width: number; height: number }> {
+    try { return await (window as any).createImageBitmap(archivo, { imageOrientation: 'from-image' }); } catch { /* navegador sin soporte */ }
+    return await new Promise((ok, mal) => {
+      const img = new Image();
+      img.onload = () => ok(img as any);
+      img.onerror = () => mal(new Error('No se pudo abrir la imagen.'));
+      img.src = URL.createObjectURL(archivo);
+    });
+  }
+
+  private async limpiar(archivo: File): Promise<string> {
+    const img = await this.abrirImagen(archivo);
+    const escala = Math.min(1, 1400 / Math.max(img.width, img.height));
+    const w = Math.max(1, Math.round(img.width * escala)), h = Math.max(1, Math.round(img.height * escala));
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const ctx = c.getContext('2d', { willReadFrequently: true } as any) as CanvasRenderingContext2D;
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(img, 0, 0, w, h);
+    const datos = ctx.getImageData(0, 0, w, h).data;
+    const lum = new Float32Array(w * h);
+    for (let i = 0, p = 0; p < lum.length; i += 4, p++) lum[p] = 0.299 * datos[i] + 0.587 * datos[i + 1] + 0.114 * datos[i + 2];
+    // Fondo local: el punto más claro de cada zona (y sus vecinas), así las sombras y degradados no cuentan como tinta
+    const B = 28, gw = Math.ceil(w / B), gh = Math.ceil(h / B);
+    const claro = new Float32Array(gw * gh);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const k = Math.floor(y / B) * gw + Math.floor(x / B); if (lum[y * w + x] > claro[k]) claro[k] = lum[y * w + x]; }
+    const fondoZona = new Float32Array(gw * gh);
+    for (let gy = 0; gy < gh; gy++) for (let gx = 0; gx < gw; gx++) {
+      let mx = 0;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const yy = gy + dy, xx = gx + dx; if (yy >= 0 && xx >= 0 && yy < gh && xx < gw) mx = Math.max(mx, claro[yy * gw + xx]); }
+      fondoZona[gy * gw + gx] = Math.max(mx, 40);
+    }
+    const proporcion = (x: number, y: number) => lum[y * w + x] / fondoZona[Math.floor(y / B) * gw + Math.floor(x / B)];
+    let x0 = w, y0 = h, x1 = -1, y1 = -1, tinta = 0;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      if (proporcion(x, y) < 0.68) { tinta++; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    }
+    if (x1 < 0 || tinta < 40) throw new Error('No se distingue la firma. Usa tinta oscura sobre una hoja blanca y buena luz.');
+    if (tinta > w * h * 0.35) throw new Error('La imagen tiene demasiado oscuro alrededor. Toma la foto más de cerca, solo a la firma.');
+    const m = 8;
+    x0 = Math.max(0, x0 - m); y0 = Math.max(0, y0 - m); x1 = Math.min(w - 1, x1 + m); y1 = Math.min(h - 1, y1 + m);
+    const cw = x1 - x0 + 1, ch = y1 - y0 + 1;
+    let salida = '';
+    for (let factor = 1; factor > 0.3; factor *= 0.8) {
+      const s = Math.min(1, 600 / cw, 220 / ch) * factor;
+      const ow = Math.max(1, Math.round(cw * s)), oh = Math.max(1, Math.round(ch * s));
+      // Recorte a tamaño final y conversión a tinta con transparencia
+      // Máscara a tamaño completo del recorte; después se reduce al tamaño final
+      const mk = document.createElement('canvas'); mk.width = cw; mk.height = ch;
+      const mc = mk.getContext('2d') as CanvasRenderingContext2D;
+      const mpx = mc.createImageData(cw, ch), md = mpx.data;
+      for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) {
+        const a = Math.max(0, Math.min(1, (0.86 - proporcion(x0 + x, y0 + y)) / 0.26));
+        const i = (y * cw + x) * 4;
+        md[i] = 13; md[i + 1] = 27; md[i + 2] = 51; md[i + 3] = Math.round(a * 255);
+      }
+      mc.putImageData(mpx, 0, 0);
+      const r = document.createElement('canvas'); r.width = ow; r.height = oh;
+      const rc = r.getContext('2d') as CanvasRenderingContext2D;
+      rc.imageSmoothingQuality = 'high';
+      rc.drawImage(mk, 0, 0, ow, oh);
+      salida = r.toDataURL('image/png');
+      if (salida.length < 190000) break;
+    }
+    return salida;
+  }
+}
+
 
 // Selector propio (reemplaza al <select> del navegador, que en el celular se ve oscuro y sin búsqueda).
 // En la computadora se abre como menú bajo el campo; en el celular, como hoja desde abajo.
@@ -241,7 +514,7 @@ export class ElegirComponent {
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, FormsModule, IcoComponent, ElegirComponent],
+  imports: [CommonModule, FormsModule, IcoComponent, ElegirComponent, FirmaComponent],
   template: `
   <div class="app-shell">
 
@@ -533,26 +806,14 @@ export class ElegirComponent {
           <div class="modal-header">
             <div>
               <h2>Firmas del formato</h2>
-              <p>{{ fd.titulo }} · Folio {{ fd.folio }}. Cada quien firma con el dedo; quien no esté, firma en papel.</p>
+              <p>{{ fd.titulo }} · Folio {{ fd.folio }}. Cada quien elige cómo firmar; quien no esté, firma en papel.</p>
             </div>
             <button class="close-button" [disabled]="fd.guardando" (click)="firmaDoc=null">×</button>
           </div>
           <div class="form-section">
-            <div class="cierre-firma" *ngFor="let f of fd.lugares">
-              <label class="firma-lbl">{{ f.nombre || 'Sin nombre' }} <span class="muted">· {{ f.rol }}</span></label>
-              <div class="firma-hecha" *ngIf="f.actual && !fd.rehacer[f.k]">
-                <img [src]="f.actual" alt="Firma guardada">
-                <button type="button" class="btn-outline btn-small" (click)="fd.rehacer[f.k]=true">Volver a firmar</button>
-              </div>
-              <ng-container *ngIf="!f.actual || fd.rehacer[f.k]">
-                <div class="firma-pad" [hidden]="fd.papel[f.k]">
-                  <canvas [id]="'firma-doc-' + f.k" #fdc width="600" height="220" (pointerdown)="firmaDown($event, fdc, 'd' + f.k)" (pointermove)="firmaMove($event, fdc, 'd' + f.k)"
-                          (pointerup)="firmaUp('d' + f.k)" (pointercancel)="firmaUp('d' + f.k)" (pointerleave)="firmaUp('d' + f.k)"></canvas>
-                  <span class="firma-guia" *ngIf="!fd.trazos['d' + f.k]">Firme aquí con el dedo</span>
-                  <button class="firma-borrar" *ngIf="fd.trazos['d' + f.k]" (click)="borrarFirma(fdc, 'd' + f.k)">Borrar</button>
-                </div>
-                <label class="cm-check"><input type="checkbox" [(ngModel)]="fd.papel[f.k]"> Firmará en papel</label>
-              </ng-container>
+            <div class="df-lista">
+              <dz-firma *ngFor="let f of fd.lugares" [nombre]="f.nombre" [rol]="f.rol" [actual]="f.actual"
+                        [(valor)]="fd.img[f.k]" [(papel)]="fd.papel[f.k]" [propia]="soyYo(f.nombre)" [miFirma]="miFirma" (guardarMia)="guardarMiFirma($event)"></dz-firma>
             </div>
           </div>
           <div class="inline-error" *ngIf="fd.error" style="margin:0 24px 12px">{{ fd.error }}</div>
@@ -769,7 +1030,7 @@ export class ElegirComponent {
               </div>
 
               <div class="doc-side">
-                <button class="ver-acta firmar-doc" *ngIf="isAdmin && d.datos.idDocumento && (d.datos.tipo==='ALTA' || d.datos.tipo==='BAJA') && !d.datos.anulado" (click)="abrirFirmaFormato()">
+                <button class="ver-acta firmar-doc" *ngIf="isAdmin && d.datos.idDocumento && (d.datos.tipo==='ALTA' || d.datos.tipo==='BAJA' || d.datos.tipo==='TRANSFERENCIA') && !d.datos.anulado" (click)="abrirFirmaFormato()">
                   <span class="ver-acta-ico"><ico n="edit"></ico></span>
                   <span class="ver-acta-txt"><b>{{ firmasDe(d.datos) ? 'Firmas (' + firmasDe(d.datos) + ' de 3)' : 'Firmar en el celular' }}</b><small>Solicitó, autorizó y validó firman con el dedo</small></span>
                   <ico class="ver-acta-go" n="chev"></ico>
@@ -2375,15 +2636,9 @@ export class ElegirComponent {
                     <span class="ver-acta-txt"><b>Ver el acta antes de firmar</b><small>Revisa lo que van a firmar; al cerrarla regresas aquí</small></span>
                     <ico class="ver-acta-go" n="chev"></ico>
                   </button>
-                  <div class="cierre-firma" *ngFor="let p of r.participantes; let i = index">
-                    <label class="firma-lbl">{{ p.nombre }} <span class="muted">· {{ p.cargo }}</span></label>
-                    <div class="firma-pad" [hidden]="z.papel[i]">
-                      <canvas [id]="'firma-cierre-' + i" #fc width="600" height="220" (pointerdown)="firmaDown($event, fc, 'c' + i)" (pointermove)="firmaMove($event, fc, 'c' + i)"
-                              (pointerup)="firmaUp('c' + i)" (pointercancel)="firmaUp('c' + i)" (pointerleave)="firmaUp('c' + i)"></canvas>
-                      <span class="firma-guia" *ngIf="!z.trazos['c' + i]">Firme aquí con el dedo</span>
-                      <button class="firma-borrar" *ngIf="z.trazos['c' + i]" (click)="borrarFirma(fc, 'c' + i)">Borrar</button>
-                    </div>
-                    <label class="cm-check"><input type="checkbox" [(ngModel)]="z.papel[i]"> Firmará en papel</label>
+                  <div class="df-lista">
+                    <dz-firma *ngFor="let p of r.participantes; let i = index" [nombre]="p.nombre" [rol]="p.cargo"
+                              [(valor)]="z.img[i]" [(papel)]="z.papel[i]" [propia]="soyYo(p.nombre)" [miFirma]="miFirma" (guardarMia)="guardarMiFirma($event)"></dz-firma>
                   </div>
                 </div>
 
@@ -2567,31 +2822,17 @@ export class ElegirComponent {
 
                 <div class="cap-step">
                   <div class="step-title"><span>{{ t.pendientes.length ? 3 : 2 }}</span> Firmas</div>
-                  <label class="firma-lbl">Firma de {{ cap.grupo?.nombre }}{{ t.conforme ? '' : ' (opcional)' }}</label>
-                  <div class="firma-pad">
-                    <canvas #firmaA width="600" height="220" (pointerdown)="firmaDown($event, firmaA, 'a')" (pointermove)="firmaMove($event, firmaA, 'a')"
-                            (pointerup)="firmaUp('a')" (pointercancel)="firmaUp('a')" (pointerleave)="firmaUp('a')"></canvas>
-                    <span class="firma-guia" *ngIf="!t.trazos.a">Firme aquí con el dedo</span>
-                    <button class="firma-borrar" *ngIf="t.trazos.a" (click)="borrarFirma(firmaA, 'a')">Borrar</button>
+                  <div class="df-lista">
+                    <dz-firma [nombre]="cap.grupo?.nombre" rol="Resguardante" [opcional]="!t.conforme" [permitirPapel]="false" [(valor)]="t.imgA"></dz-firma>
+                    <dz-firma [nombre]="nombreUsuario || email" rol="Responsable del inventario" [propia]="true" [miFirma]="miFirma" [permitirPapel]="false"
+                              [(valor)]="t.imgB" (guardarMia)="guardarMiFirma($event)"></dz-firma>
                   </div>
-                  <label class="firma-lbl">Firma de {{ nombreUsuario || email }} · responsable del inventario</label>
-                  <ng-container *ngIf="t.usarGuardada && firmaGuardada">
-                    <img class="firma-img" [src]="firmaGuardada" alt="Firma guardada">
-                  </ng-container>
-                  <div class="firma-pad" [hidden]="t.usarGuardada && firmaGuardada">
-                    <canvas #firmaB width="600" height="220" (pointerdown)="firmaDown($event, firmaB, 'b')" (pointermove)="firmaMove($event, firmaB, 'b')"
-                            (pointerup)="firmaUp('b')" (pointercancel)="firmaUp('b')" (pointerleave)="firmaUp('b')"></canvas>
-                    <span class="firma-guia" *ngIf="!t.trazos.b">Firme aquí con el dedo</span>
-                    <button class="firma-borrar" *ngIf="t.trazos.b" (click)="borrarFirma(firmaB, 'b')">Borrar</button>
-                  </div>
-                  <label class="cm-check" *ngIf="firmaGuardada"><input type="checkbox" [(ngModel)]="t.usarGuardada"> Usar mi firma guardada en este celular</label>
-                  <label class="cm-check" *ngIf="!(t.usarGuardada && firmaGuardada)"><input type="checkbox" [(ngModel)]="t.recordar"> Recordar mi firma en este celular</label>
                 </div>
 
                 <div class="inline-error" *ngIf="t.error">{{ t.error }}</div>
                 <div class="cap-footer">
                   <button class="btn-outline" [disabled]="t.guardando" (click)="cap.paso='escanear'">Cancelar</button>
-                  <button class="btn-primary" [disabled]="t.guardando" (click)="firmarYTerminar(firmaA, firmaB)">
+                  <button class="btn-primary" [disabled]="t.guardando" (click)="firmarYTerminar()">
                     <span class="mini-ring light" *ngIf="t.guardando"></span>
                     {{ t.guardando ? 'Guardando…' : '✍ Firmar y terminar' }}
                   </button>
@@ -2831,7 +3072,7 @@ export class ElegirComponent {
                 <div class="modal-header">
                   <div>
                     <h2>Firmas del acta de inicio</h2>
-                    <p>{{ fi.lev.sede | titlecase }} · Inventario {{ fi.lev.anio }} · {{ semestre(fi.lev) }}. Cada participante firma con el dedo; después verás el acta en PDF.</p>
+                    <p>{{ fi.lev.sede | titlecase }} · Inventario {{ fi.lev.anio }} · {{ semestre(fi.lev) }}. Cada participante elige cómo firmar; después verás el acta en PDF.</p>
                   </div>
                   <button class="close-button" [disabled]="fi.guardando" (click)="firmaIni=null">×</button>
                 </div>
@@ -2841,15 +3082,9 @@ export class ElegirComponent {
                     <span class="ver-acta-txt"><b>Ver el acta antes de firmar</b><small>Revisa lo que van a firmar; al cerrarla regresas aquí</small></span>
                     <ico class="ver-acta-go" n="chev"></ico>
                   </button>
-                  <div class="cierre-firma" *ngFor="let p of fi.ps; let i = index">
-                    <label class="firma-lbl">{{ p.nombre }} <span class="muted">· {{ p.cargo }}</span></label>
-                    <div class="firma-pad" [hidden]="fi.papel[i]">
-                      <canvas [id]="'firma-inicio-' + i" #fi_c width="600" height="220" (pointerdown)="firmaDown($event, fi_c, 'i' + i)" (pointermove)="firmaMove($event, fi_c, 'i' + i)"
-                              (pointerup)="firmaUp('i' + i)" (pointercancel)="firmaUp('i' + i)" (pointerleave)="firmaUp('i' + i)"></canvas>
-                      <span class="firma-guia" *ngIf="!fi.trazos['i' + i]">Firme aquí con el dedo</span>
-                      <button class="firma-borrar" *ngIf="fi.trazos['i' + i]" (click)="borrarFirma(fi_c, 'i' + i)">Borrar</button>
-                    </div>
-                    <label class="cm-check"><input type="checkbox" [(ngModel)]="fi.papel[i]"> Firmará en papel</label>
+                  <div class="df-lista">
+                    <dz-firma *ngFor="let p of fi.ps; let i = index" [nombre]="p.nombre" [rol]="p.cargo"
+                              [(valor)]="fi.img[i]" [(papel)]="fi.papel[i]" [propia]="soyYo(p.nombre)" [miFirma]="miFirma" (guardarMia)="guardarMiFirma($event)"></dz-firma>
                   </div>
                 </div>
                 <div class="inline-error" *ngIf="fi.error" style="margin:0 24px 12px">{{ fi.error }}</div>
@@ -3247,19 +3482,11 @@ export class ElegirComponent {
 
                   <!-- Firmar para autorizar o aprobar -->
                   <div class="rq-firmar" *ngIf="D.firma as Fm">
-                    <label class="firma-lbl">Tu firma para {{ Fm.paso==='autorizar' ? 'autorizar' : 'aprobar' }}</label>
-                    <ng-container *ngIf="Fm.usarGuardada && firmaGuardada"><img class="firma-img" [src]="firmaGuardada" alt="Firma guardada"></ng-container>
-                    <div class="firma-pad" [hidden]="Fm.usarGuardada && firmaGuardada">
-                      <canvas #rqFirmaPaso width="600" height="220" (pointerdown)="firmaDown($event, rqFirmaPaso, 'rp')" (pointermove)="firmaMove($event, rqFirmaPaso, 'rp')"
-                              (pointerup)="firmaUp('rp')" (pointercancel)="firmaUp('rp')" (pointerleave)="firmaUp('rp')"></canvas>
-                      <span class="firma-guia" *ngIf="!Fm.trazos.rp">Firma aquí con el dedo</span>
-                      <button class="firma-borrar" *ngIf="Fm.trazos.rp" (click)="borrarFirma(rqFirmaPaso, 'rp')">Borrar</button>
-                    </div>
-                    <label class="cm-check" *ngIf="firmaGuardada"><input type="checkbox" [(ngModel)]="Fm.usarGuardada"> Usar mi firma guardada en este equipo</label>
-                    <label class="cm-check"><input type="checkbox" [(ngModel)]="Fm.papel"> Firmaré en papel</label>
+                    <dz-firma [nombre]="nombreUsuario || email" [rol]="Fm.paso==='autorizar' ? 'Autoriza' : 'Aprueba'" [propia]="true" [miFirma]="miFirma"
+                              [(valor)]="Fm.img" [(papel)]="Fm.papel" (guardarMia)="guardarMiFirma($event)"></dz-firma>
                     <div class="rq-btns">
                       <button class="btn-outline" [disabled]="D.guardando" (click)="D.firma=null">Atrás</button>
-                      <button class="btn-primary" [disabled]="D.guardando" (click)="confirmarPasoRq(rqFirmaPaso)">
+                      <button class="btn-primary" [disabled]="D.guardando" (click)="confirmarPasoRq()">
                         <span class="mini-ring light" *ngIf="D.guardando"></span>{{ Fm.paso==='autorizar' ? '✓ Autorizar' : '✓ Aprobar' }}
                       </button>
                     </div>
@@ -3369,21 +3596,13 @@ export class ElegirComponent {
                   </div>
 
                   <div class="ni-paso"><span class="ni-n">3</span><b>Tu firma</b></div>
-                  <ng-container *ngIf="N.usarGuardada && firmaGuardada"><img class="firma-img" [src]="firmaGuardada" alt="Firma guardada"></ng-container>
-                  <div class="firma-pad" [hidden]="(N.usarGuardada && firmaGuardada) || N.papel">
-                    <canvas #rqFirmaNueva width="600" height="220" (pointerdown)="firmaDown($event, rqFirmaNueva, 'rn')" (pointermove)="firmaMove($event, rqFirmaNueva, 'rn')"
-                            (pointerup)="firmaUp('rn')" (pointercancel)="firmaUp('rn')" (pointerleave)="firmaUp('rn')"></canvas>
-                    <span class="firma-guia" *ngIf="!N.trazos.rn">Firma aquí con el dedo</span>
-                    <button class="firma-borrar" *ngIf="N.trazos.rn" (click)="borrarFirma(rqFirmaNueva, 'rn')">Borrar</button>
-                  </div>
-                  <label class="cm-check" *ngIf="firmaGuardada"><input type="checkbox" [(ngModel)]="N.usarGuardada"> Usar mi firma guardada en este equipo</label>
-                  <label class="cm-check" *ngIf="!firmaGuardada && !N.papel"><input type="checkbox" [(ngModel)]="N.recordar"> Recordar mi firma en este equipo</label>
-                  <label class="cm-check"><input type="checkbox" [(ngModel)]="N.papel"> Firmaré en papel</label>
+                  <dz-firma [nombre]="nombreUsuario || email" rol="Solicita" [propia]="true" [miFirma]="miFirma"
+                            [(valor)]="N.img" [(papel)]="N.papel" (guardarMia)="guardarMiFirma($event)"></dz-firma>
                 </div>
                 <div class="inline-error" *ngIf="N.error" style="margin:0 24px 12px">{{ N.error }}</div>
                 <div class="modal-footer">
                   <button class="btn-outline" [disabled]="N.guardando" (click)="rqNueva=null">Cancelar</button>
-                  <button class="btn-primary" [disabled]="N.guardando" (click)="enviarRequisicion(rqFirmaNueva)">
+                  <button class="btn-primary" [disabled]="N.guardando" (click)="enviarRequisicion()">
                     <span class="mini-ring light" *ngIf="N.guardando"></span>{{ N.guardando ? 'Enviando…' : 'Enviar requisición' }}
                   </button>
                 </div>
@@ -5371,6 +5590,7 @@ export class ElegirComponent {
     .cola-item small{font-size:12.5px;color:#7d8a9b}
     .cola-item.err{border-color:#efc4c7;background:#fdf6f6}
     .cola-item.err small{color:#bd4b52}
+    .df-lista{display:flex;flex-direction:column;gap:12px}
     .cierre-firma{display:flex;flex-direction:column;gap:6px;padding:8px 0;border-bottom:1px solid #eef1f5}
     .cierre-firma:last-child{border-bottom:0}
     .chk{display:flex;flex-direction:column;gap:10px;margin-top:6px}
@@ -7153,6 +7373,7 @@ export class AppComponent {
     if (etiqueta) setTimeout(() => this.abrirEtiquetaDesdeUrl(etiqueta!), 600);
     this.loadLevantamientos();
     this.loadBienes();
+    this.cargarMiFirma();
     Object.keys(this.catalogs).forEach(k => this.loadCatalog(k));
     this.loadSolicitudes();
     this.loadRequisiciones();
@@ -9483,7 +9704,7 @@ export class AppComponent {
     p.categoria = hit ? hit[0] : (t.trim() ? p.categoria : '');
   }
 
-  enviarRequisicion(canvas: HTMLCanvasElement): void {
+  enviarRequisicion(): void {
     const n = this.rqNueva;
     if (!n || n.guardando) return;
     n.error = '';
@@ -9500,10 +9721,8 @@ export class AppComponent {
     if (malaCant) { n.error = 'Revisa la cantidad de "' + malaCant.descripcion + '".'; return; }
     let firma: string | null = null;
     if (!n.papel) {
-      if (n.usarGuardada && this.firmaGuardada) firma = this.firmaGuardada;
-      else if (n.trazos.rn) firma = canvas.toDataURL('image/png');
-      else { n.error = 'Firma con el dedo o marca "Firmaré en papel".'; return; }
-      if (!n.usarGuardada && n.recordar && firma) { try { localStorage.setItem('dozzer_firma_' + this.email, firma); } catch { /* */ } }
+      if (n.img) firma = n.img;
+      else { n.error = 'Agrega tu firma o elige "En papel".'; return; }
     }
     n.guardando = true;
     this.http.post<any>(this.api + '/requisiciones', {
@@ -9533,18 +9752,17 @@ export class AppComponent {
   }
 
   pedirFirmaRq(paso: 'autorizar' | 'aprobar'): void {
-    this.rqDet.firma = { paso, trazos: {}, usarGuardada: !!this.firmaGuardada, papel: false };
+    this.rqDet.firma = { paso, img: null, papel: false };
     this.rqDet.error = '';
   }
 
-  confirmarPasoRq(canvas: HTMLCanvasElement): void {
+  confirmarPasoRq(): void {
     const D = this.rqDet, Fm = D?.firma;
     if (!Fm || D.guardando) return;
     let firma: string | null = null;
     if (!Fm.papel) {
-      if (Fm.usarGuardada && this.firmaGuardada) firma = this.firmaGuardada;
-      else if (Fm.trazos.rp) firma = canvas.toDataURL('image/png');
-      else { D.error = 'Firma con el dedo o marca "Firmaré en papel".'; return; }
+      if (Fm.img) firma = Fm.img;
+      else { D.error = 'Agrega tu firma o elige "En papel".'; return; }
     }
     D.guardando = true; D.error = '';
     this.http.post<any>(this.api + '/requisiciones/' + D.r.idDocumento + '/' + Fm.paso, { firma }).subscribe({
@@ -10066,12 +10284,16 @@ export class AppComponent {
     const f = d.firmas || {};
     this.firmaDoc = {
       id: d.idDocumento, folio: d.folio, titulo: this.tituloDoc(d),
-      lugares: [
+      lugares: d.tipo === 'TRANSFERENCIA' ? [
+        { k: 'solicito', nombre: this.titulo(d.entrega && !String(d.entrega).startsWith('Varios') ? d.entrega : ''), rol: 'Entrega', actual: f.solicito },
+        { k: 'autorizo', nombre: this.titulo(d.recibe || ''), rol: 'Recibe', actual: f.autorizo },
+        { k: 'valido', nombre: d.autorizo, rol: 'Autorizó', actual: f.valido }
+      ] : [
         { k: 'solicito', nombre: d.solicito, rol: 'Solicitó', actual: f.solicito },
         { k: 'autorizo', nombre: d.autorizo, rol: 'Autorizó', actual: f.autorizo },
         { k: 'valido', nombre: 'Ing. Juan Carlos Zuno Muñiz', rol: 'Validó', actual: f.valido }
       ],
-      papel: {}, trazos: {}, rehacer: {}, guardando: false, error: ''
+      papel: {}, img: {}, guardando: false, error: ''
     };
   }
 
@@ -10080,14 +10302,10 @@ export class AppComponent {
     if (!z || z.guardando) return;
     const firmas: any = {};
     for (const l of z.lugares) {
-      if (l.actual && !z.rehacer[l.k]) continue;                 // ya estaba firmada
-      if (z.papel[l.k]) { firmas[l.k] = ''; continue; }           // firmará en papel
-      if (z.trazos['d' + l.k]) {
-        const c = document.getElementById('firma-doc-' + l.k) as HTMLCanvasElement | null;
-        if (c) firmas[l.k] = c.toDataURL('image/png');
-      }
+      if (z.papel[l.k]) { if (l.actual) firmas[l.k] = ''; continue; }   // firmará en papel
+      if (z.img[l.k]) firmas[l.k] = z.img[l.k];                        // nueva firma
     }
-    if (!Object.keys(firmas).length) { z.error = 'Dibuja al menos una firma (o cierra si no van a firmar ahora).'; return; }
+    if (!Object.keys(firmas).length) { z.error = 'Agrega al menos una firma (o cierra si no van a firmar ahora).'; return; }
     z.guardando = true; z.error = '';
     this.http.post<any>(this.api + '/documentos/' + z.id + '/firmas', { firmas }).subscribe({
       next: () => {
@@ -10153,19 +10371,15 @@ export class AppComponent {
   }
 
   abrirFirmasInicio(l: any): void {
-    this.firmaIni = { lev: l, ps: l.participantes || [], papel: {}, trazos: {}, guardando: false, error: '' };
+    this.firmaIni = { lev: l, ps: l.participantes || [], papel: {}, img: {}, guardando: false, error: '' };
   }
 
   guardarFirmasInicio(): void {
     const z = this.firmaIni;
     if (!z || z.guardando) return;
-    const falta = z.ps.findIndex((_: any, i: number) => !z.papel[i] && !z.trazos['i' + i]);
-    if (falta >= 0) { z.error = 'Falta la firma de ' + z.ps[falta].nombre + ' (o marca "Firmará en papel").'; return; }
-    const firmas = z.ps.map((_: any, i: number) => {
-      if (z.papel[i]) return null;
-      const c = document.getElementById('firma-inicio-' + i) as HTMLCanvasElement | null;
-      return c ? c.toDataURL('image/png') : null;
-    });
+    const falta = z.ps.findIndex((_: any, i: number) => !z.papel[i] && !z.img[i]);
+    if (falta >= 0) { z.error = 'Falta la firma de ' + z.ps[falta].nombre + ' (o elige "En papel").'; return; }
+    const firmas = z.ps.map((_: any, i: number) => z.papel[i] ? null : z.img[i]);
     z.guardando = true; z.error = '';
     this.http.post<any>(this.api + '/levantamientos/' + z.lev.idLevantamiento + '/firmas-inicio', { firmas }).subscribe({
       next: r => {
@@ -10343,7 +10557,7 @@ export class AppComponent {
     this.detenerTimerAvance();
     this.av = null;
     this.anualVista = 'cierre';
-    this.cierre = { lev: l, cargando: true, resumen: null, papel: [], trazos: {}, guardando: false, error: '', verSin: false };
+    this.cierre = { lev: l, cargando: true, resumen: null, papel: [], img: {}, guardando: false, error: '', verSin: false };
     const z = this.cierre;
     this.http.get<any>(this.api + '/levantamientos/' + l.idLevantamiento + '/cierre-resumen').subscribe({
       next: r => { z.resumen = r; z.papel = (r.participantes || []).map(() => false); z.cargando = false; },
@@ -10362,13 +10576,9 @@ export class AppComponent {
     const z = this.cierre;
     if (!z?.resumen || z.guardando) return;
     const ps: any[] = z.resumen.participantes || [];
-    const sinNada = ps.findIndex((_, i) => !z.papel[i] && !z.trazos['c' + i]);
-    if (sinNada >= 0) { z.error = 'Falta la firma de ' + ps[sinNada].nombre + ' (o marca "Firmará en papel").'; return; }
-    const firmas = ps.map((_, i) => {
-      if (z.papel[i]) return null;
-      const c = document.getElementById('firma-cierre-' + i) as HTMLCanvasElement | null;
-      return c ? c.toDataURL('image/png') : null;
-    });
+    const sinNada = ps.findIndex((_, i) => !z.papel[i] && !z.img[i]);
+    if (sinNada >= 0) { z.error = 'Falta la firma de ' + ps[sinNada].nombre + ' (o elige "En papel").'; return; }
+    const firmas = ps.map((_, i) => z.papel[i] ? null : z.img[i]);
     z.guardando = true; z.error = '';
     this.http.post<any>(this.api + '/levantamientos/' + z.lev.idLevantamiento + '/cerrar', { firmas }).subscribe({
       next: r => {
@@ -11535,8 +11745,38 @@ export class AppComponent {
     return ({ FIRMADO: '✍ Firmado', CON_DIFERENCIAS: '⚠ Con diferencias', REQUIERE_FIRMA: '↻ Firmar de nuevo', EN_PROCESO: '' } as any)[e] || '';
   }
 
+  // Mi firma: se guarda en la base de datos (y una copia en el equipo para usarla sin señal)
+  miFirma = '';
   get firmaGuardada(): string {
-    try { return localStorage.getItem('dozzer_firma_' + this.email) || ''; } catch { return ''; }
+    return this.miFirma;
+  }
+
+  cargarMiFirma(): void {
+    try { this.miFirma = localStorage.getItem('dozzer_firma_' + this.email) || ''; } catch { this.miFirma = ''; }
+    this.http.get<any>(this.api + '/usuarios/mi-firma').subscribe({
+      next: r => {
+        if (r?.firma) { this.miFirma = r.firma; try { localStorage.setItem('dozzer_firma_' + this.email, r.firma); } catch { /* */ } }
+        else if (this.miFirma) this.http.put(this.api + '/usuarios/mi-firma', { firma: this.miFirma }).subscribe({ error: () => {} });
+      },
+      error: () => { /* servidor sin esta función: se usa la copia del equipo */ }
+    });
+  }
+
+  guardarMiFirma(firma: string): void {
+    if (!firma) return;
+    this.miFirma = firma;
+    try { localStorage.setItem('dozzer_firma_' + this.email, firma); } catch { /* */ }
+    this.http.put(this.api + '/usuarios/mi-firma', { firma }).subscribe({
+      next: () => this.notificar('exito', 'Firma guardada', 'Ya puedes usarla en cualquier celular o computadora.', 2500),
+      error: () => this.notificar('info', 'Firma guardada en este equipo', 'Se usará aquí; en otros equipos estará disponible cuando se actualice el servidor.', 3500)
+    });
+  }
+
+  // ¿Ese nombre es el del usuario de la sesión? (para ofrecerle su firma guardada)
+  soyYo(nombre: any): boolean {
+    const n = (x: any) => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+    const yo = n(this.nombreUsuario);
+    return !!yo && n(nombre) === yo;
   }
 
   abrirTerminarPersona(): void {
@@ -11547,7 +11787,7 @@ export class AppComponent {
       noEncontrados: bienes.filter((b: any) => b.estatus === 'NO_ENCONTRADO').length,
       pendientes: bienes.filter((b: any) => !b.estatus),
       marcarPendientes: true, verPend: false, conforme: true, observaciones: '',
-      trazos: { a: false, b: false }, usarGuardada: !!this.firmaGuardada, recordar: !this.firmaGuardada,
+      imgA: null, imgB: null,
       guardando: false, error: ''
     };
     if (!c.term.revisados) {
@@ -11605,15 +11845,13 @@ export class AppComponent {
     if (this.rqDet?.firma) this.rqDet.firma.trazos[k] = false;
   }
 
-  firmarYTerminar(canvasA: HTMLCanvasElement, canvasB: HTMLCanvasElement): void {
+  firmarYTerminar(): void {
     const c = this.cap, t = c?.term;
     if (!t || t.guardando) return;
     if (!t.conforme && !String(t.observaciones || '').trim()) { t.error = 'Escribe cuáles son las diferencias.'; return; }
-    if (t.conforme && !t.trazos.a) { t.error = 'Falta la firma de ' + this.nombreCorto(c.grupo?.nombre) + '.'; return; }
-    const usarGuardada = t.usarGuardada && !!this.firmaGuardada;
-    if (!usarGuardada && !t.trazos.b) { t.error = 'Falta tu firma.'; return; }
-    const firmaResponsable = usarGuardada ? this.firmaGuardada : canvasB.toDataURL('image/png');
-    if (!usarGuardada && t.recordar) { try { localStorage.setItem('dozzer_firma_' + this.email, firmaResponsable); } catch { /* */ } }
+    if (t.conforme && !t.imgA) { t.error = 'Falta la firma de ' + this.nombreCorto(c.grupo?.nombre) + '.'; return; }
+    if (!t.imgB) { t.error = 'Falta tu firma.'; return; }
+    const firmaResponsable = t.imgB;
     t.guardando = true; t.error = '';
     const idPersona = c.grupo.id;
     const nombre = c.grupo?.nombre;
@@ -11623,7 +11861,7 @@ export class AppComponent {
       body: {
         marcarPendientes: t.pendientes.length ? t.marcarPendientes : false,
         conforme: t.conforme, observaciones: t.observaciones,
-        firmaResguardante: t.trazos.a ? canvasA.toDataURL('image/png') : null,
+        firmaResguardante: t.imgA || null,
         firmaResponsable
       }
     }).then(res => {
