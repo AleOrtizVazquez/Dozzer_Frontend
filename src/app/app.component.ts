@@ -1158,11 +1158,11 @@ export class IcoComponent { @Input() n = ''; }
                                   </div>
 
                                   <div class="fi-acc">
-                                    <button class="fi-pri" (click)="editarDesdePanel(b)"><ico n="edit"></ico>{{ isAdmin ? 'Editar' : 'Solicitar cambio' }}</button>
                                     <div class="fi-mas">
                                       <button class="fi-icono" (click)="masAbierto = masAbierto===b.id_bien ? null : b.id_bien" [class.on]="masAbierto===b.id_bien" aria-label="Más acciones" title="Más acciones"><ico n="dots"></ico></button>
                                       <div class="fi-back" *ngIf="masAbierto===b.id_bien" (click)="masAbierto=null"></div>
                                       <div class="fi-menu" *ngIf="masAbierto===b.id_bien">
+                                        <button (click)="editarDesdePanel(b); masAbierto=null"><ico n="edit"></ico>{{ isAdmin ? 'Editar datos' : 'Solicitar cambio' }}</button>
                                         <label *ngIf="isAdmin && b.foto_mini" [class.off]="fotoSubiendo"><ico n="camera"></ico>{{ fotoSubiendo ? 'Subiendo…' : 'Cambiar foto' }}
                                           <input type="file" accept="image/*" capture="environment" (change)="cambiarFotoBien($event, b); masAbierto=null" [disabled]="fotoSubiendo" hidden>
                                         </label>
@@ -1205,7 +1205,18 @@ export class IcoComponent { @Input() n = ''; }
                   </div>
                   <button class="close-button" [disabled]="m.guardando" (click)="mov=null">×</button>
                 </div>
-                <div class="form-section">
+                <div class="form-section" *ngIf="m.paso === 'revisar'">
+                  <p class="mv-ayuda">Revisa antes de confirmar:</p>
+                  <ul class="mv-resumen">
+                    <li *ngFor="let r of resumenMover">
+                      <span>{{ r.campo }}</span>
+                      <div><s *ngIf="r.antes">{{ r.antes }}</s><b>{{ r.despues }}</b></div>
+                    </li>
+                  </ul>
+                  <p class="mv-ayuda" *ngIf="m.motivo">Motivo: {{ m.motivo }}</p>
+                  <p class="mv-nota" *ngIf="!isAdmin">Se enviará al administrador para su autorización.</p>
+                </div>
+                <div class="form-section" *ngIf="m.paso !== 'revisar'">
                   <p class="mv-ayuda" *ngIf="m.ver === 'todo'">Lo que dejes en “Sin cambio” se queda igual.</p>
                   <label class="mv-campo" *ngIf="m.ver !== 'persona'">
                     <span><ico n="pin"></ico>Nueva ubicación</span>
@@ -1239,10 +1250,11 @@ export class IcoComponent { @Input() n = ''; }
                 </div>
                 <div class="inline-error" *ngIf="m.error" style="margin:0 24px 12px">{{ m.error }}</div>
                 <div class="modal-footer">
-                  <button class="btn-outline" [disabled]="m.guardando" (click)="mov=null">Cancelar</button>
-                  <button class="btn-primary" [disabled]="m.guardando || !movHayCambio" (click)="guardarMover()">
+                  <button class="btn-outline" [disabled]="m.guardando" (click)="m.paso === 'revisar' ? m.paso = 'datos' : mov = null">{{ m.paso === 'revisar' ? 'Atrás' : 'Cancelar' }}</button>
+                  <button class="btn-primary" *ngIf="m.paso !== 'revisar'" [disabled]="!movHayCambio" (click)="m.paso = 'revisar'; m.error = ''">Revisar</button>
+                  <button class="btn-primary" *ngIf="m.paso === 'revisar'" [disabled]="m.guardando" (click)="guardarMover()">
                     <span class="mini-ring light" *ngIf="m.guardando"></span>
-                    {{ m.guardando ? 'Guardando…' : (isAdmin ? 'Mover' : 'Enviar solicitud') }}
+                    {{ m.guardando ? 'Guardando…' : (isAdmin ? 'Confirmar' : 'Enviar solicitud') }}
                   </button>
                 </div>
               </div>
@@ -1412,9 +1424,16 @@ export class IcoComponent { @Input() n = ''; }
                       <label>Clave</label>
                       <input [(ngModel)]="bien.clave">
                     </div>
+                    <div *ngIf="!bien.idBien">
+                      <label>Clave</label>
+                      <div class="clave-auto" [class.lista]="claveSiguiente">
+                        <b>{{ claveSiguiente || '—' }}</b>
+                        <small>{{ claveSiguiente ? 'Se asigna sola al guardar' : 'Se genera al elegir la ubicación' }}</small>
+                      </div>
+                    </div>
                     <div>
                       <label>Ubicación</label>
-                      <select [(ngModel)]="bien.idUbicacion">
+                      <select [(ngModel)]="bien.idUbicacion" (ngModelChange)="previsualizarClave()">
                         <option [ngValue]="null">Seleccionar</option>
                         <option *ngFor="let x of activos(catalogs.ubicaciones, bien.idUbicacion, 'id_ubicacion')" [ngValue]="x.id_ubicacion">{{ x.nombre_area }}{{ x.nombre_sede && isAdmin ? ' · ' + x.nombre_sede : '' }}</option>
                       </select>
@@ -4284,10 +4303,22 @@ export class IcoComponent { @Input() n = ''; }
     .fi-hist-tit .fi-chev{transition:transform .15s}
     .fi-hist-tit.on .fi-chev{transform:rotate(180deg)}
     .fi-hist ol{margin-top:6px}
-    .fi-acc{justify-content:space-between}
+    .fi-acc{justify-content:flex-end;margin-top:-6px}
     .fi-acc .fi-mas{margin-left:0}
     .fi-icono{width:40px;height:40px;padding:0!important;justify-content:center}
     .fi-icono ico{width:20px!important;height:20px!important;transform:none!important}
+    .mv-resumen{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;background:#f6f8fb;border-radius:14px}
+    .mv-resumen li{display:flex;flex-direction:column;gap:4px;padding:12px 14px;border-top:1px solid #e9edf3}
+    .mv-resumen li:first-child{border-top:0}
+    .mv-resumen li>span{font-size:12px;font-weight:600;color:#8a96a6}
+    .mv-resumen li>div{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;font-size:15px}
+    .mv-resumen s{color:#a3aebd;text-decoration-thickness:1px}
+    .mv-resumen s::after{content:" →";text-decoration:none;display:inline-block;margin-left:6px;color:#a3aebd}
+    .mv-resumen b{color:#14243a;font-weight:700}
+    .clave-auto{display:flex;flex-direction:column;justify-content:center;min-height:44px;padding:6px 12px;border:1px dashed #d5dce6;border-radius:10px;background:#f8fafc}
+    .clave-auto b{font-family:"SFMono-Regular",Consolas,monospace;font-size:15px;color:#a3aebd;letter-spacing:.4px}
+    .clave-auto.lista b{color:#14243a}
+    .clave-auto small{font-size:12px;color:#8a96a6}
     .mv-mas{align-self:flex-start;border:0;background:transparent;padding:0;color:#3d6fb0;font:inherit;font-size:13.5px;font-weight:700;cursor:pointer}
     .bj .form-section{display:flex;flex-direction:column;gap:14px}
     .bj-et{font-size:13px;font-weight:700;color:#25364c}
@@ -8025,13 +8056,32 @@ export class AppComponent {
       ids,
       titulo: uno ? this.titulo(uno.articulo || 'Bien') + (uno.ubicacion ? ' · ' + this.titulo(uno.ubicacion) : '') + (uno.responsable ? ' · ' + this.titulo(uno.responsable) : '')
                   : (persona ? 'Bienes de ' + persona : 'Bienes filtrados') + (this.sedeEfectiva ? ' en ' + this.titulo(this.nombreSedeEfectiva) : ''),
-      idUbicacion: 'igual', idResponsable: 'igual', idUsuario: 'igual', motivo: '', guardando: false, error: '', ver: lista.length === 1 ? foco : 'todo'
+      idUbicacion: 'igual', idResponsable: 'igual', idUsuario: 'igual', motivo: '', guardando: false, error: '', ver: lista.length === 1 ? foco : 'todo',
+      paso: 'datos', uno
     };
   }
 
   get movHayCambio(): boolean {
     const m = this.mov;
-    return !!m && (m.idUbicacion !== 'igual' || m.idResponsable !== 'igual' || m.idUsuario !== 'igual');
+    if (!m) return false;
+    const u = m.uno;
+    const cambia = (nuevo: any, actual: any) => nuevo !== 'igual' && (!u || String(nuevo ?? '') !== String(actual ?? ''));
+    return cambia(m.idUbicacion, u?.id_ubicacion) || cambia(m.idResponsable, u?.id_responsable_area) || cambia(m.idUsuario, u?.id_usuario_directo);
+  }
+
+  // Lo que va a cambiar, en palabras (paso de revisión)
+  get resumenMover(): { campo: string; antes: string; despues: string }[] {
+    const m = this.mov;
+    if (!m) return [];
+    const u = m.uno;
+    const ubic = (id: any) => { const x = (this.catalogs.ubicaciones || []).find((k: any) => String(k.id_ubicacion) === String(id)); return x ? this.titulo(x.nombre_area) + (x.nombre_sede ? ' · ' + this.titulo(x.nombre_sede) : '') : 'Sin ubicación'; };
+    const per = (id: any) => { if (id === null || id === undefined || id === '') return 'Nadie'; const x = (this.catalogs.personas || []).find((k: any) => String(k.id_persona) === String(id)); return x ? this.titulo(x.nombre_completo) : 'Persona #' + id; };
+    const r: { campo: string; antes: string; despues: string }[] = [];
+    if (m.idUbicacion !== 'igual') r.push({ campo: 'Ubicación', antes: u ? ubic(u.id_ubicacion) : '', despues: ubic(m.idUbicacion) });
+    if (m.idResponsable !== 'igual') r.push({ campo: 'Responsable', antes: u ? per(u.id_responsable_area) : '', despues: per(m.idResponsable) });
+    if (m.idUsuario !== 'igual') r.push({ campo: 'Usuario directo', antes: u ? per(u.id_usuario_directo) : '', despues: per(m.idUsuario) });
+    if (!u) r.unshift({ campo: 'Bienes', antes: '', despues: m.ids.length + ' seleccionados' });
+    return r;
   }
 
   guardarMover(): void {
@@ -8047,7 +8097,20 @@ export class AppComponent {
         this.mov = null;
         const ap = Number(r?.aplicados || 0), pe = Number(r?.pendientes || 0);
         if (pe) this.notificar('pendiente', 'Solicitud enviada', pe === 1 ? 'El cambio espera autorización.' : pe + ' cambios esperan autorización.');
-        else this.notificar('exito', 'Listo', ap === 1 ? 'El bien se movió.' : ap + ' bienes se movieron.', 2500);
+        else if (m.uno && ap === 1) {
+          const u = m.uno;
+          const regreso: any = { ids: [u.id_bien], motivo: 'Se deshizo el cambio anterior' };
+          if (datos.idUbicacion !== undefined) regreso.idUbicacion = u.id_ubicacion ?? null;
+          if (datos.idResponsableArea !== undefined) regreso.idResponsableArea = u.id_responsable_area ?? null;
+          if (datos.idUsuarioDirecto !== undefined) regreso.idUsuarioDirecto = u.id_usuario_directo ?? null;
+          this.notificar('exito', 'Listo', 'El cambio quedó registrado en el historial.', 6000, {
+            texto: '↶ Deshacer', fn: () => this.http.post<any>(this.api + '/bienes/mover', regreso).subscribe({
+              next: () => { delete this.movimientosDe[u.id_bien]; this.loadBienes(); this.notificar('info', 'Cambio deshecho', 'El bien volvió a como estaba.', 2500); if (this.bienAbierto === u.id_bien) setTimeout(() => this.cargarMovimientos(u.id_bien, true), 800); },
+              error: e => this.notificar('error', 'No se pudo deshacer', this.mensajeError(e, 'Inténtalo de nuevo.'), 0)
+            })
+          });
+        }
+        else this.notificar('exito', 'Listo', ap + ' bienes se movieron. Cada cambio quedó en su historial.', 3000);
         for (const id of m.ids) delete this.movimientosDe[id];
         this.loadBienes();
         if (this.bienAbierto && m.ids.includes(this.bienAbierto)) setTimeout(() => this.cargarMovimientos(this.bienAbierto, true), 800);
@@ -8843,11 +8906,31 @@ export class AppComponent {
     return paleta[i % paleta.length];
   }
 
+  claveSiguiente = '';
+
+  // Muestra la clave que le tocará (prefijo de la sede + consecutivo); la definitiva la pone el servidor al guardar
+  previsualizarClave(): void {
+    if (this.bien?.idBien) return;
+    const id = this.bien?.idUbicacion;
+    this.claveSiguiente = '';
+    if (!id) return;
+    this.http.get<any>(this.api + '/bienes/siguiente-clave', { params: { idUbicacion: String(id) } }).subscribe({
+      next: r => { if (this.bien?.idUbicacion === id && !this.bien?.idBien) this.claveSiguiente = r?.clave || ''; },
+      error: () => { this.claveSiguiente = ''; }
+    });
+  }
+
   newBien(): void {
     this.bienOriginal = null;
+    this.claveSiguiente = '';
+    if (!(this.catalogs.ubicaciones || []).length || !(this.catalogs.personas || []).length) {
+      Object.keys(this.catalogs).forEach(k => this.loadCatalog(k));
+    }
     this.bien = {
       clave: '',
       articulo: '',
+      idUbicacion: null, idResponsableArea: null, idUsuarioDirecto: null, estadoFisico: '',
+      idClasificacion: null, idSubcategoria: null, idMarca: null, idColor: null,
       cantidadPiezas: 1,
       estatusInventario: 'ACTIVO',
       estatusAsignacion: 'SIN_ASIGNAR',
@@ -12327,8 +12410,9 @@ export class AppComponent {
           this.notificar('pendiente', 'Solicitud enviada',
             'Tu solicitud #' + response.idSolicitud + (esNuevo ? ' de alta' : ' de cambio') + ' espera la autorización del administrador.');
         } else {
+          if (esNuevo && response?.clave) formulario.clave = response.clave;
           this.notificar('exito', esNuevo ? '¡Bien creado!' : 'Bien modificado',
-            esNuevo ? 'El bien ya forma parte del inventario. Su formato de alta quedó guardado en Documentos.' : 'Los cambios se guardaron correctamente.',
+            esNuevo ? 'Clave asignada: ' + (response?.clave || '—') + '. Su formato de alta quedó guardado en Documentos.' : 'Los cambios se guardaron correctamente.',
             3500, esNuevo && this.isAdmin
               ? { texto: '📄 Ver formato de alta', fn: () => this.verOFormato(response?.idDocumento, () => this.formatoDesdeDatos('ALTA', formulario, {
                     folio: this.folio('ALTA', null, response?.id_bien ?? formulario.clave), solicito: this.miNombre, autorizo: this.miNombre,
