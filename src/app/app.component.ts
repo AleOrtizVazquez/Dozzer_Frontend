@@ -830,7 +830,7 @@ export class IcoComponent { @Input() n = ''; }
           <button class="sync-chip top-sync" *ngIf="(cola.total || !enLinea) && !(section==='anual' && anualVista==='captura')" [ngClass]="'sync-' + estadoSync" (click)="tocarSync()">{{ textoSync }}</button>
         </header>
 
-        <div class="content-area">
+        <div class="content-area" [class.ancho]="section==='bienes'">
 
 
 
@@ -855,18 +855,129 @@ export class IcoComponent { @Input() n = ''; }
 
           <section *ngIf="section==='bienes'">
 
-            <div class="bx-head">
-              <div>
+            <div class="bx-top">
+              <div class="bx-tit">
                 <h1>Bienes</h1>
                 <p class="bx-sub">
-                  <ng-container *ngIf="bienes.length; else subVacio">{{ bienesVista.length | number }}<ng-container *ngIf="bienesVista.length !== bienes.length"> de {{ bienes.length | number }}</ng-container> bienes</ng-container>
-                  <ng-template #subVacio>{{ bienesCargando ? 'Cargando…' : 'Sin bienes todavía' }}</ng-template>
+                  <ng-container *ngIf="bienes.length; else subVacio">{{ bienesVista.length | number }}<ng-container *ngIf="bienesVista.length !== bienes.length"> de {{ bienes.length | number }}</ng-container></ng-container>
+                  <ng-template #subVacio>{{ bienesCargando ? '…' : '0' }}</ng-template>
                 </p>
               </div>
-              <div class="bx-acciones">
-                <button class="bx-nuevo" (click)="newBien()" title="Dar de alta un bien"><ico n="plus"></ico><span>Nuevo bien</span></button>
+              <!-- BÚSQUEDA: un solo campo; los filtros viven en un panel -->
+              <div class="bx-buscar">
+                <div class="bx-fila">
+                <div class="sx-search" [class.activa]="filter">
+                  <ico class="bx-lupa" n="search"></ico>
+                  <input [(ngModel)]="filter" (ngModelChange)="buscarBienes()" (keyup.escape)="filter=''; aplicarFiltrosBienes()"
+                         [placeholder]="placeholderBusqueda" aria-label="Buscar bienes" autocomplete="off">
+                  <span class="refreshing" *ngIf="bienesCargando" title="Actualizando"><span class="mini-ring"></span></span>
+                  <button class="sx-clear" *ngIf="filter" (click)="filter=''; aplicarFiltrosBienes()" aria-label="Borrar búsqueda"><ico n="x"></ico></button>
+                </div>
+                <div class="bx-pills">
+                  <div class="bx-pop" *ngIf="isAdmin && sedesScope.length > 1">
+                    <button class="bx-pill" [class.on]="sedeEfectiva" (click)="menuInv = menuInv==='sede' ? '' : 'sede'" aria-label="Sede">
+                      <ico n="building"></ico><span>{{ sedeEfectiva ? (nombreSedeEfectiva | titlecase) : 'Todas las sedes' }}</span><ico class="bx-chev" n="chev"></ico>
+                    </button>
+                    <div class="bx-menu" *ngIf="menuInv==='sede'">
+                      <button [class.on]="!sedeEfectiva" (click)="setSedeInv(null)"><span>Todas las sedes</span><small>{{ bienes.length | number }}</small></button>
+                      <button *ngFor="let s of sedesScope" [class.on]="sedeEfectiva===s.id" (click)="setSedeInv(s.id)"><span>{{ s.nombre | titlecase }}</span><small>{{ s.total | number }}</small></button>
+                    </div>
+                  </div>
+                  <div class="bx-pop">
+                    <button class="bx-pill" [class.on]="personaEfectiva" (click)="menuInv = menuInv==='persona' ? '' : 'persona'; buscaPersonaInv=''" aria-label="Persona">
+                      <ico n="user"></ico><span>{{ personaEfectiva ? (nombrePersonaEfectiva | titlecase) : 'Cualquier persona' }}</span><ico class="bx-chev" n="chev"></ico>
+                    </button>
+                    <div class="bx-menu bx-menu-per" *ngIf="menuInv==='persona'">
+                      <input class="bx-menu-buscar" [(ngModel)]="buscaPersonaInv" placeholder="Buscar persona…" aria-label="Buscar persona" autocomplete="off">
+                      <div class="bx-menu-lista">
+                        <button [class.on]="!personaEfectiva" (click)="setPersonaInv(null)"><i class="pt-av">·</i><span>Cualquier persona</span></button>
+                        <button *ngFor="let p of personasMenu" [class.on]="personaEfectiva===p.id" (click)="setPersonaInv(p.id)"><i class="pt-av">{{ inicialesDe(p.nombre) }}</i><span>{{ p.nombre | titlecase }}</span><small>{{ p.total | number }}</small></button>
+                        <p class="bx-menu-vacio" *ngIf="!personasMenu.length">Nadie coincide.</p>
+                      </div>
+                    </div>
+                  </div>
+                  <button class="bx-fbtn" [class.on]="columnPickerOpen || filtrosChipsPanel || agruparInv!=='ninguno'" (click)="columnPickerOpen=!columnPickerOpen; menuInv=''" title="Más filtros y columnas" aria-label="Más filtros y columnas">
+                    <ico n="sliders"></ico><i *ngIf="filtrosChipsPanel">{{ filtrosChipsPanel }}</i>
+                  </button>
+                  <button class="bx-nuevo" (click)="newBien()" title="Dar de alta un bien" aria-label="Nuevo bien"><ico n="plus"></ico><span>Nuevo bien</span></button>
+                </div>
+                </div>
+                <div class="fx-back" *ngIf="menuInv" (click)="menuInv=''"></div>
+
+                <div class="fx-back" *ngIf="columnPickerOpen" (click)="columnPickerOpen=false"></div>
+                <div class="fx" *ngIf="columnPickerOpen" role="dialog" aria-label="Filtros">
+                  <div class="fx-asa"></div>
+                  <div class="fx-scroll">
+                    <section *ngIf="tiposVista.length > 1">
+                      <h4>Tipo</h4>
+                      <div class="fx-opts">
+                        <button *ngFor="let t of tiposVista" [class.on]="t.on" (click)="setTipoInv(t.id)">{{ t.nombre }}<small>{{ t.total | number }}</small></button>
+                      </div>
+                    </section>
+                    <section>
+                      <h4>Estado</h4>
+                      <div class="fx-opts">
+                        <button *ngFor="let e of opcionesEstado" [class.on]="filtroEstadoFisico===e.v" (click)="alternarFiltro('fisico', e.v)"><i class="edot" [ngClass]="e.c"></i>{{ e.l }}<small>{{ conteosInv[e.v] || 0 | number }}</small></button>
+                      </div>
+                    </section>
+                    <section>
+                      <h4>Pendientes</h4>
+                      <div class="fx-opts">
+                        <button [class.on]="filtroExtra==='sinetiqueta'" (click)="alternarFiltro('extra', 'sinetiqueta')">Sin QR<small>{{ conteosInv['sinetiqueta'] || 0 | number }}</small></button>
+                        <button [class.on]="filtroExtra==='sinfoto'" (click)="alternarFiltro('extra', 'sinfoto')">Sin foto<small>{{ conteosInv['sinfoto'] || 0 | number }}</small></button>
+                        <button [class.on]="filtroAsignacion==='SIN_ASIGNAR'" (click)="alternarFiltro('asignacion', 'SIN_ASIGNAR')">Sin asignar<small>{{ conteosInv['sinasignar'] || 0 | number }}</small></button>
+                        <button *ngIf="isAdmin || canAuthorize" [class.on]="filtroCM==='atencion'" (click)="alternarFiltro('cm', 'atencion')">Por calibrar<small>{{ conteosInv['cm'] || 0 | number }}</small></button>
+                        <button [class.on]="statusFilter==='EN_REPARACION'" (click)="alternarFiltro('estatus', 'EN_REPARACION')">En reparación</button>
+                        <button [class.on]="statusFilter==='BAJA'" (click)="alternarFiltro('estatus', 'BAJA')">De baja</button>
+                      </div>
+                    </section>
+                    <section *ngIf="resumenClasificaciones.length > 1">
+                      <h4>Clasificación</h4>
+                      <select class="fx-select" [ngModel]="filtroClasificacion" (ngModelChange)="setFiltroClasificacion($event)" aria-label="Clasificación">
+                        <option [ngValue]="null">Cualquiera</option>
+                        <option *ngFor="let c of resumenClasificaciones" [ngValue]="c.id">{{ c.nombre | titlecase }}</option>
+                      </select>
+                    </section>
+                    <section>
+                      <h4>Agrupar</h4>
+                      <div class="fx-opts">
+                        <button *ngFor="let g of opcionesAgrupar" [class.on]="agruparInv===g.v" (click)="setAgruparInv(g.v)">{{ g.l }}</button>
+                      </div>
+                    </section>
+                    <section>
+                      <h4>Columnas</h4>
+                      <div class="fx-opts">
+                        <button (click)="aplicarVistaColumnas('basica')">Básicas</button>
+                        <button (click)="aplicarVistaColumnas('ubicacion')">Ubicación</button>
+                        <button (click)="aplicarVistaColumnas('completa')">Todas</button>
+                      </div>
+                      <div class="fx-cols">
+                        <label *ngFor="let c of columnasElegibles">
+                          <input type="checkbox" [checked]="columnaVisible(c.key)" (change)="toggleColumna(c.key)">{{ c.label }}
+                        </label>
+                      </div>
+                    </section>
+                  </div>
+                  <div class="fx-pie">
+                    <button class="fx-limpiar" [disabled]="!hayFiltrosBienes && agruparInv==='ninguno'" (click)="limpiarFiltrosBienes(); setAgruparInv('ninguno')">Restablecer</button>
+                    <button class="fx-ver" (click)="columnPickerOpen=false">Ver {{ bienesVista.length | number }}</button>
+                  </div>
+                </div>
+
+                <div class="bx-chips" *ngIf="chipsActivos.length">
+                  <button class="bx-chip" *ngFor="let c of chipsActivos; trackBy: trackChip" [class.ia]="c.ia" (click)="quitarChip(c)" [attr.aria-label]="'Quitar ' + c.valor">
+                    <ico *ngIf="c.ia" class="bx-ia" n="spark"></ico>{{ c.valor }}<ico class="bx-x" n="x"></ico>
+                  </button>
+                  <button class="bx-limpiar" *ngIf="chipsActivos.length > 1" (click)="limpiarFiltrosBienes()">Limpiar</button>
+                </div>
               </div>
             </div>
+
+            <button class="bx-cm" *ngIf="(isAdmin || canAuthorize) && (alertasCM.vencidas || alertasCM.proximas) && filtroCM!=='atencion'" (click)="verAtencionCM()">
+              <ico n="gauge"></ico>
+              <span><b *ngIf="alertasCM.vencidas">{{ alertasCM.vencidas }} {{ alertasCM.vencidas === 1 ? 'calibración vencida' : 'calibraciones vencidas' }}</b><ng-container *ngIf="alertasCM.vencidas && alertasCM.proximas"> · </ng-container><ng-container *ngIf="alertasCM.proximas">{{ alertasCM.proximas }} {{ alertasCM.proximas === 1 ? 'vence' : 'vencen' }} en los próximos 30 días</ng-container></span>
+              <em>Ver</em>
+            </button>
 
             <!-- CARGA INICIAL: ESQUELETOS ANIMADOS -->
             <ng-container *ngIf="bienesCargando && !bienes.length">
@@ -897,113 +1008,6 @@ export class IcoComponent { @Input() n = ''; }
             <ng-container *ngIf="bienes.length || (!bienesCargando && !bienesError)">
               <div class="fade-in">
 
-                <!-- BÚSQUEDA: un solo campo; los filtros viven en un panel -->
-                <div class="bx-buscar">
-                  <div class="bx-fila">
-                  <div class="sx-search" [class.activa]="filter">
-                    <ico class="bx-lupa" n="search"></ico>
-                    <input [(ngModel)]="filter" (ngModelChange)="buscarBienes()" (keyup.escape)="filter=''; aplicarFiltrosBienes()"
-                           [placeholder]="placeholderBusqueda" aria-label="Buscar bienes" autocomplete="off">
-                    <span class="refreshing" *ngIf="bienesCargando" title="Actualizando"><span class="mini-ring"></span></span>
-                    <button class="sx-clear" *ngIf="filter" (click)="filter=''; aplicarFiltrosBienes()" aria-label="Borrar búsqueda"><ico n="x"></ico></button>
-                  </div>
-                  <div class="bx-pills">
-                    <div class="bx-pop" *ngIf="isAdmin && sedesScope.length > 1">
-                      <button class="bx-pill" [class.on]="sedeEfectiva" (click)="menuInv = menuInv==='sede' ? '' : 'sede'" aria-label="Sede">
-                        <ico n="building"></ico><span>{{ sedeEfectiva ? (nombreSedeEfectiva | titlecase) : 'Todas las sedes' }}</span><ico class="bx-chev" n="chev"></ico>
-                      </button>
-                      <div class="bx-menu" *ngIf="menuInv==='sede'">
-                        <button [class.on]="!sedeEfectiva" (click)="setSedeInv(null)"><span>Todas las sedes</span><small>{{ bienes.length | number }}</small></button>
-                        <button *ngFor="let s of sedesScope" [class.on]="sedeEfectiva===s.id" (click)="setSedeInv(s.id)"><span>{{ s.nombre | titlecase }}</span><small>{{ s.total | number }}</small></button>
-                      </div>
-                    </div>
-                    <div class="bx-pop">
-                      <button class="bx-pill" [class.on]="personaEfectiva" (click)="menuInv = menuInv==='persona' ? '' : 'persona'; buscaPersonaInv=''" aria-label="Persona">
-                        <ico n="user"></ico><span>{{ personaEfectiva ? (nombrePersonaEfectiva | titlecase) : 'Cualquier persona' }}</span><ico class="bx-chev" n="chev"></ico>
-                      </button>
-                      <div class="bx-menu bx-menu-per" *ngIf="menuInv==='persona'">
-                        <input class="bx-menu-buscar" [(ngModel)]="buscaPersonaInv" placeholder="Buscar persona…" aria-label="Buscar persona" autocomplete="off">
-                        <div class="bx-menu-lista">
-                          <button [class.on]="!personaEfectiva" (click)="setPersonaInv(null)"><i class="pt-av">·</i><span>Cualquier persona</span></button>
-                          <button *ngFor="let p of personasMenu" [class.on]="personaEfectiva===p.id" (click)="setPersonaInv(p.id)"><i class="pt-av">{{ inicialesDe(p.nombre) }}</i><span>{{ p.nombre | titlecase }}</span><small>{{ p.total | number }}</small></button>
-                          <p class="bx-menu-vacio" *ngIf="!personasMenu.length">Nadie coincide.</p>
-                        </div>
-                      </div>
-                    </div>
-                    <button class="bx-fbtn" [class.on]="columnPickerOpen || filtrosChipsPanel || agruparInv!=='ninguno'" (click)="columnPickerOpen=!columnPickerOpen; menuInv=''" title="Más filtros y columnas" aria-label="Más filtros y columnas">
-                      <ico n="sliders"></ico><i *ngIf="filtrosChipsPanel">{{ filtrosChipsPanel }}</i>
-                    </button>
-                  </div>
-                  </div>
-                  <div class="fx-back" *ngIf="menuInv" (click)="menuInv=''"></div>
-
-                  <div class="fx-back" *ngIf="columnPickerOpen" (click)="columnPickerOpen=false"></div>
-                  <div class="fx" *ngIf="columnPickerOpen" role="dialog" aria-label="Filtros">
-                    <div class="fx-asa"></div>
-                    <div class="fx-scroll">
-                      <section *ngIf="tiposVista.length > 1">
-                        <h4>Tipo</h4>
-                        <div class="fx-opts">
-                          <button *ngFor="let t of tiposVista" [class.on]="t.on" (click)="setTipoInv(t.id)">{{ t.nombre }}<small>{{ t.total | number }}</small></button>
-                        </div>
-                      </section>
-                      <section>
-                        <h4>Estado</h4>
-                        <div class="fx-opts">
-                          <button *ngFor="let e of opcionesEstado" [class.on]="filtroEstadoFisico===e.v" (click)="alternarFiltro('fisico', e.v)"><i class="edot" [ngClass]="e.c"></i>{{ e.l }}<small>{{ conteosInv[e.v] || 0 | number }}</small></button>
-                        </div>
-                      </section>
-                      <section>
-                        <h4>Pendientes</h4>
-                        <div class="fx-opts">
-                          <button [class.on]="filtroExtra==='sinetiqueta'" (click)="alternarFiltro('extra', 'sinetiqueta')">Sin QR<small>{{ conteosInv['sinetiqueta'] || 0 | number }}</small></button>
-                          <button [class.on]="filtroExtra==='sinfoto'" (click)="alternarFiltro('extra', 'sinfoto')">Sin foto<small>{{ conteosInv['sinfoto'] || 0 | number }}</small></button>
-                          <button [class.on]="filtroAsignacion==='SIN_ASIGNAR'" (click)="alternarFiltro('asignacion', 'SIN_ASIGNAR')">Sin asignar<small>{{ conteosInv['sinasignar'] || 0 | number }}</small></button>
-                          <button *ngIf="isAdmin || canAuthorize" [class.on]="filtroCM==='atencion'" (click)="alternarFiltro('cm', 'atencion')">Por calibrar<small>{{ conteosInv['cm'] || 0 | number }}</small></button>
-                          <button [class.on]="statusFilter==='EN_REPARACION'" (click)="alternarFiltro('estatus', 'EN_REPARACION')">En reparación</button>
-                          <button [class.on]="statusFilter==='BAJA'" (click)="alternarFiltro('estatus', 'BAJA')">De baja</button>
-                        </div>
-                      </section>
-                      <section *ngIf="resumenClasificaciones.length > 1">
-                        <h4>Clasificación</h4>
-                        <select class="fx-select" [ngModel]="filtroClasificacion" (ngModelChange)="setFiltroClasificacion($event)" aria-label="Clasificación">
-                          <option [ngValue]="null">Cualquiera</option>
-                          <option *ngFor="let c of resumenClasificaciones" [ngValue]="c.id">{{ c.nombre | titlecase }}</option>
-                        </select>
-                      </section>
-                      <section>
-                        <h4>Agrupar</h4>
-                        <div class="fx-opts">
-                          <button *ngFor="let g of opcionesAgrupar" [class.on]="agruparInv===g.v" (click)="setAgruparInv(g.v)">{{ g.l }}</button>
-                        </div>
-                      </section>
-                      <section>
-                        <h4>Columnas</h4>
-                        <div class="fx-opts">
-                          <button (click)="aplicarVistaColumnas('basica')">Básicas</button>
-                          <button (click)="aplicarVistaColumnas('ubicacion')">Ubicación</button>
-                          <button (click)="aplicarVistaColumnas('completa')">Todas</button>
-                        </div>
-                        <div class="fx-cols">
-                          <label *ngFor="let c of columnasElegibles">
-                            <input type="checkbox" [checked]="columnaVisible(c.key)" (change)="toggleColumna(c.key)">{{ c.label }}
-                          </label>
-                        </div>
-                      </section>
-                    </div>
-                    <div class="fx-pie">
-                      <button class="fx-limpiar" [disabled]="!hayFiltrosBienes && agruparInv==='ninguno'" (click)="limpiarFiltrosBienes(); setAgruparInv('ninguno')">Restablecer</button>
-                      <button class="fx-ver" (click)="columnPickerOpen=false">Ver {{ bienesVista.length | number }}</button>
-                    </div>
-                  </div>
-
-                  <div class="bx-chips" *ngIf="chipsActivos.length">
-                    <button class="bx-chip" *ngFor="let c of chipsActivos; trackBy: trackChip" [class.ia]="c.ia" (click)="quitarChip(c)" [attr.aria-label]="'Quitar ' + c.valor">
-                      <ico *ngIf="c.ia" class="bx-ia" n="spark"></ico>{{ c.valor }}<ico class="bx-x" n="x"></ico>
-                    </button>
-                    <button class="bx-limpiar" *ngIf="chipsActivos.length > 1" (click)="limpiarFiltrosBienes()">Limpiar</button>
-                  </div>
-                </div>
 
                 <!-- TABLA PREMIUM: una sola vista; cada renglón se abre ahí mismo -->
                 <div class="pt-caja">
@@ -1023,7 +1027,7 @@ export class IcoComponent { @Input() n = ''; }
                       <ng-container *ngFor="let g of gruposVista">
                         <tr class="pt-grupo" *ngIf="g.titulo"><td [attr.colspan]="columnasExtra.length + 2"><span>{{ g.titulo }}</span><b>{{ g.total | number }}</b></td></tr>
                         <ng-container *ngFor="let b of g.items; trackBy: trackBien">
-                          <tr class="pt-fila" [class.abierta]="bienAbierto===b.id_bien" (click)="alternarFila(b)">
+                          <tr class="pt-fila" [class.abierta]="bienAbierto===b.id_bien" [attr.data-fila]="b.id_bien" (click)="alternarFila(b)">
                             <td class="pt-bien">
                               <div class="pt-bien-in">
                                 <span class="pt-thumb" [style.background]="b.foto_mini ? null : tonoBien(b, '1c')" [style.color]="tonoBien(b, '')">
@@ -1036,7 +1040,7 @@ export class IcoComponent { @Input() n = ''; }
                                   <small>{{ descripcionBien(b) | titlecase }}</small>
                                   <small class="pt-movil">{{ (b.responsable | titlecase) || 'Sin responsable' }}<ng-container *ngIf="b.ubicacion"> · {{ b.ubicacion | titlecase }}</ng-container></small>
                                 </span>
-                                <ico *ngIf="alertaCMBien(b)" class="pt-alerta" n="gauge" title="Calibración o mantenimiento vencido o próximo"></ico>
+                                <span *ngIf="alertaCMBien(b)" class="pt-cm" [class.venc]="cmVencido(b)"><ico n="gauge"></ico>{{ textoCMFila(b) }}</span>
                               </div>
                             </td>
                             <td *ngFor="let c of columnasExtra" [class.num]="c.tipo==='num'" [ngSwitch]="c.key">
@@ -1061,17 +1065,74 @@ export class IcoComponent { @Input() n = ''; }
                           </tr>
                           <tr class="pt-det" *ngIf="bienAbierto===b.id_bien">
                             <td [attr.colspan]="columnasExtra.length + 2">
-                              <div class="pt-det-in">
-                                <button type="button" class="pt-foto" [class.vacia]="!b.foto_mini" [style.background]="b.foto_mini ? null : tonoBien(b, '1c')" [style.color]="tonoBien(b, '')"
-                                        (click)="b.foto_mini && ampliarFoto(b)" [attr.aria-label]="b.foto_mini ? 'Ver foto en grande' : 'Sin foto'">
-                                  <img *ngIf="b.foto_mini" [src]="b.foto_mini" alt="">
-                                  <span *ngIf="!b.foto_mini">{{ inicialesDe(b.articulo) }}</span>
-                                </button>
-                                <div class="pt-det-info">
-                                  <ng-container *ngTemplateOutlet="infoBienTpl; context: { $implicit: b }"></ng-container>
+                              <div class="fi">
+                                <div class="fi-foto" [class.vacia]="!b.foto_mini" [style.background]="b.foto_mini ? null : tonoBien(b, '14')" [style.color]="tonoBien(b, '')">
+                                  <button *ngIf="b.foto_mini" type="button" class="fi-foto-ver" (click)="ampliarFoto(b)" aria-label="Ver foto en grande"><img [src]="b.foto_mini" alt=""></button>
+                                  <label *ngIf="!b.foto_mini && isAdmin" class="fi-foto-tomar" [class.off]="fotoSubiendo">
+                                    <ico n="camera"></ico><b>{{ fotoSubiendo ? 'Subiendo…' : 'Tomar foto' }}</b>
+                                    <input type="file" accept="image/*" capture="environment" (change)="cambiarFotoBien($event, b)" [disabled]="fotoSubiendo" hidden>
+                                  </label>
+                                  <span *ngIf="!b.foto_mini && !isAdmin" class="fi-mono">{{ inicialesDe(b.articulo) }}</span>
+                                </div>
+
+                                <div class="fi-main">
+                                  <div class="fi-estado">
+                                    <span class="fi-chip" [ngClass]="claseEstadoFisico(b.estado_fisico)"><i class="edot" [ngClass]="claseEstadoFisico(b.estado_fisico)"></i>{{ estadoCorto(b) }}</span>
+                                    <span class="fi-chip" [class.fi-falta]="!b.etiqueta"><ico n="qr"></ico>{{ b.etiqueta || 'Sin etiqueta QR' }}</span>
+                                    <span class="fi-chip" *ngIf="b.requiere_calibracion" [ngClass]="'fi-cm-' + estadoFechaCM(b.fecha_calibracion)"><ico n="gauge"></ico>Calibración · {{ cuentaCM(b.fecha_calibracion) }}</span>
+                                    <span class="fi-chip" *ngIf="b.requiere_mantenimiento" [ngClass]="'fi-cm-' + estadoFechaCM(b.fecha_mantenimiento)"><ico n="wrench"></ico>Mantenimiento · {{ cuentaCM(b.fecha_mantenimiento) }}</span>
+                                    <span class="fi-chip" *ngIf="b.estatus_inventario && b.estatus_inventario !== 'ACTIVO'" [ngClass]="'pt-tag-' + b.estatus_inventario">{{ displayStatus(b) }}</span>
+                                  </div>
+
+                                  <div class="fi-bloques">
+                                    <div class="fi-b">
+                                      <h5>Dónde está</h5>
+                                      <strong [class.pt-nada]="!b.ubicacion">{{ (b.ubicacion | titlecase) || 'Sin ubicación' }}</strong>
+                                      <span *ngIf="b.sede">Sede {{ b.sede | titlecase }}</span>
+                                    </div>
+                                    <div class="fi-b">
+                                      <h5>Quién lo tiene</h5>
+                                      <strong class="pt-per" [class.pt-nada]="!b.responsable"><i class="pt-av" *ngIf="b.responsable">{{ inicialesDe(b.responsable) }}</i>{{ (b.responsable | titlecase) || 'Sin responsable' }}</strong>
+                                      <span *ngIf="b.usuario_directo">Lo usa {{ b.usuario_directo | titlecase }}</span>
+                                    </div>
+                                    <div class="fi-b">
+                                      <h5>Qué es</h5>
+                                      <strong>{{ marcaModelo(b) | titlecase }}</strong>
+                                      <span *ngIf="esTexto(b.numero_serie)">Serie {{ b.numero_serie }}</span>
+                                      <span *ngIf="b.clasificacion">{{ b.clasificacion | titlecase }}<ng-container *ngIf="b.subcategoria"> · {{ b.subcategoria | titlecase }}</ng-container></span>
+                                    </div>
+                                    <div class="fi-b fi-b-reg">
+                                      <h5>Registro</h5>
+                                      <span>Clave <b>{{ b.clave || '—' }}</b></span>
+                                      <span *ngIf="b.fecha_alta">Alta {{ b.fecha_alta | date:'dd MMM yyyy' }}</span>
+                                      <span>{{ b.cantidad_piezas || 1 }} {{ (b.cantidad_piezas || 1) == 1 ? 'pieza' : 'piezas' }}<ng-container *ngIf="b.color"> · {{ b.color | titlecase }}</ng-container></span>
+                                    </div>
+                                  </div>
+
+                                  <p class="fi-carac" *ngIf="esTexto(b.caracteristicas)">{{ b.caracteristicas }}</p>
+
+                                  <div class="fi-acc">
+                                    <button class="fi-pri" (click)="editarDesdePanel(b)"><ico n="edit"></ico>{{ isAdmin ? 'Editar' : 'Solicitar cambio' }}</button>
+                                    <button *ngIf="b.etiqueta" (click)="imprimirCodigos([b.etiqueta])"><ico n="printer"></ico>Imprimir QR</button>
+                                    <button *ngIf="isAdmin && !b.etiqueta" (click)="abrirAsignarEtiqueta(b)"><ico n="qr"></ico>Asignar QR</button>
+                                    <button *ngIf="(isAdmin || canAuthorize) && (b.requiere_calibracion || b.requiere_mantenimiento)" (click)="abrirCalForm(b)"><ico n="gauge"></ico>Registrar calibración</button>
+                                    <div class="fi-mas">
+                                      <button (click)="masAbierto = masAbierto===b.id_bien ? null : b.id_bien" [class.on]="masAbierto===b.id_bien" aria-label="Más acciones">Más<ico n="chev"></ico></button>
+                                      <div class="fi-back" *ngIf="masAbierto===b.id_bien" (click)="masAbierto=null"></div>
+                                      <div class="fi-menu" *ngIf="masAbierto===b.id_bien">
+                                        <label *ngIf="isAdmin && b.foto_mini" [class.off]="fotoSubiendo"><ico n="camera"></ico>{{ fotoSubiendo ? 'Subiendo…' : 'Cambiar foto' }}
+                                          <input type="file" accept="image/*" capture="environment" (change)="cambiarFotoBien($event, b); masAbierto=null" [disabled]="fotoSubiendo" hidden>
+                                        </label>
+                                        <button *ngIf="isAdmin && b.etiqueta" (click)="abrirAsignarEtiqueta(b); masAbierto=null"><ico n="qr"></ico>Cambiar etiqueta QR</button>
+                                        <button *ngIf="(isAdmin || canAuthorize) && !b.requiere_calibracion && !b.requiere_mantenimiento" (click)="abrirCalForm(b, true); masAbierto=null"><ico n="gauge"></ico>Controlar calibración</button>
+                                        <button *ngIf="isAdmin" (click)="formatoAltaDeBien(b); masAbierto=null"><ico n="file"></ico>Formato de alta (PDF)</button>
+                                        <button class="peligro" (click)="deleteBien(b.id_bien); masAbierto=null"><ico n="trash"></ico>{{ isAdmin ? 'Dar de baja' : 'Solicitar la baja' }}</button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <p class="fi-nota" *ngIf="!isAdmin">Los cambios y bajas se envían al administrador para su autorización.</p>
                                 </div>
                               </div>
-                              <ng-container *ngTemplateOutlet="accionesBienTpl; context: { $implicit: b }"></ng-container>
                             </td>
                           </tr>
                         </ng-container>
@@ -2782,62 +2843,62 @@ export class IcoComponent { @Input() n = ''; }
               </div>
             </div>
 
-            <!-- Fechas de un equipo -->
-            <div class="modal-backdrop cal-fondo" *ngIf="calForm as f">
-              <div class="modal-card cal-sheet">
-                <div class="modal-header">
-                  <div>
-                    <h2>{{ (f.b.articulo | titlecase) || 'Bien sin nombre' }}</h2>
-                    <p>{{ f.b.clave }}<ng-container *ngIf="f.b.ubicacion"> · {{ f.b.ubicacion | titlecase }}</ng-container></p>
-                  </div>
-                  <button class="close-button" [disabled]="f.guardando" (click)="calForm=null">×</button>
+          </section>
+        <!-- Fechas de un equipo (se abre desde Calibración o desde Bienes) -->
+          <div class="modal-backdrop cal-fondo" *ngIf="calForm as f">
+            <div class="modal-card cal-sheet">
+              <div class="modal-header">
+                <div>
+                  <h2>{{ (f.b.articulo | titlecase) || 'Bien sin nombre' }}</h2>
+                  <p>{{ f.b.clave }}<ng-container *ngIf="f.b.ubicacion"> · {{ f.b.ubicacion | titlecase }}</ng-container></p>
                 </div>
-                <div class="form-section">
-                  <div class="cf" [class.on]="f.cal">
-                    <button type="button" class="cf-top" (click)="f.cal = !f.cal">
-                      <span class="cf-ico"><ico n="gauge"></ico></span>
-                      <span class="cf-txt"><b>Calibración</b><small>{{ f.cal ? 'Próxima calibración' : 'No lo requiere' }}</small></span>
-                      <span class="sw" [class.on]="f.cal"><i></i></span>
-                    </button>
-                    <div class="cf-body" *ngIf="f.cal">
-                      <input type="date" [(ngModel)]="f.fCal">
-                      <div class="cf-rap">
-                        <span>Se calibró hoy, la próxima en:</span>
-                        <button type="button" (click)="f.fCal = fechaEnMeses(3)">3 meses</button>
-                        <button type="button" (click)="f.fCal = fechaEnMeses(6)">6 meses</button>
-                        <button type="button" (click)="f.fCal = fechaEnMeses(12)">1 año</button>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="cf" [class.on]="f.man">
-                    <button type="button" class="cf-top" (click)="f.man = !f.man">
-                      <span class="cf-ico"><ico n="wrench"></ico></span>
-                      <span class="cf-txt"><b>Mantenimiento</b><small>{{ f.man ? 'Próximo mantenimiento' : 'No lo requiere' }}</small></span>
-                      <span class="sw" [class.on]="f.man"><i></i></span>
-                    </button>
-                    <div class="cf-body" *ngIf="f.man">
-                      <input type="date" [(ngModel)]="f.fMan">
-                      <div class="cf-rap">
-                        <span>Se le dio hoy, el próximo en:</span>
-                        <button type="button" (click)="f.fMan = fechaEnMeses(3)">3 meses</button>
-                        <button type="button" (click)="f.fMan = fechaEnMeses(6)">6 meses</button>
-                        <button type="button" (click)="f.fMan = fechaEnMeses(12)">1 año</button>
-                      </div>
-                    </div>
-                  </div>
-                  <p class="cal-hint" *ngIf="!f.cal && !f.man && f.estaba">Al guardar, el equipo sale del control de calibración y mantenimiento.</p>
-                </div>
-                <div class="inline-error" *ngIf="f.error" style="margin:0 24px 12px">{{ f.error }}</div>
-                <div class="modal-footer">
-                  <button class="btn-outline" [disabled]="f.guardando" (click)="calForm=null">Cancelar</button>
-                  <button class="btn-primary" [disabled]="f.guardando || (!f.cal && !f.man && !f.estaba)" (click)="guardarCalForm()">
-                    <span class="mini-ring light" *ngIf="f.guardando"></span>
-                    {{ f.guardando ? 'Guardando…' : (!f.cal && !f.man ? 'Quitar del control' : 'Guardar') }}
+                <button class="close-button" [disabled]="f.guardando" (click)="calForm=null">×</button>
+              </div>
+              <div class="form-section">
+                <div class="cf" [class.on]="f.cal">
+                  <button type="button" class="cf-top" (click)="f.cal = !f.cal">
+                    <span class="cf-ico"><ico n="gauge"></ico></span>
+                    <span class="cf-txt"><b>Calibración</b><small>{{ f.cal ? 'Próxima calibración' : 'No lo requiere' }}</small></span>
+                    <span class="sw" [class.on]="f.cal"><i></i></span>
                   </button>
+                  <div class="cf-body" *ngIf="f.cal">
+                    <input type="date" [(ngModel)]="f.fCal">
+                    <div class="cf-rap">
+                      <span>Se calibró hoy, la próxima en:</span>
+                      <button type="button" (click)="f.fCal = fechaEnMeses(3)">3 meses</button>
+                      <button type="button" (click)="f.fCal = fechaEnMeses(6)">6 meses</button>
+                      <button type="button" (click)="f.fCal = fechaEnMeses(12)">1 año</button>
+                    </div>
+                  </div>
                 </div>
+                <div class="cf" [class.on]="f.man">
+                  <button type="button" class="cf-top" (click)="f.man = !f.man">
+                    <span class="cf-ico"><ico n="wrench"></ico></span>
+                    <span class="cf-txt"><b>Mantenimiento</b><small>{{ f.man ? 'Próximo mantenimiento' : 'No lo requiere' }}</small></span>
+                    <span class="sw" [class.on]="f.man"><i></i></span>
+                  </button>
+                  <div class="cf-body" *ngIf="f.man">
+                    <input type="date" [(ngModel)]="f.fMan">
+                    <div class="cf-rap">
+                      <span>Se le dio hoy, el próximo en:</span>
+                      <button type="button" (click)="f.fMan = fechaEnMeses(3)">3 meses</button>
+                      <button type="button" (click)="f.fMan = fechaEnMeses(6)">6 meses</button>
+                      <button type="button" (click)="f.fMan = fechaEnMeses(12)">1 año</button>
+                    </div>
+                  </div>
+                </div>
+                <p class="cal-hint" *ngIf="!f.cal && !f.man && f.estaba">Al guardar, el equipo sale del control de calibración y mantenimiento.</p>
+              </div>
+              <div class="inline-error" *ngIf="f.error" style="margin:0 24px 12px">{{ f.error }}</div>
+              <div class="modal-footer">
+                <button class="btn-outline" [disabled]="f.guardando" (click)="calForm=null">Cancelar</button>
+                <button class="btn-primary" [disabled]="f.guardando || (!f.cal && !f.man && !f.estaba)" (click)="guardarCalForm()">
+                  <span class="mini-ring light" *ngIf="f.guardando"></span>
+                  {{ f.guardando ? 'Guardando…' : (!f.cal && !f.man ? 'Quitar del control' : 'Guardar') }}
+                </button>
               </div>
             </div>
-          </section>
+          </div>
 
           <!-- REQUISICIONES DE COMPRA -->
           <section *ngIf="section==='requisiciones'" class="rq">
@@ -3366,7 +3427,7 @@ export class IcoComponent { @Input() n = ''; }
     .user-info small{font-size:12px;color:#9eacc0}
     .logout{background:transparent;color:#cbd5e1;border:0;font-size:22px;cursor:pointer}
     .main-content{flex:1;min-width:0}
-    .topbar{height:76px;background:#fff;border-bottom:1px solid #e8edf3;display:flex;align-items:center;padding:0 32px;gap:18px}
+    .topbar{height:60px;background:#fff;border-bottom:1px solid #e8edf3;display:flex;align-items:center;padding:0 32px;gap:18px}
     .menu-toggle{background:transparent;border:0;font-size:22px;color:#607087;cursor:pointer}
     .topbar-title{display:flex;flex-direction:column;gap:5px}
     .topbar-title small{font-size:12px;color:#8793a5;letter-spacing:1px}
@@ -3988,7 +4049,98 @@ export class IcoComponent { @Input() n = ''; }
     .bx-nuevo{display:inline-flex;align-items:center;gap:7px;height:42px;padding:0 18px 0 14px;border:0;border-radius:13px;background:#14243a;color:#fff;font:inherit;font-size:14.5px;font-weight:700;cursor:pointer;box-shadow:0 6px 16px #14243a33;transition:transform .15s,box-shadow .15s}
     .bx-nuevo:hover{transform:translateY(-1px);box-shadow:0 10px 22px #14243a40}
     .bx-nuevo ico{width:18px;height:18px}
-    .bx-buscar{position:relative;margin-bottom:20px}
+    .content-area.ancho{max-width:none;padding:16px 22px 28px}
+    .bx-top{display:flex;align-items:flex-start;gap:18px;margin-bottom:14px}
+    .bx-tit{display:flex;align-items:baseline;gap:10px;flex-shrink:0;height:52px;padding-top:9px;box-sizing:border-box}
+    .bx-tit h1{margin:0;font-size:26px;font-weight:800;letter-spacing:-.7px;color:#14243a;line-height:1.1}
+    .bx-tit .bx-sub{margin:0;font-size:15px;font-weight:600;color:#8a96a6;font-variant-numeric:tabular-nums}
+    .bx-buscar{position:relative;flex:1;min-width:0}
+    .bx-buscar .bx-chips{margin-top:10px}
+    .bx-pills .bx-nuevo{height:52px;border-radius:15px}
+    .bx-cm{display:flex;align-items:center;gap:10px;width:100%;min-height:44px;margin:0 0 12px;padding:0 16px;border:0;border-radius:13px;background:#fff6e8;color:#7a4300;font:inherit;font-size:14px;text-align:left;cursor:pointer;animation:fadeIn .25s ease both;transition:background .15s}
+    .bx-cm:hover{background:#ffefd6}
+    .bx-cm ico{width:19px;height:19px;flex-shrink:0}
+    .bx-cm span{flex:1;min-width:0}
+    .bx-cm b{font-weight:800;color:#a3262e}
+    .bx-cm em{font-style:normal;font-weight:800}
+
+    /* Ficha del renglón abierto */
+    .fi{display:grid;grid-template-columns:220px minmax(0,1fr);gap:24px;align-items:start;animation:fiAbrir .24s cubic-bezier(.2,.8,.2,1) both}
+    @keyframes fiAbrir{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+    .fi-foto{position:relative;aspect-ratio:4/3;border-radius:16px;overflow:hidden;display:grid;place-items:center;background:#eef1f5}
+    .fi-foto-ver{width:100%;height:100%;padding:0;border:0;background:none;cursor:zoom-in}
+    .fi-foto-ver img{width:100%;height:100%;object-fit:cover;display:block}
+    .fi-foto-tomar{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;width:100%;height:100%;margin:0;cursor:pointer;color:inherit;transition:background .15s}
+    .fi-foto-tomar:hover{background:#ffffff55}
+    .fi-foto-tomar ico{width:30px;height:30px}
+    .fi-foto-tomar b{font-size:13.5px;font-weight:700}
+    .fi-foto-tomar.off{opacity:.6;pointer-events:none}
+    .fi-mono{font-size:48px;font-weight:800;letter-spacing:-2px}
+    .fi-main{display:flex;flex-direction:column;gap:14px;min-width:0}
+    .fi-estado{display:flex;flex-wrap:wrap;gap:7px}
+    .fi-chip{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 12px;border-radius:999px;background:#fff;box-shadow:0 0 0 1px #e4e9f0;color:#25364c;font-size:13px;font-weight:650;white-space:nowrap}
+    .fi-chip ico{width:15px;height:15px;color:#7a8799}
+    .fi-chip .edot{width:8px;height:8px}
+    .fi-chip.fi-falta{color:#8a96a6}
+    .fi-chip.fi-cm-vencida{background:#fdeeee;box-shadow:none;color:#a3262e}
+    .fi-chip.fi-cm-vencida ico{color:#a3262e}
+    .fi-chip.fi-cm-proxima{background:#fff3df;box-shadow:none;color:#8a4b00}
+    .fi-chip.fi-cm-proxima ico{color:#8a4b00}
+    .fi-chip.fi-cm-sin{color:#8a96a6}
+    .fi-bloques{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+    .fi-b{display:flex;flex-direction:column;gap:3px;min-width:0;padding:12px 14px;background:#fff;border-radius:14px;box-shadow:0 0 0 1px #e9edf3}
+    .fi-b h5{margin:0 0 4px;font-size:11.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#8a96a6}
+    .fi-b strong{font-size:14.5px;font-weight:700;color:#14243a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .fi-b span{font-size:13px;color:#6b7a8d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .fi-b-reg b{font-family:"SFMono-Regular",Consolas,monospace;font-size:12.5px;color:#25364c}
+    .fi-carac{margin:0;font-size:13.5px;line-height:1.5;color:#4a5a70}
+    .fi-acc{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+    .fi-acc>button,.fi-mas>button{display:inline-flex;align-items:center;gap:7px;height:40px;padding:0 14px;border:0;border-radius:11px;background:#fff;box-shadow:0 0 0 1px #e2e8f0;color:#14243a;font:inherit;font-size:14px;font-weight:650;cursor:pointer;transition:box-shadow .15s,background .15s}
+    .fi-acc>button:hover,.fi-mas>button:hover{box-shadow:0 0 0 1px #c9d3e0}
+    .fi-acc ico{width:17px;height:17px}
+    .fi-acc>.fi-pri{background:#14243a;color:#fff;box-shadow:none}
+    .fi-acc>.fi-pri:hover{background:#22385a;box-shadow:none}
+    .fi-mas{position:relative;margin-left:auto}
+    .fi-mas>button ico{width:14px;height:14px;transition:transform .15s}
+    .fi-mas>button.on ico{transform:rotate(180deg)}
+    .fi-back{position:fixed;inset:0;z-index:60}
+    .fi-menu{position:absolute;z-index:61;right:0;bottom:48px;min-width:230px;padding:6px;background:#fff;border-radius:14px;box-shadow:0 0 0 1px #17263d0f,0 18px 44px #17263d2e;display:flex;flex-direction:column;animation:zoomIn .15s ease both}
+    .fi-menu button,.fi-menu label{display:flex;align-items:center;gap:10px;height:40px;margin:0;padding:0 12px;border:0;border-radius:9px;background:transparent;color:#14243a;font:inherit;font-size:14px;font-weight:600;text-align:left;cursor:pointer}
+    .fi-menu button:hover,.fi-menu label:hover{background:#f4f6f9}
+    .fi-menu ico{width:17px;height:17px;color:#7a8799}
+    .fi-menu .peligro{color:#b42318;margin-top:4px;border-top:1px solid #f0f2f6;border-radius:0 0 9px 9px}
+    .fi-menu .peligro ico{color:#b42318}
+    .fi-menu label.off{opacity:.5;pointer-events:none}
+    .fi-nota{margin:0;font-size:12.5px;color:#8a96a6}
+    @media(min-width:1600px){
+      .content-area.ancho{padding:20px 32px 32px}
+      .pt td{padding-top:12px;padding-bottom:12px}
+      .pt-thumb{width:52px;height:52px}
+      .fi{grid-template-columns:260px minmax(0,1fr)}
+    }
+    @media(max-width:1280px){.fi-bloques{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media(max-width:1100px){
+      .bx-top{flex-direction:column;align-items:stretch;gap:8px}
+      .bx-tit{height:auto;padding-top:0}
+    }
+    @media(max-width:700px){
+      .content-area.ancho{padding:10px 10px 24px}
+      .bx-tit h1{font-size:24px}
+      .bx-pills .bx-nuevo{height:44px;width:44px;border-radius:13px}
+      .bx-cm{font-size:13px;padding:8px 12px}
+      .pt-cm{display:none}
+      .pt-det td{box-shadow:none}
+      .fi{grid-template-columns:1fr;gap:14px}
+      .fi-foto{aspect-ratio:16/10}
+      .fi-bloques{grid-template-columns:1fr 1fr;gap:8px}
+      .fi-b{padding:10px 12px}
+      .fi-acc>button{flex:1 1 auto;justify-content:center}
+      .fi-mas{margin-left:0;flex:1 1 auto}
+      .fi-mas>button{width:100%;justify-content:center}
+      .fi-menu{position:fixed;left:0;right:0;bottom:0;border-radius:20px 20px 0 0;padding:10px 10px calc(14px + env(safe-area-inset-bottom));animation:fadeUp .2s ease both}
+      .fi-menu button,.fi-menu label{height:48px;font-size:15px}
+      .fi-back{background:#0f1a2a55}
+    }
     .bx-fila{display:flex;align-items:center;gap:10px}
     .bx-fila .sx-search{flex:1;min-width:0;height:52px;border-radius:15px;padding-right:10px}
     .bx-pills{display:flex;align-items:center;gap:8px;flex-shrink:0}
@@ -4042,7 +4194,10 @@ export class IcoComponent { @Input() n = ''; }
     .pt-txt strong{font-size:15px;font-weight:700;color:#14243a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .pt-txt small{font-size:13px;color:#7a8799;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:360px}
     .pt-movil{display:none}
-    .pt-alerta{width:17px;height:17px;color:#b45309;flex-shrink:0;margin-left:auto}
+    .pt-cm{display:inline-flex;align-items:center;gap:5px;margin-left:auto;flex-shrink:0;height:26px;padding:0 10px;border-radius:999px;background:#fff3df;color:#8a4b00;font-size:12px;font-weight:700;white-space:nowrap}
+    .pt-cm ico{width:14px;height:14px}
+    .pt-cm.venc{background:#fdeeee;color:#a3262e}
+    .pt-fila.abierta td:first-child{box-shadow:inset 3px 0 #14243a}
     .pt-2l{display:flex;flex-direction:column;line-height:1.3}
     .pt-2l small{font-size:12.5px;color:#8a96a6}
     .pt-per{display:inline-flex;align-items:center;gap:9px;white-space:nowrap}
@@ -4058,7 +4213,7 @@ export class IcoComponent { @Input() n = ''; }
     .pt-fila.abierta .pt-chev ico{transform:rotate(180deg);color:#14243a}
     .pt-grupo td{background:#fbfcfd;padding:10px 20px;font-size:12.5px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;color:#4a5a70}
     .pt-grupo b{margin-left:8px;font-weight:600;color:#8a96a6}
-    .pt-det td{background:#f5f8fc;padding:4px 20px 18px 82px;cursor:default}
+    .pt-det td{background:#f5f8fc;padding:4px 20px 20px;cursor:default;box-shadow:inset 3px 0 #14243a}
     .pt-det-in{display:flex;gap:24px;align-items:flex-start;animation:fadeIn .2s ease both}
     .pt-foto{width:200px;height:150px;flex-shrink:0;border:0;padding:0;border-radius:16px;overflow:hidden;display:grid;place-items:center;font-size:48px;font-weight:800;letter-spacing:-2px;cursor:zoom-in;background:#eef1f5}
     .pt-foto.vacia{cursor:default}
@@ -7205,6 +7360,8 @@ export class AppComponent {
           : String(va).localeCompare(String(vb), 'es', { numeric: true })) * factor;
       });
     }
+    // Viendo pendientes de calibración: primero lo más urgente
+    if (cm === 'atencion' && !key) lista = [...lista].sort((a, b) => this.urgenciaCM(a) - this.urgenciaCM(b));
     if (this.agruparInv !== 'ninguno') {
       const sinGrupo = (g: string) => g.startsWith('Sin ') ? 1 : 0;
       lista = lista.map((b, i) => ({ b, i, g: this.grupoDe(b) }))
@@ -7503,9 +7660,63 @@ export class AppComponent {
     return this.columnasDisponibles.filter(c => c.key !== 'articulo');
   }
 
+  masAbierto: any = null;
+
   alternarFila(b: any): void {
+    this.masAbierto = null;
     this.bienAbierto = this.bienAbierto === b.id_bien ? null : b.id_bien;
-    if (this.bienAbierto) this.refrescarFotoBien(b);
+    if (!this.bienAbierto) return;
+    this.refrescarFotoBien(b);
+    // Que la ficha abierta quede a la vista sin saltos bruscos
+    setTimeout(() => {
+      try {
+        const fila = document.querySelector('[data-fila="' + b.id_bien + '"]') as HTMLElement | null;
+        const det = fila?.nextElementSibling as HTMLElement | null;
+        (det || fila)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      } catch { /* opcional */ }
+    }, 60);
+  }
+
+  // Días que faltan para una fecha (negativo = ya pasó)
+  diasCM(f: any): number | null {
+    if (!f) return null;
+    const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+    const d = new Date(String(f).substring(0, 10) + 'T00:00:00');
+    return Math.round((d.getTime() - hoy.getTime()) / 86400000);
+  }
+
+  cuentaCM(f: any): string {
+    const d = this.diasCM(f);
+    if (d === null) return 'sin fecha';
+    if (d < 0) return 'vencida hace ' + (-d === 1 ? '1 día' : -d + ' días');
+    if (d === 0) return 'vence hoy';
+    if (d <= 30) return 'vence en ' + (d === 1 ? '1 día' : d + ' días');
+    return 'próxima ' + new Date(String(f).substring(0, 10) + 'T00:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
+  // Lo más urgente entre calibración y mantenimiento
+  private urgenciaCM(b: any): number {
+    const dias = [b.requiere_calibracion ? this.diasCM(b.fecha_calibracion) : null, b.requiere_mantenimiento ? this.diasCM(b.fecha_mantenimiento) : null]
+      .filter((x): x is number => x !== null);
+    return dias.length ? Math.min(...dias) : 99999;
+  }
+
+  cmVencido(b: any): boolean {
+    return this.urgenciaCM(b) < 0;
+  }
+
+  textoCMFila(b: any): string {
+    const d = this.urgenciaCM(b);
+    if (d === 99999) return 'Sin fecha';
+    if (d < 0) return 'Vencida hace ' + (-d === 1 ? '1 día' : -d + ' días');
+    if (d === 0) return 'Vence hoy';
+    return 'Vence en ' + (d === 1 ? '1 día' : d + ' días');
+  }
+
+  verAtencionCM(): void {
+    this.filtroCM = 'atencion';
+    this.ordenBienes = { key: '', dir: 'asc' };
+    this.aplicarFiltrosBienes();
   }
 
   textoEstadoCorto(v: any): string {
