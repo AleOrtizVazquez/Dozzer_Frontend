@@ -9132,8 +9132,33 @@ export class AppComponent {
     if (!id) return;
     this.http.get<any>(this.api + '/bienes/siguiente-clave', { params: { idUbicacion: String(id) } }).subscribe({
       next: r => { if (this.bien?.idUbicacion === id && !this.bien?.idBien) { this.claveSiguiente = r?.clave || ''; this.claveInfo = r?.clave ? r : null; } },
-      error: () => { this.claveSiguiente = ''; this.claveInfo = null; }
+      // Servidor sin esta función (versión anterior): se calcula aquí con los bienes cargados
+      error: () => { if (this.bien?.idUbicacion === id && !this.bien?.idBien) this.claveLocal(id); }
     });
+  }
+
+  // Mismo cálculo que el servidor: prefijo de la sede + el número más alto del largo habitual + 1
+  private claveLocal(idUbicacion: any): void {
+    const u = (this.catalogs.ubicaciones || []).find((x: any) => String(x.id_ubicacion) === String(idUbicacion));
+    const sede = (this.catalogs.sedes || []).find((x: any) => String(x.id_sede) === String(u?.id_sede));
+    const conPrefijo = !!String(sede?.prefijo_clave || '').trim();
+    const prefijo = conPrefijo ? String(sede.prefijo_clave).trim().toUpperCase() : 'B';
+    const porLargo: Record<number, number> = {}, mayor: Record<number, number> = {};
+    for (const b of this.bienes) {
+      const cl = String(b.clave || '').trim().toUpperCase();
+      if (!cl.startsWith(prefijo)) continue;
+      const resto = cl.substring(prefijo.length);
+      if (!/^[0-9]{1,9}$/.test(resto)) continue;
+      porLargo[resto.length] = (porLargo[resto.length] || 0) + 1;
+      mayor[resto.length] = Math.max(mayor[resto.length] || 0, Number(resto));
+    }
+    const largos = Object.keys(porLargo).map(Number).sort((a, b) => porLargo[b] - porLargo[a] || a - b);
+    const digitos = Math.max(largos[0] || 4, 4);
+    const usadas = new Set(this.bienes.map(b => String(b.clave || '').trim().toUpperCase()));
+    let n = mayor[digitos] || 0, clave = '';
+    do { clave = prefijo + String(++n).padStart(digitos, '0'); } while (usadas.has(clave));
+    this.claveSiguiente = clave;
+    this.claveInfo = { clave, conPrefijo, prefijo, numero: clave.substring(prefijo.length), sede: sede?.nombre_sede || '', local: true };
   }
 
   newBien(): void {
@@ -12728,6 +12753,7 @@ export class AppComponent {
     this.saving = true;
 
     const esNuevo = !this.bien.idBien;
+    if (!this.bien.idBien && !this.claveManual && !String(this.bien.clave || '').trim() && this.claveInfo?.local) this.bien.clave = this.claveInfo.clave;
     const formulario = { ...this.bien };
     const req = this.bien.idBien
       ? this.http.put(this.api + '/bienes/' + this.bien.idBien, this.bien)
