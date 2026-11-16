@@ -456,7 +456,7 @@ export interface OpcionElegir { v: any; t: string; s?: string; }
     .de-txt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .de-campo svg{width:16px;height:16px;color:#8a96a6;flex-shrink:0}
     .de-fondo{position:fixed;inset:0;z-index:400}
-    .de-panel{position:fixed;z-index:401;display:flex;flex-direction:column;background:#fff;border-radius:14px;box-shadow:0 0 0 1px #17263d14,0 18px 48px #17263d33;overflow:hidden;animation:dePop .14s ease both}
+    .de-panel{position:fixed;z-index:401;display:flex;flex-direction:column;background:#fff;border-radius:14px;box-shadow:0 0 0 1px #17263d14,0 18px 48px #17263d33;overflow:hidden;animation:dePop .14s ease backwards}
     @keyframes dePop{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
     .de-asa,.de-cab{display:none}
     .de-buscar{margin:8px 8px 4px;height:40px;border:0;border-radius:10px;background:#f2f4f7;padding:0 12px;font:inherit;font-size:15px;outline:none;color:#14243a}
@@ -471,7 +471,7 @@ export interface OpcionElegir { v: any; t: string; s?: string; }
     @media(max-width:700px){
       .de-fondo{background:#0f1a2a66;animation:deFade .2s ease both}
       @keyframes deFade{from{opacity:0}}
-      .de-panel{left:0!important;right:0!important;top:auto!important;bottom:0!important;width:auto!important;max-height:78vh!important;max-height:78dvh!important;border-radius:22px 22px 0 0;padding-bottom:env(safe-area-inset-bottom);animation:deSube .22s ease both}
+      .de-panel{left:0!important;right:0!important;top:auto!important;bottom:0!important;width:auto!important;max-height:78vh!important;max-height:78dvh!important;border-radius:22px 22px 0 0;padding-bottom:env(safe-area-inset-bottom);animation:deSube .22s ease backwards}
       @keyframes deSube{from{transform:translateY(30px);opacity:.4}}
       .de-asa{display:block;width:40px;height:5px;border-radius:3px;background:#d5dce6;margin:10px auto 4px}
       .de-cab{display:block;padding:6px 18px 4px;font-size:16px;font-weight:700;color:#14243a}
@@ -2379,19 +2379,25 @@ export class ElegirComponent {
                     <div class="lv-bar"><span [style.width.%]="pctLev(l)"></span></div>
                   </div>
 
-                  <button class="btn-primary lv-main" *ngIf="l.puedoAdministrar && l.totalBienes && !pendientesLev(l)" (click)="abrirCierre(l)"><ico n="lock"></ico> Cerrar inventario</button>
-                  <button class="lv-main" [ngClass]="l.puedoAdministrar && l.totalBienes && !pendientesLev(l) ? 'btn-outline' : 'btn-primary'" *ngIf="puedeCapturar(l)" (click)="iniciarCaptura(l)"><ico n="play"></ico> {{ l.capturados ? 'Continuar inventario' : 'Empezar inventario' }}</button>
-                  <button class="btn-outline lv-main" *ngIf="!puedeCapturar(l)" (click)="abrirAvance(l)"><ico n="chart"></ico> Ver avance</button>
-
-                  <div class="lv-pie">
-                    <div class="lv-ics">
-                      <button *ngIf="l.idDocumentoInicio" (click)="abrirActaInicio(l)" [title]="l.inicioFirmado || !l.puedoAdministrar ? 'Acta de inicio' : 'Acta de inicio: falta firmarla'" [class.pendiente]="l.puedoAdministrar && !l.inicioFirmado"><ico n="flag"></ico><span>Inicio</span></button>
-                      <button *ngIf="l.resguardos" (click)="verResguardosLev(l)" [title]="l.resguardos + ' resguardos'"><ico n="idcard"></ico><span>Resguardos</span></button>
-                      <button [class.on]="levDetalle===l.idLevantamiento" (click)="levDetalle = levDetalle===l.idLevantamiento ? null : l.idLevantamiento" title="Detalles"><ico n="info"></ico><span>Detalles</span></button>
-                    </div>
-                    <div class="lv-ics" *ngIf="l.puedoAdministrar">
-                      <button (click)="cerrarLevantamiento(l)" title="Cerrar el inventario y firmar el acta"><ico n="lock"></ico><span>Cerrar</span></button>
-                      <button class="peligro" *ngIf="l.puedoBorrar || l.estado==='EN_CURSO'" (click)="eliminarLevantamiento(l)" title="Eliminar (solo pruebas)"><ico n="trash"></ico><span>Borrar</span></button>
+                  <button class="lv-aviso" *ngIf="l.puedoAdministrar && l.idDocumentoInicio && !l.inicioFirmado && (l.participantes || []).length" (click)="abrirActaInicio(l)">
+                    <ico n="flag"></ico><span>Falta firmar el acta de inicio</span><b>Firmar</b>
+                  </button>
+                  <div class="lv-acc">
+                    <button class="btn-primary lv-main" *ngIf="l.puedoAdministrar && l.totalBienes && !pendientesLev(l)" (click)="abrirCierre(l)"><ico n="lock"></ico> Cerrar inventario</button>
+                    <button class="btn-primary lv-main" *ngIf="puedeCapturar(l) && !(l.puedoAdministrar && l.totalBienes && !pendientesLev(l))" (click)="iniciarCaptura(l)"><ico n="play"></ico> {{ l.capturados ? 'Continuar' : 'Empezar' }}</button>
+                    <button class="btn-primary lv-main" *ngIf="!puedeCapturar(l) && !(l.puedoAdministrar && l.totalBienes && !pendientesLev(l))" (click)="abrirAvance(l)"><ico n="chart"></ico> Ver avance</button>
+                    <div class="fi-mas lv-mas">
+                      <button class="fi-icono" [class.on]="levMenu===l.idLevantamiento" (click)="levMenu = levMenu===l.idLevantamiento ? null : l.idLevantamiento" aria-label="Más opciones"><ico n="dots"></ico></button>
+                      <div class="fi-back" *ngIf="levMenu===l.idLevantamiento" (click)="levMenu=null"></div>
+                      <div class="fi-menu" *ngIf="levMenu===l.idLevantamiento">
+                        <button *ngIf="puedeCapturar(l) && l.puedoAdministrar && l.totalBienes && !pendientesLev(l)" (click)="levMenu=null; iniciarCaptura(l)"><ico n="play"></ico>Seguir capturando</button>
+                        <button *ngIf="puedeCapturar(l)" (click)="levMenu=null; abrirAvance(l)"><ico n="chart"></ico>Avance y pendientes</button>
+                        <button *ngIf="l.idDocumentoInicio" (click)="levMenu=null; abrirActaInicio(l)"><ico n="flag"></ico>Acta de inicio</button>
+                        <button *ngIf="l.resguardos" (click)="levMenu=null; verResguardosLev(l)"><ico n="idcard"></ico>Resguardos ({{ l.resguardos | number }})</button>
+                        <button (click)="levMenu=null; levDetalle = levDetalle===l.idLevantamiento ? null : l.idLevantamiento"><ico n="info"></ico>{{ levDetalle===l.idLevantamiento ? 'Ocultar detalles' : 'Detalles' }}</button>
+                        <button *ngIf="l.puedoAdministrar && !(l.totalBienes && !pendientesLev(l))" (click)="levMenu=null; cerrarLevantamiento(l)"><ico n="lock"></ico>Cerrar inventario…</button>
+                        <button class="peligro" *ngIf="l.puedoAdministrar && (l.puedoBorrar || l.estado==='EN_CURSO')" (click)="levMenu=null; eliminarLevantamiento(l)"><ico n="trash"></ico>Borrar (solo pruebas)</button>
+                      </div>
                     </div>
                   </div>
 
@@ -2693,6 +2699,17 @@ export class ElegirComponent {
                 <span class="lev-bar"><span [style.width.%]="capPct"></span></span>
                 <small>{{ capRevisados | number }} de {{ cap.bienes.length | number }} revisados</small>
                 <button class="sync-chip" [ngClass]="'sync-' + estadoSync" (click)="tocarSync()">{{ textoSync }}</button>
+                <div class="fi-mas cap-mas">
+                  <button class="fi-icono" [class.on]="cap.menu" (click)="cap.menu = !cap.menu" aria-label="Más opciones"><ico n="dots"></ico></button>
+                  <div class="fi-back" *ngIf="cap.menu" (click)="cap.menu=false"></div>
+                  <div class="fi-menu cap-menu" *ngIf="cap.menu">
+                    <button (click)="cap.menu=false; elegirGrupo(null)"><ico n="box"></ico>Todos los bienes de la sede</button>
+                    <button (click)="cap.menu=false; abrirAvanceCaptura()"><ico n="chart"></ico>Avance y pendientes</button>
+                    <button (click)="cap.menu=false; abrirNuevoBienCap()"><ico n="plus"></ico>Registrar un bien nuevo</button>
+                    <button (click)="cap.menu=false; abrirBuscarGeneral()"><ico n="search"></ico>Buscar en otras sedes</button>
+                    <button class="peligro" *ngIf="cap.lev.puedoAdministrar && cap.bienes.length && pendientesSede" (click)="cap.menu=false; finalizarInventario(cap.lev, pendientesSede, cap.bienes.length, true)"><ico n="lock"></ico>Cerrar inventario…</button>
+                  </div>
+                </div>
                 <div class="sync-aviso" *ngIf="cap.offlineDesde">📴 Trabajando con la copia guardada en este celular ({{ cap.offlineDesde | date:'dd/MM HH:mm' }}). Lo que captures se sube solo al volver la señal.</div>
               </div>
 
@@ -2700,10 +2717,9 @@ export class ElegirComponent {
 
               <!-- Paso 1: persona o área -->
               <ng-container *ngIf="!cap.cargando && cap.paso==='area'">
-                <h2 class="cap-q">{{ cap.modo==='persona' ? '¿De quién son los bienes que vas a revisar?' : '¿En qué área estás?' }}</h2>
-                <div class="seg">
-                  <button [class.on]="cap.modo==='persona'" (click)="cap.modo='persona'; cap.busquedaArea=''; cap.verTodos=false">👤 Por persona</button>
-                  <button [class.on]="cap.modo==='area'" (click)="cap.modo='area'; cap.busquedaArea=''; cap.verTodos=false">📍 Por área</button>
+                <div class="seg cap-tabs">
+                  <button [class.on]="cap.modo==='persona'" (click)="cap.modo='persona'; cap.busquedaArea=''"><ico n="users"></ico> Personas</button>
+                  <button [class.on]="cap.modo==='area'" (click)="cap.modo='area'; cap.busquedaArea=''"><ico n="pin"></ico> Áreas</button>
                 </div>
                 <p class="cap-hint" *ngIf="cap.modo==='area'">Así sabremos si algún bien está fuera de su lugar.</p>
                 <!-- Todo revisado: cerrar el inventario desde aquí -->
@@ -2715,7 +2731,7 @@ export class ElegirComponent {
                 </div>
 
                 <button class="cap-sig" *ngIf="grupoSugerido as g" (click)="elegirGrupo(g)">
-                  <span class="cap-sig-av">{{ cap.modo==='persona' ? inicialesDe(g.nombre) : '📍' }}</span>
+                  <span class="cap-sig-av"><ng-container *ngIf="cap.modo==='persona'">{{ inicialesDe(g.nombre) }}</ng-container><ico *ngIf="cap.modo!=='persona'" n="pin"></ico></span>
                   <span class="cap-sig-txt">
                     <small>{{ g.hechos ? 'Sigue con' : 'Empieza con' }}</small>
                     <b>{{ g.nombre | titlecase }}</b>
@@ -2724,15 +2740,8 @@ export class ElegirComponent {
                   <ico class="cap-sig-go" n="chev"></ico>
                 </button>
 
-                <button class="cap-finalizar" *ngIf="cap.lev.puedoAdministrar && cap.bienes.length && pendientesSede" (click)="finalizarInventario(cap.lev, pendientesSede, cap.bienes.length, true)">
-                  <ico n="flag"></ico>
-                  <span><b>Finalizar inventario</b><small>Si ya no vas a revisar más bienes</small></span>
-                </button>
-
-                <button class="cap-otros" (click)="cap.verTodos = !cap.verTodos">
-                  {{ cap.verTodos ? '▴ Ocultar la lista' : (grupoSugerido ? '▾ Elegir otra ' + (cap.modo==='persona' ? 'persona' : 'área') : '▾ Ver ' + (cap.modo==='persona' ? 'las personas' : 'las áreas')) + ' (' + totalGrupos + ')' }}
-                </button>
-                <ng-container *ngIf="cap.verTodos">
+                <div class="cap-lista-tit">{{ cap.modo==='persona' ? 'Personas' : 'Áreas' }} <small>{{ totalGrupos | number }}</small></div>
+                <ng-container>
                   <input class="cap-search" [(ngModel)]="cap.busquedaArea" [placeholder]="cap.modo==='persona' ? 'Buscar persona...' : 'Buscar área...'">
                   <div class="cap-areas">
                     <button *ngFor="let g of gruposCaptura" [class.done]="g.hechos===g.total" (click)="elegirGrupo(g)">
@@ -2743,15 +2752,12 @@ export class ElegirComponent {
                     <p class="cap-hint" *ngIf="!gruposCaptura.length">Sin resultados.</p>
                   </div>
                 </ng-container>
-                <div class="chk-links">
-                  <button class="lev-more" (click)="elegirGrupo(null)">Ver todos los bienes de la sede</button>
-                  <button class="lev-more" (click)="abrirAvanceCaptura()">📊 Resumen y pendientes (PDF)</button>
-                </div>
+
               </ng-container>
 
               <!-- Paso 2: escanear -->
               <ng-container *ngIf="!cap.cargando && cap.paso==='escanear'">
-                <button class="cap-area-chip" (click)="cap.paso='area'">{{ cap.modo==='persona' ? '👤' : '📍' }} {{ grupoActualNombre }} · cambiar</button>
+                <button class="cap-area-chip" (click)="cap.paso='area'"><ico class="cap-atras" n="chev"></ico>{{ grupoActualNombre }}</button>
                 <div class="cap-ok" *ngIf="cap.ultimo">✓ {{ cap.ultimo }}</div>
                 <div class="inline-error" *ngIf="cap.error">{{ cap.error }}</div>
                 <button class="lev-more" *ngIf="cap.ofrecerNuevo" (click)="abrirNuevoBienCap()">＋ Registrarlo como bien nuevo</button>
@@ -2774,10 +2780,10 @@ export class ElegirComponent {
 
                 <ng-container *ngIf="!cap.escaneando">
                   <button class="cap-big" *ngIf="camaraEnVivo" (click)="iniciarEscaner()">
-                    <span>📷</span> Escanear QR
+                    <ico n="camera"></ico> Escanear QR
                   </button>
                   <label class="cap-big" [class.secondary]="camaraEnVivo">
-                    <span>🖼</span> {{ camaraEnVivo ? 'Leer QR desde una foto' : 'Tomar foto del QR' }}
+                    <ico n="image"></ico> {{ camaraEnVivo ? 'Leer QR desde una foto' : 'Tomar foto del QR' }}
                     <input type="file" accept="image/*" capture="environment" (change)="leerQrDeFoto($event)" hidden>
                   </label>
                   <p class="cap-hint" *ngIf="!camaraEnVivo">Para escanear en vivo, el celular necesita abrir DOZZER con https. Mientras, toma una foto del QR.</p>
@@ -2789,15 +2795,11 @@ export class ElegirComponent {
                     <button class="btn-primary" (click)="buscarPorClave()">Buscar</button>
                   </div>
 
-                  <div class="chk-links" *ngIf="!esChecklist">
-                    <button class="lev-more" (click)="abrirNuevoBienCap()">＋ Bien que no está en la lista</button>
-                    <button class="lev-more" (click)="abrirBuscarGeneral()">🔍 Buscar en otras sedes</button>
-                  </div>
+
                 </ng-container>
 
                 <!-- Checklist de la persona: sus bienes, primero los pendientes -->
                 <div class="chk" *ngIf="esChecklist">
-                  <button class="btn-primary chk-terminar arriba" *ngIf="cap.grupo.modo==='persona' && !pendientesGrupo.length && !['FIRMADO','CON_DIFERENCIAS'].includes(estadoPersona(cap.grupo.id))" (click)="abrirTerminarPersona()">✍ Terminar con {{ nombreCorto(cap.grupo.nombre) }}</button>
                   <div class="chk-head">
                     <strong>{{ cap.grupo.modo==='persona' ? 'Bienes de ' + nombreCorto(cap.grupo.nombre) : cap.grupo.nombre }}</strong>
                     <small>{{ hechosGrupo }} de {{ bienesGrupo.length }}</small>
@@ -2813,11 +2815,9 @@ export class ElegirComponent {
                       <span class="av-go">›</span>
                     </button>
                   </div>
-                  <div class="chk-links">
-                    <button class="lev-more" (click)="abrirNuevoBienCap()">＋ Bien que no está en la lista</button>
-                    <button class="lev-more" (click)="abrirBuscarGeneral()">🔍 Buscar en otras sedes</button>
+                  <div class="chk-pie" *ngIf="cap.grupo.modo==='persona'">
+                    <button class="btn-primary chk-terminar" (click)="abrirTerminarPersona()"><ico n="edit"></ico> Terminar con {{ nombreCorto(cap.grupo.nombre) }}</button>
                   </div>
-                  <button class="btn-primary chk-terminar" *ngIf="cap.grupo.modo==='persona'" (click)="abrirTerminarPersona()">✍ Terminar con {{ nombreCorto(cap.grupo.nombre) }}</button>
                 </div>
               </ng-container>
 
@@ -3949,7 +3949,7 @@ export class ElegirComponent {
     .user-menu-wrap{position:relative}
     .top-avatar-btn{border:0;cursor:pointer;font-family:inherit;transition:box-shadow .2s,transform .15s}
     .top-avatar-btn:hover,.top-avatar-btn.open{box-shadow:0 0 0 3px #244c7833;transform:translateY(-1px)}
-    .user-menu{position:absolute;right:0;top:calc(100% + 8px);z-index:45;width:300px;background:#fff;border:1px solid #e3e9f1;border-radius:14px;box-shadow:0 16px 44px #1b2c4430;padding:6px;animation:fadeUp .15s ease both}
+    .user-menu{position:absolute;right:0;top:calc(100% + 8px);z-index:45;width:300px;background:#fff;border:1px solid #e3e9f1;border-radius:14px;box-shadow:0 16px 44px #1b2c4430;padding:6px;animation:fadeUp .15s ease backwards}
     .user-menu-head{display:flex;align-items:center;gap:11px;padding:10px 10px 12px;border-bottom:1px solid #edf1f6;margin-bottom:4px}
     .user-menu-head strong{display:block;font-size:14px;color:#25364c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}
     .user-menu-head small{display:block;font-size:12px;color:#8d99a9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}
@@ -4033,10 +4033,10 @@ export class ElegirComponent {
     .bv{position:fixed;top:0;right:0;bottom:0;left:0;inset:0;z-index:400;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;cursor:pointer;
         background:radial-gradient(900px 520px at 50% -8%,#e3edf9 0%,#f6f9fd 45%,#fff 75%);animation:fadeIn .3s ease both}
     .bv-in{display:flex;flex-direction:column;align-items:center;text-align:center;max-width:520px;width:100%}
-    .bv-logo{width:min(300px,74%);height:auto;margin-bottom:34px;animation:fadeUp .6s ease both}
-    .bv-chip{font-size:13.5px;font-weight:700;color:#4f6f95;background:#eaf1f9;padding:6px 14px;border-radius:999px;margin-bottom:18px;animation:fadeUp .6s .1s ease both}
-    .bv h1{margin:0 0 12px;font-size:38px;font-weight:800;letter-spacing:-.8px;color:#111c2e;animation:fadeUp .6s .18s ease both}
-    .bv p{margin:0;font-size:16.5px;line-height:1.6;color:#4b5a6d;animation:fadeUp .6s .26s ease both}
+    .bv-logo{width:min(300px,74%);height:auto;margin-bottom:34px;animation:fadeUp .6s ease backwards}
+    .bv-chip{font-size:13.5px;font-weight:700;color:#4f6f95;background:#eaf1f9;padding:6px 14px;border-radius:999px;margin-bottom:18px;animation:fadeUp .6s .1s ease backwards}
+    .bv h1{margin:0 0 12px;font-size:38px;font-weight:800;letter-spacing:-.8px;color:#111c2e;animation:fadeUp .6s .18s ease backwards}
+    .bv p{margin:0;font-size:16.5px;line-height:1.6;color:#4b5a6d;animation:fadeUp .6s .26s ease backwards}
     .bv-barra{width:150px;height:4px;border-radius:4px;background:#e4ebf4;margin:34px 0 10px;overflow:hidden;animation:fadeIn .4s .3s ease both}
     .bv-barra span{display:block;height:100%;width:100%;background:linear-gradient(90deg,#2d5d93,#f08a24);transform-origin:left;animation:bvCarga 3s linear both}
     @keyframes bvCarga{from{transform:scaleX(0)}to{transform:scaleX(1)}}
@@ -4296,7 +4296,7 @@ export class ElegirComponent {
       .res-resp button{grid-template-columns:90px 1fr 40px}
       .rp-body{padding-left:14px}
     }
-    .aviso-app{position:fixed;right:18px;bottom:18px;z-index:450;display:flex;align-items:center;gap:12px;max-width:380px;width:calc(100% - 36px);background:#fff;border:1px solid #dbe6f3;border-left:5px solid #f08a24;border-radius:16px;padding:12px 10px 12px 14px;box-shadow:0 14px 34px #17263d33;cursor:pointer;animation:fadeUp .35s ease both}
+    .aviso-app{position:fixed;right:18px;bottom:18px;z-index:450;display:flex;align-items:center;gap:12px;max-width:380px;width:calc(100% - 36px);background:#fff;border:1px solid #dbe6f3;border-left:5px solid #f08a24;border-radius:16px;padding:12px 10px 12px 14px;box-shadow:0 14px 34px #17263d33;cursor:pointer;animation:fadeUp .35s ease backwards}
     .aa-ico{width:38px;height:38px;border-radius:50%;background:#fff1e0;color:#b8650f;display:grid;place-items:center;flex-shrink:0}
     .aa-ico ico{width:19px;height:19px}
     .aa-txt{flex:1;min-width:0;display:flex;flex-direction:column}
@@ -4306,9 +4306,9 @@ export class ElegirComponent {
     @media(max-width:600px){.aviso-app{right:12px;left:12px;bottom:calc(12px + env(safe-area-inset-bottom));width:auto;max-width:none}}
     /* Inicio (saludo fijo) */
     .bv.ini{position:relative;inset:auto;z-index:auto;cursor:default;min-height:calc(100vh - 150px);min-height:calc(100dvh - 150px);border-radius:24px;padding:40px 20px 70px}
-    .ini-menu{margin-top:30px;display:inline-flex;align-items:center;gap:10px;font-size:16px!important;padding:14px 26px!important;border-radius:999px!important;animation:fadeUp .6s .34s ease both;box-shadow:0 10px 24px #244c7833}
+    .ini-menu{margin-top:30px;display:inline-flex;align-items:center;gap:10px;font-size:16px!important;padding:14px 26px!important;border-radius:999px!important;animation:fadeUp .6s .34s ease backwards;box-shadow:0 10px 24px #244c7833}
     .ini-menu span{font-size:18px}
-    .ini-pend{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:18px;animation:fadeUp .6s .42s ease both}
+    .ini-pend{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:18px;animation:fadeUp .6s .42s ease backwards}
     .ini-pend button{display:inline-flex;align-items:center;gap:7px;border:1.5px solid #f0c98a;background:#fff8ec;color:#8a5a12;border-radius:999px;padding:8px 14px;font-weight:700;font-size:13.5px;cursor:pointer;font-family:inherit}
     .ini-pend ico{width:16px;height:16px}
     .top-logo{cursor:pointer}
@@ -4416,7 +4416,7 @@ export class ElegirComponent {
     .doc-firma{font-size:11px;font-weight:800;letter-spacing:.3px;color:#a56a00;background:#fff4dc;border-radius:999px;padding:2px 8px;margin-left:6px}
     .doc-firma.ok{color:#14804f;background:#e6f6ec}
     .modal-backdrop.adm-fondo{z-index:150}
-    .adm{width:min(560px,100%);max-height:min(88vh,860px);background:#fff;border-radius:22px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 30px 80px #15243b45;animation:fadeUp .3s ease both}
+    .adm{width:min(560px,100%);max-height:min(88vh,860px);background:#fff;border-radius:22px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 30px 80px #15243b45;animation:fadeUp .3s ease backwards}
     .adm-top{display:flex;align-items:flex-start;gap:14px;padding:22px 22px 14px;background:linear-gradient(160deg,#f2f7fd,#fff)}
     .adm-top-ico{width:48px;height:48px;border-radius:15px;background:linear-gradient(140deg,#17304f,#2d5d93);color:#fff;display:grid;place-items:center;flex-shrink:0;box-shadow:0 8px 20px #2d5d9340}
     .adm-top-ico ico{width:24px;height:24px}
@@ -4457,7 +4457,7 @@ export class ElegirComponent {
     .nb-etq-btn{display:inline-flex!important;align-items:center;justify-content:center;gap:8px;height:46px;margin:0!important;color:#fff!important;font-size:15px!important;cursor:pointer}
     .nb-etq-btn ico{width:19px;height:19px}
     .modal-backdrop.push-preg-fondo{z-index:300}
-    .push-preg{width:min(400px,100%);background:#fff;border-radius:22px;padding:28px 24px 20px;text-align:center;box-shadow:0 24px 70px #15243b40;animation:fadeUp .3s ease both}
+    .push-preg{width:min(400px,100%);background:#fff;border-radius:22px;padding:28px 24px 20px;text-align:center;box-shadow:0 24px 70px #15243b40;animation:fadeUp .3s ease backwards}
     .push-preg-ico{width:64px;height:64px;border-radius:20px;margin:0 auto 16px;display:grid;place-items:center;color:#fff;background:linear-gradient(140deg,#17304f,#2d5d93);box-shadow:0 10px 24px #2d5d9340}
     .push-preg-ico ico{width:30px;height:30px}
     .push-preg h2{margin:0 0 8px;font-size:21px;font-weight:800;color:#14243a}
@@ -4584,7 +4584,7 @@ export class ElegirComponent {
     .bx-cm em{font-style:normal;font-weight:800}
 
     /* Ficha del renglón abierto */
-    .fi{display:grid;grid-template-columns:220px minmax(0,1fr);gap:24px;align-items:start;animation:fiAbrir .24s cubic-bezier(.2,.8,.2,1) both}
+    .fi{display:grid;grid-template-columns:220px minmax(0,1fr);gap:24px;align-items:start;animation:fiAbrir .24s cubic-bezier(.2,.8,.2,1) backwards}
     @keyframes fiAbrir{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
     .fi-foto{position:relative;aspect-ratio:4/3;border-radius:16px;overflow:hidden;display:grid;place-items:center;background:#eef1f5}
     .fi-foto-ver{width:100%;height:100%;padding:0;border:0;background:none;cursor:zoom-in}
@@ -4623,7 +4623,7 @@ export class ElegirComponent {
     .fi-mas>button ico{width:14px;height:14px;transition:transform .15s}
     .fi-mas>button.on ico{transform:rotate(180deg)}
     .fi-back{position:fixed;inset:0;z-index:60}
-    .fi-menu{position:absolute;z-index:61;right:0;bottom:48px;min-width:230px;padding:6px;background:#fff;border-radius:14px;box-shadow:0 0 0 1px #17263d0f,0 18px 44px #17263d2e;display:flex;flex-direction:column;animation:zoomIn .15s ease both}
+    .fi-menu{position:absolute;z-index:61;right:0;bottom:48px;min-width:230px;padding:6px;background:#fff;border-radius:14px;box-shadow:0 0 0 1px #17263d0f,0 18px 44px #17263d2e;display:flex;flex-direction:column;animation:zoomIn .15s ease backwards}
     .fi-menu button,.fi-menu label{display:flex;align-items:center;gap:10px;height:40px;margin:0;padding:0 12px;border:0;border-radius:9px;background:transparent;color:#14243a;font:inherit;font-size:14px;font-weight:600;text-align:left;cursor:pointer}
     .fi-menu button:hover,.fi-menu label:hover{background:#f4f6f9}
     .fi-menu ico{width:17px;height:17px;color:#7a8799}
@@ -4741,7 +4741,7 @@ export class ElegirComponent {
       .fi-acc>button{flex:1 1 auto;justify-content:center}
       .fi-mas{margin-left:0;flex:1 1 auto}
       .fi-mas>button{width:100%;justify-content:center}
-      .fi-menu{position:fixed;left:0;right:0;bottom:0;border-radius:20px 20px 0 0;padding:10px 10px calc(14px + env(safe-area-inset-bottom));animation:fadeUp .2s ease both}
+      .fi-menu{position:fixed;left:0;right:0;bottom:0;border-radius:20px 20px 0 0;padding:10px 10px calc(14px + env(safe-area-inset-bottom));animation:fadeUp .2s ease backwards}
       .fi-menu button,.fi-menu label{height:48px;font-size:15px}
       .fi-back{background:#0f1a2a55}
     }
@@ -4761,7 +4761,7 @@ export class ElegirComponent {
     .bx-fbtn.on{background:#14243a;color:#fff;box-shadow:none}
     .bx-fbtn ico{width:20px;height:20px}
     .bx-fbtn i{position:absolute;top:-4px;right:-4px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#6a54c9;color:#fff;font-style:normal;font-size:11px;font-weight:800;display:grid;place-items:center;border:2px solid #f4f6fa}
-    .bx-menu{position:absolute;z-index:62;top:60px;left:0;min-width:240px;max-width:300px;background:#fff;border-radius:16px;padding:6px;box-shadow:0 0 0 1px #17263d0f,0 20px 50px #17263d2e;display:flex;flex-direction:column;animation:zoomIn .16s ease both}
+    .bx-menu{position:absolute;z-index:62;top:60px;left:0;min-width:240px;max-width:300px;background:#fff;border-radius:16px;padding:6px;box-shadow:0 0 0 1px #17263d0f,0 20px 50px #17263d2e;display:flex;flex-direction:column;animation:zoomIn .16s ease backwards}
     .bx-menu-per{left:auto;right:0;width:300px;padding:8px}
     .bx-menu-lista{display:flex;flex-direction:column;max-height:340px;overflow-y:auto}
     .bx-menu button{display:flex;align-items:center;gap:10px;min-height:42px;padding:6px 10px;border:0;border-radius:10px;background:transparent;color:#14243a;font:inherit;font-size:14px;font-weight:600;text-align:left;cursor:pointer}
@@ -4838,7 +4838,7 @@ export class ElegirComponent {
       .bx-pop{flex:1;min-width:0}
       .bx-pill{width:100%;max-width:none;height:44px;border-radius:13px;font-size:14px}
       .bx-fbtn{width:44px;height:44px;border-radius:13px}
-      .bx-menu{position:fixed;top:auto;left:0;right:0;bottom:0;width:100%;max-width:none;border-radius:22px 22px 0 0;padding:10px 10px calc(12px + env(safe-area-inset-bottom));max-height:75vh;animation:fadeUp .22s ease both}
+      .bx-menu{position:fixed;top:auto;left:0;right:0;bottom:0;width:100%;max-width:none;border-radius:22px 22px 0 0;padding:10px 10px calc(12px + env(safe-area-inset-bottom));max-height:75vh;animation:fadeUp .22s ease backwards}
       .bx-menu-lista{max-height:55vh}
       .fx-back{background:#0f1a2a55}
       .pt-caja{border-radius:16px}
@@ -4856,7 +4856,7 @@ export class ElegirComponent {
     .bx-lupa{width:21px;height:21px;color:#8a96a6;flex-shrink:0}
     .sx-search:focus-within .bx-lupa,.sx-search.activa .bx-lupa{color:#6a54c9}
     .bx-chips{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px}
-    .bx-chip{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 10px 0 13px;border:0;border-radius:999px;background:#14243a;color:#fff;font:inherit;font-size:13.5px;font-weight:650;cursor:pointer;animation:zoomIn .18s ease both;transition:opacity .15s}
+    .bx-chip{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 10px 0 13px;border:0;border-radius:999px;background:#14243a;color:#fff;font:inherit;font-size:13.5px;font-weight:650;cursor:pointer;animation:zoomIn .18s ease backwards;transition:opacity .15s}
     .bx-chip:hover{opacity:.85}
     .bx-chip.ia{background:#efeafd;color:#3f2f94}
     .bx-chip .bx-ia{width:14px;height:14px}
@@ -4864,7 +4864,7 @@ export class ElegirComponent {
     .bx-limpiar{border:0;background:transparent;color:#7a8799;font:inherit;font-size:13.5px;font-weight:600;cursor:pointer;padding:4px 6px}
     .bx-limpiar:hover{color:#14243a}
     .fx-back{position:fixed;inset:0;z-index:60;background:transparent}
-    .fx{position:absolute;z-index:61;top:66px;right:0;width:420px;max-width:calc(100vw - 24px);max-height:min(620px,calc(100vh - 220px));display:flex;flex-direction:column;background:#fff;border-radius:20px;box-shadow:0 0 0 1px #17263d0f,0 24px 60px #17263d2e;overflow:hidden;animation:zoomIn .18s ease both}
+    .fx{position:absolute;z-index:61;top:66px;right:0;width:420px;max-width:calc(100vw - 24px);max-height:min(620px,calc(100vh - 220px));display:flex;flex-direction:column;background:#fff;border-radius:20px;box-shadow:0 0 0 1px #17263d0f,0 24px 60px #17263d2e;overflow:hidden;animation:zoomIn .18s ease backwards}
     .fx-asa{display:none}
     .fx-scroll{overflow-y:auto;padding:8px 20px 6px}
     .fx section{padding:14px 0;border-bottom:1px solid #f0f2f6}
@@ -4892,7 +4892,7 @@ export class ElegirComponent {
       .bx-nuevo{width:42px;padding:0;justify-content:center}
       .bx-nuevo span{display:none}
       .fx-back{background:#0f1a2a66;animation:fadeIn .2s ease both}
-      .fx{position:fixed;top:auto;left:0;right:0;bottom:0;width:100%;max-width:none;max-height:86vh;max-height:86dvh;border-radius:22px 22px 0 0;animation:fadeUp .25s ease both}
+      .fx{position:fixed;top:auto;left:0;right:0;bottom:0;width:100%;max-width:none;max-height:86vh;max-height:86dvh;border-radius:22px 22px 0 0;animation:fadeUp .25s ease backwards}
       .fx-asa{display:block;width:40px;height:5px;border-radius:3px;background:#d5dce6;margin:10px auto 2px;flex-shrink:0}
       .fx-pie{padding-bottom:calc(12px + env(safe-area-inset-bottom))}
       .fx-ver{flex:1}
@@ -4939,7 +4939,7 @@ export class ElegirComponent {
     .dw .drawer-footer .ba{margin-top:0;padding-top:0;border-top:0}
     /* --- inventarios --- */
     .lv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;align-items:start}
-    .lv{background:#fff;border:1px solid #e5eaf1;border-radius:20px;padding:20px;display:flex;flex-direction:column;gap:18px;box-shadow:0 6px 22px #17263d0b;animation:fadeUp .35s ease both}
+    .lv{background:#fff;border:1px solid #e5eaf1;border-radius:20px;padding:20px;display:flex;flex-direction:column;gap:18px;box-shadow:0 6px 22px #17263d0b;animation:fadeUp .35s ease backwards}
     .lv-top{display:flex;align-items:center;gap:14px}
     .lv-ico{width:46px;height:46px;border-radius:14px;background:linear-gradient(140deg,#17304f,#2d5d93);color:#fff;display:grid;place-items:center;flex-shrink:0}
     .lv-ico ico{width:23px;height:23px}
@@ -4956,6 +4956,28 @@ export class ElegirComponent {
     .lv-num span{font-size:13.5px;color:#6b7a8d}
     .lv-bar{height:8px;background:#edf1f6;border-radius:6px;overflow:hidden}
     .lv-bar span{display:block;height:100%;background:linear-gradient(90deg,#2d5d93,#21835a);border-radius:6px;transition:width .5s}
+    .lv-acc{display:flex;align-items:center;gap:8px}
+    .lv-acc .lv-main{flex:1}
+    .lv-acc .fi-mas{margin-left:0;flex-shrink:0}
+    .lv-acc .fi-icono{width:48px!important;height:48px!important;border-radius:13px!important}
+    .lv-aviso{display:flex;align-items:center;gap:10px;width:100%;min-height:44px;padding:0 14px;border:0;border-radius:12px;background:#fff6e8;color:#7a4300;font:inherit;font-size:14px;cursor:pointer;text-align:left}
+    .lv-aviso ico{width:18px;height:18px;flex-shrink:0}
+    .lv-aviso span{flex:1}
+    .lv-aviso b{font-weight:800}
+    .cap-top .cap-mas{position:absolute!important;top:2px;right:0;margin:0!important;flex:0 0 auto!important}
+    .cap-top .cap-mas>.fi-icono{width:44px!important;height:44px!important}
+    .cap-big ico{width:26px;height:26px}
+    .cap-menu{top:46px;bottom:auto!important;right:0;left:auto}
+    .cap-tabs button{display:inline-flex;align-items:center;justify-content:center;gap:7px}
+    .cap-tabs ico{width:17px;height:17px}
+    .cap-lista-tit{display:flex;align-items:baseline;gap:8px;margin:6px 2px -2px;font-size:13px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;color:#6b7a8d}
+    .cap-lista-tit small{font-size:12px;font-weight:600;color:#a3aebd}
+    .cap-sig-av ico{width:20px;height:20px}
+    .cap-area-chip{display:inline-flex;align-items:center;gap:6px}
+    .cap-atras{width:15px;height:15px;transform:rotate(90deg)}
+    .chk-pie{position:sticky;bottom:0;z-index:4;padding:10px 0 calc(10px + env(safe-area-inset-bottom));background:linear-gradient(transparent,#f4f6fa 30%)}
+    .chk-pie .chk-terminar{width:100%;display:inline-flex;align-items:center;justify-content:center;gap:9px;box-shadow:0 8px 20px #17263d26}
+    .chk-pie .chk-terminar ico{width:19px;height:19px}
     .lv-main{width:100%;height:48px;display:inline-flex;align-items:center;justify-content:center;gap:9px;font-size:15.5px;border-radius:13px}
     .lv-main ico{width:18px;height:18px}
     .lv-pie{display:flex;justify-content:space-between;gap:6px;border-top:1px solid #eef1f5;padding-top:12px;flex-wrap:wrap}
@@ -4995,7 +5017,7 @@ export class ElegirComponent {
     .wp-add{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:10px;border:1.5px dashed #c9d6e6;background:transparent;border-radius:12px;padding:11px;color:#2d5d93;font-size:14px;font-weight:700;cursor:pointer}
     .wp-add:hover{background:#f3f7fc}
     .wp-add ico{width:17px;height:17px}
-    .saludo{position:relative;overflow:hidden;display:flex;align-items:center;gap:24px;background:linear-gradient(120deg,#fff 55%,#edf3fb);border:1px solid #e5eaf1;border-radius:20px;padding:26px 30px 26px 34px;margin-bottom:18px;box-shadow:0 6px 24px #17263d0d;animation:fadeUp .45s ease both}
+    .saludo{position:relative;overflow:hidden;display:flex;align-items:center;gap:24px;background:linear-gradient(120deg,#fff 55%,#edf3fb);border:1px solid #e5eaf1;border-radius:20px;padding:26px 30px 26px 34px;margin-bottom:18px;box-shadow:0 6px 24px #17263d0d;animation:fadeUp .45s ease backwards}
     .saludo::before{content:'';position:absolute;left:0;top:0;bottom:0;width:5px;background:linear-gradient(#f5a04a,#e07a12)}
     .saludo-txt{flex:1;min-width:0}
     .saludo-chip{display:inline-block;font-size:13px;font-weight:700;color:#4f6f95;background:#eef3f9;padding:5px 12px;border-radius:999px}
@@ -5155,7 +5177,7 @@ export class ElegirComponent {
     .inv-resumen span.inv-scope::before{display:none}
     .more-wrap{position:relative}
     .caret{font-size:12px;color:#8a97a8}
-    .more-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:40;width:280px;background:#fff;border:1px solid #e3e9f1;border-radius:12px;box-shadow:0 14px 40px #1b2c4426;padding:6px;animation:fadeUp .15s ease both}
+    .more-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:40;width:280px;background:#fff;border:1px solid #e3e9f1;border-radius:12px;box-shadow:0 14px 40px #1b2c4426;padding:6px;animation:fadeUp .15s ease backwards}
     .more-menu button{width:100%;display:flex;gap:12px;align-items:center;text-align:left;border:0;background:transparent;padding:10px;border-radius:9px;cursor:pointer;font-family:inherit}
     .more-menu button:hover:not(:disabled){background:#f3f6fa}
     .more-menu button:disabled{opacity:.45;cursor:not-allowed}
@@ -5198,7 +5220,7 @@ export class ElegirComponent {
     .ico-wa{background:#e3f8eb!important}
     .ico-wa svg{width:19px;height:19px;fill:#25d366}
     .doc-file-mini{margin-top:auto;font-size:12.5px;color:#8d99a9;word-break:break-all;padding-top:10px}
-    .doc-flow{max-width:620px;margin:0 auto;padding:18px 24px 26px;display:flex;flex-direction:column;gap:16px;animation:fadeUp .25s ease both}
+    .doc-flow{max-width:620px;margin:0 auto;padding:18px 24px 26px;display:flex;flex-direction:column;gap:16px;animation:fadeUp .25s ease backwards}
     .doc-back{align-self:flex-start;border:0;background:transparent;padding:4px 0;font-family:inherit;font-size:14.5px;font-weight:700;color:#4f6f95;cursor:pointer}
     .doc-back:hover{color:#17263d;text-decoration:underline}
     .flow-head{display:flex;align-items:center;gap:14px}
@@ -5228,7 +5250,7 @@ export class ElegirComponent {
     /* ---------- REVOCACIÓN ---------- */
     .revoke-link{border:1px dashed #e6b866;background:#fffaf0;color:#a56a00;font-family:inherit;font-size:14.5px;font-weight:700;border-radius:10px;padding:11px 14px;width:100%;text-align:left;cursor:pointer;transition:background .2s}
     .revoke-link:hover{background:#fff1d6}
-    .revoke-box{background:#fffaf0;border:1px solid #f0d49a;border-radius:12px;padding:16px;color:#7a5200;animation:fadeUp .2s ease both}
+    .revoke-box{background:#fffaf0;border:1px solid #f0d49a;border-radius:12px;padding:16px;color:#7a5200;animation:fadeUp .2s ease backwards}
     .revoke-box>strong{display:block;font-size:15.5px;margin-bottom:8px}
     .revoke-box ul{margin:0 0 14px;padding-left:18px;font-size:14px;line-height:1.7}
     .revoke-box label{color:#7a5200}
@@ -5289,7 +5311,7 @@ export class ElegirComponent {
     .inv-back{border:0;background:transparent;padding:0;margin:0 0 8px;font-family:inherit;font-size:14.5px;font-weight:700;color:#4f6f95;cursor:pointer}
     .inv-back:hover{color:#17263d;text-decoration:underline}
     .inv-tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;min-height:calc(100vh - 230px)}
-    .inv-tile{position:relative;overflow:hidden;border:0;border-radius:20px;padding:28px 30px;text-align:left;font-family:inherit;color:#fff;cursor:pointer;display:flex;flex-direction:column;justify-content:space-between;gap:18px;min-height:220px;box-shadow:0 10px 30px #17263d26;transition:transform .2s ease,box-shadow .2s ease;animation:fadeUp .45s ease both}
+    .inv-tile{position:relative;overflow:hidden;border:0;border-radius:20px;padding:28px 30px;text-align:left;font-family:inherit;color:#fff;cursor:pointer;display:flex;flex-direction:column;justify-content:space-between;gap:18px;min-height:220px;box-shadow:0 10px 30px #17263d26;transition:transform .2s ease,box-shadow .2s ease;animation:fadeUp .45s ease backwards}
     .inv-tile:nth-child(2){animation-delay:.05s}.inv-tile:nth-child(3){animation-delay:.1s}.inv-tile:nth-child(4){animation-delay:.15s}
     .inv-tile:hover{transform:translateY(-4px);box-shadow:0 18px 40px #17263d3d}
     .inv-tile:active{transform:translateY(-1px)}
@@ -5309,7 +5331,7 @@ export class ElegirComponent {
     .inv-tile:hover .tile-go{background:#ffffff33}
 
     .sede-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
-    .sede-card{position:relative;text-align:left;font-family:inherit;background:#fff;border:1px solid #e5eaf1;border-radius:16px;padding:20px;cursor:pointer;display:flex;flex-direction:column;gap:12px;box-shadow:0 3px 12px #233c5708;transition:transform .18s,box-shadow .18s,border-color .18s;animation:fadeUp .35s ease both}
+    .sede-card{position:relative;text-align:left;font-family:inherit;background:#fff;border:1px solid #e5eaf1;border-radius:16px;padding:20px;cursor:pointer;display:flex;flex-direction:column;gap:12px;box-shadow:0 3px 12px #233c5708;transition:transform .18s,box-shadow .18s,border-color .18s;animation:fadeUp .35s ease backwards}
     .sede-card:hover{transform:translateY(-3px);border-color:#bcd0e8;box-shadow:0 12px 28px #233c5717}
     .sede-top{display:flex;gap:12px;align-items:center}
     .sede-ico{width:46px;height:46px;border-radius:13px;background:linear-gradient(140deg,#17304f,#2d5d93);color:#fff;display:grid;place-items:center;flex-shrink:0}
@@ -5375,7 +5397,7 @@ export class ElegirComponent {
     .lev-chip.ok{color:#21835a;background:#e8f6ee}
     .lev-chev{font-size:20px;color:#9aa6b6;transition:transform .2s;flex-shrink:0}
     .lev-card.open .lev-chev{transform:rotate(180deg)}
-    .lev-body{padding:0 18px 18px;display:flex;flex-direction:column;gap:14px;animation:fadeUp .2s ease both}
+    .lev-body{padding:0 18px 18px;display:flex;flex-direction:column;gap:14px;animation:fadeUp .2s ease backwards}
     .lev-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
     .lev-stats div{background:#f6f8fb;border-radius:12px;padding:12px}
     .lev-stats b{display:block;font-size:22px;color:#14243a}
@@ -5407,7 +5429,7 @@ export class ElegirComponent {
     .cap-tools span{font-size:20px;line-height:1.2}
     .cap-tools b{font-size:15px;color:#14243a}
     .cap-tools small{font-size:11.5px;color:#7d8a9b;text-align:center;line-height:1.2}
-    .cap-agregado{display:flex;flex-direction:column;gap:6px;background:#f4f1fc;border:1px solid #ddd3f5;border-radius:14px;padding:14px;animation:fadeUp .25s ease both}
+    .cap-agregado{display:flex;flex-direction:column;gap:6px;background:#f4f1fc;border:1px solid #ddd3f5;border-radius:14px;padding:14px;animation:fadeUp .25s ease backwards}
     .cap-agregado > b{color:#4b3590;font-size:15px}
     .cap-agregado span{font-size:15px;color:#25364c}
     .cap-agregado small{font-size:13px;color:#6d7b8e}
@@ -5500,7 +5522,7 @@ export class ElegirComponent {
       .cap{max-width:1320px}
       .chk-list{grid-template-columns:repeat(3,minmax(0,1fr))}
     }
-    .cap-top{position:sticky;top:0;z-index:5;background:#f4f6fa;padding:4px 0 10px;display:flex;flex-direction:column;gap:6px}
+    .cap-top{position:sticky;top:0;z-index:5;padding-right:52px!important;background:#f4f6fa;padding:4px 0 10px;display:flex;flex-direction:column;gap:6px}
     .cap-top strong{font-size:17px;color:#14243a}
     .cap-top small{font-size:13px;color:#7d8a9b}
     .cap-loading{display:flex;flex-direction:column;align-items:center;gap:12px;padding:40px 0;color:#41546b}
@@ -5514,7 +5536,7 @@ export class ElegirComponent {
     .cap-list span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .cap-list{display:flex;flex-direction:column;gap:6px;max-height:360px;overflow:auto}
     .cap-area-chip{align-self:flex-start;border:0;background:#e5eef8;color:#244c78;font-family:inherit;font-size:14px;font-weight:700;border-radius:20px;padding:8px 14px;cursor:pointer}
-    .cap-ok{background:#e8f6ee;color:#1d7a46;border-radius:12px;padding:12px 14px;font-size:14.5px;font-weight:700;animation:fadeUp .25s ease both}
+    .cap-ok{background:#e8f6ee;color:#1d7a46;border-radius:12px;padding:12px 14px;font-size:14.5px;font-weight:700;animation:fadeUp .25s ease backwards}
     .cap-big{display:flex;align-items:center;justify-content:center;gap:12px;height:76px;border:0;border-radius:18px;background:linear-gradient(135deg,#244c78,#17304f);color:#fff;font-family:inherit;font-size:19px;font-weight:800;cursor:pointer;box-shadow:0 10px 24px #17304f33}
     .cap-big span{font-size:26px}
     .cap-big.secondary{height:56px;font-size:15.5px;background:#fff;color:#244c78;border:1.5px solid #c9d6e6;box-shadow:none}
@@ -5585,8 +5607,8 @@ export class ElegirComponent {
     /* ---------- SALUDO DE INICIO ---------- */
     .welcome{min-height:calc(100vh - 150px);background:#fff;border:1px solid #e7ecf2;border-radius:16px;display:flex;flex-direction:column;align-items:center;padding:32px 20px 22px;box-shadow:0 3px 12px #233c5708}
     .welcome-inner{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;max-width:520px;width:100%}
-    .welcome-logo{width:min(300px,78%);height:auto;margin-bottom:34px;animation:fadeUp .6s ease both}
-    .push-invita{display:flex;align-items:center;gap:12px;margin:22px auto 0;max-width:460px;text-align:left;background:#fff;border:1px solid #dfe7f1;border-radius:16px;padding:14px 14px 14px 16px;box-shadow:0 8px 24px #17263d12;animation:fadeUp .5s .2s ease both}
+    .welcome-logo{width:min(300px,78%);height:auto;margin-bottom:34px;animation:fadeUp .6s ease backwards}
+    .push-invita{display:flex;align-items:center;gap:12px;margin:22px auto 0;max-width:460px;text-align:left;background:#fff;border:1px solid #dfe7f1;border-radius:16px;padding:14px 14px 14px 16px;box-shadow:0 8px 24px #17263d12;animation:fadeUp .5s .2s ease backwards}
     .push-ico{font-size:24px}
     .push-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
     .push-txt strong{font-size:15px;color:#14243a}
@@ -5594,7 +5616,7 @@ export class ElegirComponent {
     .push-x{border:0;background:transparent;color:#9aa6b6;font-size:20px;cursor:pointer;padding:0 4px}
     .push-instalar{margin-top:12px;border:1px solid #d6e0ec;background:#fff;color:#244c78;font-family:inherit;font-size:14px;font-weight:700;border-radius:999px;padding:9px 16px;cursor:pointer}
     .aut-tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:18px}
-    .aut-tile{position:relative;overflow:hidden;border:0;border-radius:18px;padding:18px 20px;text-align:left;font-family:inherit;color:#fff;cursor:pointer;display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto;gap:10px 14px;align-items:center;min-height:132px;box-shadow:0 8px 24px #17263d22;transition:transform .2s ease,box-shadow .2s ease;animation:fadeUp .4s ease both}
+    .aut-tile{position:relative;overflow:hidden;border:0;border-radius:18px;padding:18px 20px;text-align:left;font-family:inherit;color:#fff;cursor:pointer;display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto;gap:10px 14px;align-items:center;min-height:132px;box-shadow:0 8px 24px #17263d22;transition:transform .2s ease,box-shadow .2s ease;animation:fadeUp .4s ease backwards}
     .aut-tile:hover{transform:translateY(-3px);box-shadow:0 14px 32px #17263d33}
     .aut-tile.sel{box-shadow:0 0 0 3px #fff inset,0 10px 28px #17263d40}
     .aut-tile .tile-bg{width:170px;height:170px;right:-26px;bottom:-34px}
@@ -5676,7 +5698,7 @@ export class ElegirComponent {
     .etq-foto ico{width:20px;height:20px}
     .etq-foto{display:inline-flex;align-items:center;justify-content:center;width:52px;cursor:pointer}
     .etq-aviso{background:#f1edfb!important;border-color:#ddd3f5!important;color:#4b3590!important}
-    .cm-aviso{display:flex;align-items:center;gap:12px;margin:12px auto 0;max-width:460px;text-align:left;background:#fff;border:1px solid #dfe7f1;border-radius:16px;padding:12px 14px 12px 16px;animation:fadeUp .5s .25s ease both}
+    .cm-aviso{display:flex;align-items:center;gap:12px;margin:12px auto 0;max-width:460px;text-align:left;background:#fff;border:1px solid #dfe7f1;border-radius:16px;padding:12px 14px 12px 16px;animation:fadeUp .5s .25s ease backwards}
     .cm-n{font-weight:800}
     .cm-n.vencida{color:#bd4b52}
     .cm-n.proxima{color:#a8650f}
@@ -5690,15 +5712,15 @@ export class ElegirComponent {
     .cm-chip.cm-vencida{background:#fdecee;color:#bd4b52}
     .cm-chip.cm-proxima{background:#fff4dc;color:#a8650f}
     .cm-chip.cm-ok{background:#e8f6ee;color:#21835a}
-    .welcome-chip{font-size:13.5px;font-weight:700;color:#4f6f95;background:#eef3f9;padding:6px 14px;border-radius:20px;margin-bottom:18px;animation:fadeUp .6s .1s ease both}
-    .welcome h1{margin:0 0 14px;font-size:36px;font-weight:800;letter-spacing:-.6px;color:#111827;animation:fadeUp .6s .18s ease both}
-    .welcome-inner p{margin:0;font-size:16.5px;line-height:1.7;color:#4b5563;animation:fadeUp .6s .26s ease both}
+    .welcome-chip{font-size:13.5px;font-weight:700;color:#4f6f95;background:#eef3f9;padding:6px 14px;border-radius:20px;margin-bottom:18px;animation:fadeUp .6s .1s ease backwards}
+    .welcome h1{margin:0 0 14px;font-size:36px;font-weight:800;letter-spacing:-.6px;color:#111827;animation:fadeUp .6s .18s ease backwards}
+    .welcome-inner p{margin:0;font-size:16.5px;line-height:1.7;color:#4b5563;animation:fadeUp .6s .26s ease backwards}
     .welcome-foot{margin-top:28px;font-size:12.5px;font-weight:600;letter-spacing:2.2px;color:#9aa3af;text-align:center}
     @media(max-width:700px){.welcome{min-height:calc(100vh - 120px)}.welcome h1{font-size:29px}.welcome-inner p{font-size:15.5px}}
 
     /* ---------- LOGIN ---------- */
     .lg-screen{min-height:100vh;background:#fff;display:flex;justify-content:center;padding:48px 16px 32px}
-    .lg-card{width:min(440px,100%);display:flex;flex-direction:column;align-items:stretch;animation:fadeUp .5s ease both}
+    .lg-card{width:min(440px,100%);display:flex;flex-direction:column;align-items:stretch;animation:fadeUp .5s ease backwards}
     .lg-logo-img{display:block;width:min(340px,86%);height:auto;margin:24px auto 44px}
     .lg-titles{text-align:center;margin-bottom:40px}
     .lg-titles h1{margin:0 0 12px;font-size:23px;font-weight:800;letter-spacing:6px;color:#111827;padding-left:6px}
@@ -5711,7 +5733,7 @@ export class ElegirComponent {
     .lg-eye{position:absolute;right:9px;top:50%;transform:translateY(-50%);width:38px;height:38px;border:0;background:transparent;border-radius:10px;display:grid;place-items:center;cursor:pointer}
     .lg-eye:hover{background:#eef1f5}
     .lg-eye svg{width:18px;height:18px;fill:none;stroke:#7a8494;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-    .lg-error{display:flex;gap:9px;align-items:flex-start;background:#fdf0f1;color:#b4404a;border:1px solid #f5d3d6;border-radius:12px;padding:11px 14px;font-size:14.5px;line-height:1.45;margin:-2px 0 16px;animation:fadeUp .25s ease both}
+    .lg-error{display:flex;gap:9px;align-items:flex-start;background:#fdf0f1;color:#b4404a;border:1px solid #f5d3d6;border-radius:12px;padding:11px 14px;font-size:14.5px;line-height:1.45;margin:-2px 0 16px;animation:fadeUp .25s ease backwards}
     .lg-error svg{width:16px;height:16px;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
     .lg-submit{height:56px;margin-top:6px;border:0;border-radius:14px;background:#111827;color:#fff;font-family:inherit;font-size:16.5px;font-weight:800;letter-spacing:4px;display:flex;align-items:center;justify-content:center;gap:10px;cursor:pointer;transition:background .2s,transform .15s,box-shadow .2s}
     .lg-submit:hover:not(:disabled){background:#1f2a3d;transform:translateY(-1px);box-shadow:0 10px 24px #11182733}
@@ -5725,7 +5747,7 @@ export class ElegirComponent {
     .lg-rules li::before{content:'○ '}
     .lg-rules li.ok{color:#21835a}
     .lg-rules li.ok::before{content:'✓ '}
-    .lg-sent{text-align:center;margin-top:-8px;animation:fadeUp .3s ease both}
+    .lg-sent{text-align:center;margin-top:-8px;animation:fadeUp .3s ease backwards}
     .lg-sent-ico{width:54px;height:54px;border-radius:50%;background:#e8f6ee;display:grid;place-items:center;margin:0 auto 16px}
     .lg-sent-ico svg{width:26px;height:26px;fill:none;stroke:#21835a;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
     .lg-sent ol{text-align:left;margin:20px 0 0;padding:16px 18px 16px 38px;background:#f6f8fb;border-radius:12px;font-size:15px;line-height:1.9;color:#374151}
@@ -5749,7 +5771,7 @@ export class ElegirComponent {
     .temp-pass code{font-family:"SFMono-Regular",Consolas,"Courier New",monospace;font-size:28px;font-weight:800;letter-spacing:3px;color:#14243a}
     .temp-steps{text-align:left;margin:18px 0 0;padding:14px 16px 14px 34px;background:#fffaf0;border-radius:10px;font-size:14.5px;line-height:1.8;color:#5b4a26}
     @media(max-width:700px){.rec-row{flex-wrap:wrap}.rec-actions{width:100%}.rec-actions button{flex:1}}
-    .lg-forgot-help{margin:12px 0 0;text-align:center;font-size:14.5px;line-height:1.55;color:#6b7686;background:#f6f8fb;border-radius:12px;padding:12px 16px;animation:fadeUp .2s ease both}
+    .lg-forgot-help{margin:12px 0 0;text-align:center;font-size:14.5px;line-height:1.55;color:#6b7686;background:#f6f8fb;border-radius:12px;padding:12px 16px;animation:fadeUp .2s ease backwards}
     .lg-footer{margin-top:36px;padding-top:26px;border-top:1px solid #edf0f4;text-align:center}
     .lg-footer p{margin:0 0 8px;font-size:12.5px;font-weight:600;letter-spacing:2.2px;color:#8a95a6}
     .lg-footer b{color:#1f2937;font-weight:800}
@@ -5810,7 +5832,7 @@ export class ElegirComponent {
     .page-size{width:auto;height:30px;padding:4px 8px;font-size:13px}
     .column-picker{position:relative}
     .picker-backdrop{position:fixed;top:0;right:0;bottom:0;left:0;inset:0;z-index:40}
-    .picker-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:41;width:270px;background:#fff;border:1px solid #e1e7ef;border-radius:12px;box-shadow:0 14px 40px #15243b2e;animation:fadeUp .18s ease both}
+    .picker-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:41;width:270px;background:#fff;border:1px solid #e1e7ef;border-radius:12px;box-shadow:0 14px 40px #15243b2e;animation:fadeUp .18s ease backwards}
     .picker-head{padding:14px 16px 10px;border-bottom:1px solid #eef1f5}
     .picker-head strong{display:block;font-size:14px;color:#25364c}
     .picker-head small{font-size:12px;color:#8b97a7}
@@ -5833,14 +5855,14 @@ export class ElegirComponent {
     .picker-footer{position:sticky;bottom:0;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 16px;border-top:1px solid #eef1f5;background:#fafbfd}
     .picker-footer .link-button:disabled{opacity:.4;cursor:default;text-decoration:none}
     .active-filters{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-    .filter-chip{display:inline-flex;align-items:center;gap:5px;background:#eaf1f9;color:#2f5580;border:1px solid #d3e1f1;border-radius:20px;padding:5px 6px 5px 11px;font-size:13px;animation:fadeUp .15s ease both}
+    .filter-chip{display:inline-flex;align-items:center;gap:5px;background:#eaf1f9;color:#2f5580;border:1px solid #d3e1f1;border-radius:20px;padding:5px 6px 5px 11px;font-size:13px;animation:fadeUp .15s ease backwards}
     .filter-chip b{font-weight:700}
     .filter-chip button{border:0;background:#d3e1f1;color:#2f5580;width:18px;height:18px;border-radius:50%;cursor:pointer;font-size:15px;line-height:1;display:grid;place-items:center;padding:0}
     .filter-chip button:hover{background:#244c78;color:#fff}
 
     /* ===== INVENTARIO: PANEL LATERAL ===== */
     .drawer-backdrop{position:fixed;top:0;right:0;bottom:0;left:0;inset:0;background:#15243b55;z-index:90;animation:fadeIn .2s ease both}
-    .drawer{position:fixed;top:0;right:0;bottom:0;left:0;inset:0;margin:auto;width:min(780px,calc(100% - 32px));height:fit-content;max-height:calc(100vh - 48px);max-height:calc(100dvh - 48px);background:#fff;z-index:91;display:flex;flex-direction:column;border-radius:16px;overflow:hidden;box-shadow:0 24px 80px #15243b40;animation:zoomIn .22s ease both}
+    .drawer{position:fixed;top:0;right:0;bottom:0;left:0;inset:0;margin:auto;width:min(780px,calc(100% - 32px));height:fit-content;max-height:calc(100vh - 48px);max-height:calc(100dvh - 48px);background:#fff;z-index:91;display:flex;flex-direction:column;border-radius:16px;overflow:hidden;box-shadow:0 24px 80px #15243b40;animation:zoomIn .22s ease backwards}
     .drawer-section dl{grid-template-columns:repeat(3,minmax(0,1fr))!important}
     .drawer-header{display:flex;justify-content:space-between;gap:12px;padding:24px 24px 18px;border-bottom:1px solid #edf0f4}
     .drawer-header h2{margin:6px 0 10px;font-size:21px;color:#1c2d43;line-height:1.3}
@@ -5859,7 +5881,7 @@ export class ElegirComponent {
 
     /* ===== DIÁLOGO DE CONFIRMACIÓN ===== */
     .confirm-backdrop{position:fixed;top:0;right:0;bottom:0;left:0;inset:0;background:#15243b80;z-index:200;display:flex;align-items:center;justify-content:center;padding:16px;animation:fadeIn .15s ease both;backdrop-filter:blur(2px)}
-    .confirm-card{width:min(460px,100%);max-height:calc(100vh - 32px);overflow:auto;background:#fff;border-radius:18px;padding:28px 26px 22px;text-align:center;box-shadow:0 30px 90px #0b172845;animation:zoomIn .2s ease both}
+    .confirm-card{width:min(460px,100%);max-height:calc(100vh - 32px);overflow:auto;background:#fff;border-radius:18px;padding:28px 26px 22px;text-align:center;box-shadow:0 30px 90px #0b172845;animation:zoomIn .2s ease backwards}
     .confirm-icon{width:58px;height:58px;margin:0 auto 16px;border-radius:50%;display:grid;place-items:center;font-size:28px}
     .confirm-peligro .confirm-icon{background:#fdeced;color:#c0474e;box-shadow:0 0 0 8px #fdeced80}
     .confirm-confirmar .confirm-icon{background:#e9f1fc;color:#2f5f97;box-shadow:0 0 0 8px #e9f1fc80}
@@ -6074,7 +6096,7 @@ export class ElegirComponent {
       .fi-chip{max-width:100%;overflow:hidden;text-overflow:ellipsis}
       .fi-b strong,.fi-b span{white-space:normal}
       .fi-mas{position:relative}
-      .fi-menu{position:absolute;left:auto;right:0;bottom:48px;min-width:250px;max-width:calc(100vw - 48px);border-radius:16px;padding:6px;animation:zoomIn .15s ease both}
+      .fi-menu{position:absolute;left:auto;right:0;bottom:48px;min-width:250px;max-width:calc(100vw - 48px);border-radius:16px;padding:6px;animation:zoomIn .15s ease backwards}
       .fi-hist li>div{flex:1;min-width:0;overflow-wrap:anywhere}
       .pt-fila .pt-cm{display:none}
       .fi-back{background:transparent}
@@ -9309,6 +9331,7 @@ export class AppComponent {
   }
 
   claveSiguiente = '';
+  levMenu: any = null;
   claveInfo: any = null;
   claveManual = false;
   sedeForm: any = null;
