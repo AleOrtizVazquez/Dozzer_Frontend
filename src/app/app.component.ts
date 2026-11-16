@@ -101,6 +101,8 @@ interface FormatoDoc {
       <ng-container *ngSwitchCase="'search'"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></ng-container>
       <ng-container *ngSwitchCase="'gear'"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></ng-container>
       <ng-container *ngSwitchCase="'chevright'"><path d="M9 6l6 6-6 6"/></ng-container>
+      <ng-container *ngSwitchCase="'move'"><path d="M5 9l-3 3 3 3M19 9l3 3-3 3M2 12h20"/><path d="M9 5l3-3 3 3M9 19l3 3 3-3M12 2v20"/></ng-container>
+      <ng-container *ngSwitchCase="'history'"><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6"/><path d="M3 4v4h4"/><path d="M12 7.5V12l3 2"/></ng-container>
       <ng-container *ngSwitchCase="'spark'"><path d="M12 3.5l1.9 5.1 5.1 1.9-5.1 1.9L12 17.5l-1.9-5.1L5 10.5l5.1-1.9L12 3.5z"/><path d="M18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2z"/></ng-container>
       <ng-container *ngSwitchCase="'image'"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.8"/><path d="M21 16l-5-5-8 8"/></ng-container>
     </ng-container>
@@ -876,7 +878,7 @@ export class IcoComponent { @Input() n = ''; }
                 <div class="bx-pills">
                   <div class="bx-pop" *ngIf="isAdmin && sedesScope.length > 1">
                     <button class="bx-pill" [class.on]="sedeEfectiva" (click)="menuInv = menuInv==='sede' ? '' : 'sede'" aria-label="Sede">
-                      <ico n="building"></ico><span>{{ sedeEfectiva ? (nombreSedeEfectiva | titlecase) : 'Todas las sedes' }}</span><ico class="bx-chev" n="chev"></ico>
+                      <ico n="building"></ico><span>{{ sedeEfectiva ? (nombreSedeEfectiva | titlecase) : '' }}<ng-container *ngIf="!sedeEfectiva"><i class="bx-largo">Todas las sedes</i><i class="bx-corto">Sede</i></ng-container></span><ico class="bx-chev" n="chev"></ico>
                     </button>
                     <div class="bx-menu" *ngIf="menuInv==='sede'">
                       <button [class.on]="!sedeEfectiva" (click)="setSedeInv(null)"><span>Todas las sedes</span><small>{{ bienes.length | number }}</small></button>
@@ -885,7 +887,7 @@ export class IcoComponent { @Input() n = ''; }
                   </div>
                   <div class="bx-pop">
                     <button class="bx-pill" [class.on]="personaEfectiva" (click)="menuInv = menuInv==='persona' ? '' : 'persona'; buscaPersonaInv=''" aria-label="Persona">
-                      <ico n="user"></ico><span>{{ personaEfectiva ? (nombrePersonaEfectiva | titlecase) : 'Cualquier persona' }}</span><ico class="bx-chev" n="chev"></ico>
+                      <ico n="user"></ico><span>{{ personaEfectiva ? (nombrePersonaEfectiva | titlecase) : '' }}<ng-container *ngIf="!personaEfectiva"><i class="bx-largo">Cualquier persona</i><i class="bx-corto">Persona</i></ng-container></span><ico class="bx-chev" n="chev"></ico>
                     </button>
                     <div class="bx-menu bx-menu-per" *ngIf="menuInv==='persona'">
                       <input class="bx-menu-buscar" [(ngModel)]="buscaPersonaInv" placeholder="Buscar persona…" aria-label="Buscar persona" autocomplete="off">
@@ -964,11 +966,12 @@ export class IcoComponent { @Input() n = ''; }
                   </div>
                 </div>
 
-                <div class="bx-chips" *ngIf="chipsActivos.length">
+                <div class="bx-chips" *ngIf="chipsActivos.length || puedeMoverLote">
                   <button class="bx-chip" *ngFor="let c of chipsActivos; trackBy: trackChip" [class.ia]="c.ia" (click)="quitarChip(c)" [attr.aria-label]="'Quitar ' + c.valor">
                     <ico *ngIf="c.ia" class="bx-ia" n="spark"></ico>{{ c.valor }}<ico class="bx-x" n="x"></ico>
                   </button>
                   <button class="bx-limpiar" *ngIf="chipsActivos.length > 1" (click)="limpiarFiltrosBienes()">Limpiar</button>
+                  <button class="bx-lote" *ngIf="puedeMoverLote" (click)="abrirMover(bienesVista)"><ico n="move"></ico>Mover o reasignar {{ bienesVista.length === 1 ? 'este bien' : 'estos ' + (bienesVista.length | number) }}</button>
                 </div>
               </div>
             </div>
@@ -1113,6 +1116,7 @@ export class IcoComponent { @Input() n = ''; }
 
                                   <div class="fi-acc">
                                     <button class="fi-pri" (click)="editarDesdePanel(b)"><ico n="edit"></ico>{{ isAdmin ? 'Editar' : 'Solicitar cambio' }}</button>
+                                    <button (click)="abrirMover([b])"><ico n="move"></ico>Mover / Reasignar</button>
                                     <button *ngIf="b.etiqueta" (click)="imprimirCodigos([b.etiqueta])"><ico n="printer"></ico>Imprimir QR</button>
                                     <button *ngIf="isAdmin && !b.etiqueta" (click)="abrirAsignarEtiqueta(b)"><ico n="qr"></ico>Asignar QR</button>
                                     <button *ngIf="(isAdmin || canAuthorize) && (b.requiere_calibracion || b.requiere_mantenimiento)" (click)="abrirCalForm(b)"><ico n="gauge"></ico>Registrar calibración</button>
@@ -1131,6 +1135,27 @@ export class IcoComponent { @Input() n = ''; }
                                     </div>
                                   </div>
                                   <p class="fi-nota" *ngIf="!isAdmin">Los cambios y bajas se envían al administrador para su autorización.</p>
+
+                                  <div class="fi-hist" *ngIf="movimientosDe[b.id_bien] as hist">
+                                    <h5><ico n="history"></ico>Movimientos</h5>
+                                    <p class="fi-hist-vacio" *ngIf="hist.cargando">Cargando…</p>
+                                    <p class="fi-hist-vacio" *ngIf="!hist.cargando && !hist.lista.length">{{ hist.error || 'Sin movimientos registrados. A partir de ahora aquí se verá cada cambio de lugar o de persona.' }}</p>
+                                    <ol *ngIf="hist.lista.length">
+                                      <li *ngFor="let m of hist.todos ? hist.lista : hist.lista.slice(0, 3)">
+                                        <i></i>
+                                        <div>
+                                          <span class="fi-hist-fecha">{{ m.fecha | date:'d MMM yyyy, HH:mm' }}<ng-container *ngIf="m.registrado_por"> · {{ m.registrado_por | titlecase }}</ng-container></span>
+                                          <span *ngIf="m.ubicacion_nueva || m.ubicacion_anterior || m.sede_nueva">
+                                            <b>Lugar:</b> {{ textoLugar(m.ubicacion_anterior, m.sede_anterior) }} → {{ textoLugar(m.ubicacion_nueva, m.sede_nueva) }}
+                                          </span>
+                                          <span *ngIf="m.responsable_nuevo || m.responsable_anterior"><b>Responsable:</b> {{ (m.responsable_anterior | titlecase) || 'Nadie' }} → {{ (m.responsable_nuevo | titlecase) || 'Nadie' }}</span>
+                                          <span *ngIf="m.usuario_nuevo || m.usuario_anterior"><b>Usuario:</b> {{ (m.usuario_anterior | titlecase) || 'Nadie' }} → {{ (m.usuario_nuevo | titlecase) || 'Nadie' }}</span>
+                                          <em *ngIf="m.motivo">“{{ m.motivo }}”</em>
+                                        </div>
+                                      </li>
+                                    </ol>
+                                    <button class="fi-hist-mas" *ngIf="hist.lista.length > 3" (click)="hist.todos = !hist.todos">{{ hist.todos ? 'Ver menos' : 'Ver los ' + hist.lista.length + ' movimientos' }}</button>
+                                  </div>
                                 </div>
                               </div>
                             </td>
@@ -1152,6 +1177,58 @@ export class IcoComponent { @Input() n = ''; }
                 </div>
               </div>
             </ng-container>
+
+            <!-- MOVER / REASIGNAR UNO O VARIOS BIENES -->
+            <div class="modal-backdrop" *ngIf="mov as m">
+              <div class="modal-card wizard mv">
+                <div class="modal-header">
+                  <div>
+                    <h2>{{ m.ids.length === 1 ? 'Mover o reasignar' : 'Mover o reasignar ' + m.ids.length + ' bienes' }}</h2>
+                    <p>{{ m.titulo }}</p>
+                  </div>
+                  <button class="close-button" [disabled]="m.guardando" (click)="mov=null">×</button>
+                </div>
+                <div class="form-section">
+                  <p class="mv-ayuda">Cambia solo lo que necesites; lo que dejes en “Sin cambio” se queda igual.</p>
+                  <label class="mv-campo">
+                    <span><ico n="pin"></ico>Nueva ubicación</span>
+                    <select [(ngModel)]="m.idUbicacion">
+                      <option [ngValue]="'igual'">Sin cambio</option>
+                      <option *ngFor="let x of activos(catalogs.ubicaciones, null, 'id_ubicacion')" [ngValue]="x.id_ubicacion">{{ x.nombre_area }}{{ x.nombre_sede ? ' · ' + x.nombre_sede : '' }}</option>
+                    </select>
+                  </label>
+                  <label class="mv-campo">
+                    <span><ico n="user"></ico>Responsable de área</span>
+                    <select [(ngModel)]="m.idResponsable">
+                      <option [ngValue]="'igual'">Sin cambio</option>
+                      <option [ngValue]="null">Quitar responsable</option>
+                      <option *ngFor="let x of activos(catalogs.personas, null, 'id_persona')" [ngValue]="x.id_persona">{{ x.nombre_completo }}</option>
+                    </select>
+                  </label>
+                  <label class="mv-campo">
+                    <span><ico n="users"></ico>Usuario directo</span>
+                    <select [(ngModel)]="m.idUsuario">
+                      <option [ngValue]="'igual'">Sin cambio</option>
+                      <option [ngValue]="null">Quitar usuario</option>
+                      <option *ngFor="let x of activos(catalogs.personas, null, 'id_persona')" [ngValue]="x.id_persona">{{ x.nombre_completo }}</option>
+                    </select>
+                  </label>
+                  <label class="mv-campo">
+                    <span>Motivo <small>(opcional)</small></span>
+                    <input [(ngModel)]="m.motivo" maxlength="300" placeholder="Ej. Cambio de área, renuncia, préstamo…">
+                  </label>
+                  <p class="mv-nota" *ngIf="!isAdmin">Se enviará al administrador para su autorización.</p>
+                </div>
+                <div class="inline-error" *ngIf="m.error" style="margin:0 24px 12px">{{ m.error }}</div>
+                <div class="modal-footer">
+                  <button class="btn-outline" [disabled]="m.guardando" (click)="mov=null">Cancelar</button>
+                  <button class="btn-primary" [disabled]="m.guardando || !movHayCambio" (click)="guardarMover()">
+                    <span class="mini-ring light" *ngIf="m.guardando"></span>
+                    {{ m.guardando ? 'Guardando…' : (isAdmin ? 'Mover' : 'Enviar solicitud') }}
+                  </button>
+                </div>
+              </div>
+            </div>
 
             <!-- ASIGNAR ETIQUETA A UN BIEN (desde su ficha) -->
             <div class="modal-backdrop" *ngIf="etqAsignar">
@@ -4061,6 +4138,11 @@ export class IcoComponent { @Input() n = ''; }
     .bx-nuevo:hover{transform:translateY(-1px);box-shadow:0 10px 22px #14243a40}
     .bx-nuevo ico{width:18px;height:18px}
     .content-area.ancho{max-width:none;padding:16px 22px 28px}
+    /* El estilo global antiguo daba relleno a <main> y margen a <header>: la barra superior quedaba como caja suelta */
+    .main-content{padding:0!important}
+    .topbar{margin:0!important}
+    .bx-pill i{font-style:normal}
+    .bx-corto{display:none}
     .bx-top{display:flex;align-items:flex-start;gap:18px;margin-bottom:14px}
     .bx-tit{display:flex;align-items:baseline;gap:10px;flex-shrink:0;height:52px;padding-top:9px;box-sizing:border-box}
     .bx-tit h1{margin:0;font-size:26px;font-weight:800;letter-spacing:-.7px;color:#14243a;line-height:1.1}
@@ -4087,7 +4169,7 @@ export class IcoComponent { @Input() n = ''; }
     .fi-foto-tomar b{font-size:13.5px;font-weight:700}
     .fi-foto-tomar.off{opacity:.6;pointer-events:none}
     .fi-mono{font-size:48px;font-weight:800;letter-spacing:-2px}
-    .fi-main{display:flex;flex-direction:column;gap:14px;min-width:0}
+    .fi-main{display:flex;flex-direction:column;gap:14px;min-width:0;white-space:normal}
     .fi-estado{display:flex;flex-wrap:wrap;gap:7px}
     .fi-chip{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 12px;border-radius:999px;background:#fff;box-shadow:0 0 0 1px #e4e9f0;color:#25364c;font-size:13px;font-weight:650;white-space:nowrap}
     .fi-chip ico{width:15px;height:15px;color:#7a8799}
@@ -4123,6 +4205,30 @@ export class IcoComponent { @Input() n = ''; }
     .fi-menu .peligro ico{color:#b42318}
     .fi-menu label.off{opacity:.5;pointer-events:none}
     .fi-nota{margin:0;font-size:12.5px;color:#8a96a6}
+    .fi-hist{padding-top:12px;border-top:1px solid #e6ebf2}
+    .fi-hist h5{display:flex;align-items:center;gap:7px;margin:0 0 10px;font-size:11.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#8a96a6}
+    .fi-hist h5 ico{width:15px;height:15px}
+    .fi-hist-vacio{margin:0;font-size:13px;color:#8a96a6}
+    .fi-hist ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+    .fi-hist li{display:flex;gap:12px;position:relative;padding-bottom:12px}
+    .fi-hist li>i{width:10px;height:10px;border-radius:50%;background:#14243a;margin-top:4px;flex-shrink:0;box-shadow:0 0 0 3px #e6ebf2}
+    .fi-hist li:not(:last-child)::before{content:"";position:absolute;left:4.5px;top:16px;bottom:0;width:1px;background:#dfe5ec}
+    .fi-hist li>div{display:flex;flex-direction:column;gap:2px;min-width:0;font-size:13.5px;color:#25364c}
+    .fi-hist li b{font-weight:650;color:#6b7a8d}
+    .fi-hist-fecha{font-size:12px;color:#8a96a6}
+    .fi-hist em{font-style:normal;color:#5d6d82}
+    .fi-hist-mas{border:0;background:transparent;padding:4px 0;color:#3d6fb0;font:inherit;font-size:13.5px;font-weight:700;cursor:pointer}
+    .bx-lote{display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 13px;margin-left:auto;border:0;border-radius:999px;background:#fff;box-shadow:0 0 0 1.5px #e2e8f0;color:#14243a;font:inherit;font-size:13.5px;font-weight:650;cursor:pointer}
+    .bx-lote:hover{box-shadow:0 0 0 1.5px #c9d3e0}
+    .bx-lote ico{width:16px;height:16px}
+    .mv .form-section{display:flex;flex-direction:column;gap:14px}
+    .mv-ayuda{margin:0;font-size:13.5px;color:#6b7a8d}
+    .mv-campo{display:flex;flex-direction:column;gap:6px;margin:0}
+    .mv-campo>span{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:700;color:#25364c}
+    .mv-campo>span ico{width:16px;height:16px;color:#7a8799}
+    .mv-campo small{font-weight:500;color:#8a96a6}
+    .mv-campo select,.mv-campo input{height:46px;border-radius:12px;font-size:15px}
+    .mv-nota{margin:0;font-size:13px;color:#8a4b00;background:#fff6e8;padding:10px 12px;border-radius:10px}
     @media(min-width:1600px){
       .content-area.ancho{padding:20px 32px 32px}
       .pt td{padding-top:12px;padding-bottom:12px}
@@ -5421,6 +5527,52 @@ export class IcoComponent { @Input() n = ''; }
     @media(max-width:700px){.request-tabs{padding:10px 12px 0}.request-tabs button{padding:10px 9px}.request-filters{flex-wrap:wrap}.op-filter{flex:1}.request-summary{padding:16px 17px}.heading-actions{flex-wrap:wrap}.segmented{width:100%}.segmented button{flex:1}.field-label{width:auto}.modal-footer{flex-wrap:wrap}.modal-footer button{flex:1}}
     @media(max-width:1100px){.stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.content-area{padding:24px 20px}}
     @media(max-width:700px){.topbar{padding:0 15px}.content-area{padding:20px 12px}.page-heading{align-items:flex-start;flex-direction:column}.heading-actions{width:100%}.heading-actions button{flex:1;padding:10px 8px}.stats-grid{gap:9px}.stat-card{padding:13px}.stat-card>strong{font-size:25px}.inventory-toolbar{padding:17px 14px;align-items:flex-start;flex-direction:column}.search-row{padding:0 14px 14px}.table-footer{padding:13px}.form-grid{grid-template-columns:1fr}.detail-list{grid-template-columns:1fr}.modal-backdrop{padding:9px}.modal-card{max-height:95vh}.modal-header,.form-section{padding:17px}.modal-footer{padding:13px 17px}.upload-zone{margin:10px 17px 18px}.preview-section{padding:0 17px 17px}}
+    /* ===== Celular: ajustes generales ===== */
+    @media(max-width:700px){
+      .topbar{height:56px;padding:0 12px}
+      .content-area{padding:14px 12px 28px}
+      .content-area h1{font-size:26px;line-height:1.15;letter-spacing:-.5px}
+      .search-row{flex-wrap:wrap;padding-left:14px;padding-right:14px;gap:10px}
+      .search-row .search-box{flex:1 1 100%;max-width:none;height:44px}
+      .search-row select{flex:1 1 auto;min-width:0;height:44px}
+      .modal-card{max-height:calc(100dvh - 20px)}
+
+      /* Bienes: la tabla se vuelve lista para que nada se salga de la pantalla */
+      .bx-largo{display:none}
+      .bx-corto{display:inline}
+      .pt,.pt tbody,.pt tr{display:block;width:auto;min-width:0!important}
+      .pt thead{display:none}
+      .pt-fila{display:flex!important;align-items:center}
+      .pt-fila td{display:none!important}
+      .pt-fila td.pt-bien{display:block!important;flex:1;min-width:0;padding:10px 6px 10px 12px;width:auto}
+      .pt-fila td.pt-chev{display:block!important;width:auto;padding:0 12px 0 0!important;border-bottom:0}
+      .pt-fila{border-bottom:1px solid #f1f3f7}
+      .pt-fila td.pt-bien{border-bottom:0}
+      .pt-grupo td{display:block!important;padding:10px 14px}
+      .pt-det td{display:block!important;padding:2px 12px 16px;border-bottom:1px solid #f1f3f7}
+      .pt-txt small{max-width:none}
+      .fi-foto.vacia{aspect-ratio:auto;height:64px;border-radius:14px}
+      .fi-foto.vacia .fi-foto-tomar{flex-direction:row;gap:10px}
+      .fi-foto.vacia .fi-foto-tomar ico{width:22px;height:22px}
+      .fi-foto.vacia .fi-mono{font-size:26px}
+      .fi-bloques{grid-template-columns:1fr}
+      .fi-b{flex-direction:row;flex-wrap:wrap;align-items:baseline;column-gap:8px;padding:10px 12px}
+      .fi-b h5{flex:1 1 100%;margin-bottom:2px}
+      .fi-hist li>div{font-size:13px}
+      .bx-lote{margin-left:0}
+      .fi,.fi-bloques{grid-template-columns:minmax(0,1fr)}
+      .fi-main,.fi-estado{min-width:0}
+      .fi-chip{max-width:100%;overflow:hidden;text-overflow:ellipsis}
+      .fi-b strong,.fi-b span{white-space:normal}
+      .fi-mas{position:relative}
+      .fi-menu{position:absolute;left:auto;right:0;bottom:48px;min-width:250px;max-width:calc(100vw - 48px);border-radius:16px;padding:6px;animation:zoomIn .15s ease both}
+      .fi-hist li>div{flex:1;min-width:0;overflow-wrap:anywhere}
+      .pt-fila .pt-cm{display:none}
+      .fi-back{background:transparent}
+      .bx-pill{padding:0 10px;gap:6px}
+      .bx-pill .bx-chev{display:none}
+      .bx-pill ico{width:17px;height:17px}
+    }
   `]
 })
 export class AppComponent {
@@ -7692,6 +7844,7 @@ export class AppComponent {
     this.bienAbierto = this.bienAbierto === b.id_bien ? null : b.id_bien;
     if (!this.bienAbierto) return;
     this.refrescarFotoBien(b);
+    this.cargarMovimientos(b.id_bien);
     // Que la ficha abierta quede a la vista sin saltos bruscos
     setTimeout(() => {
       try {
@@ -7700,6 +7853,72 @@ export class AppComponent {
         (det || fila)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       } catch { /* opcional */ }
     }, 60);
+  }
+
+  // ===== Mover / reasignar e historial =====
+  mov: any = null;
+  movimientosDe: Record<string, { cargando: boolean; lista: any[]; todos: boolean; error?: string }> = {};
+
+  // Mover el grupo filtrado: solo cuando hay un filtro puesto (para no mover el inventario completo por error)
+  get puedeMoverLote(): boolean {
+    const hayFiltro = !!(this.sedeEfectiva || this.personaEfectiva || this.filter.trim() || this.filtrosActivos.length);
+    return hayFiltro && this.bienesVista.length > 1 && this.bienesVista.length <= 500;
+  }
+
+  abrirMover(lista: any[]): void {
+    const ids = (lista || []).map(b => b.id_bien).filter(Boolean);
+    if (!ids.length) return;
+    const uno = lista.length === 1 ? lista[0] : null;
+    const persona = this.personaEfectiva ? this.titulo(this.nombrePersonaEfectiva) : '';
+    this.mov = {
+      ids,
+      titulo: uno ? this.titulo(uno.articulo || 'Bien') + (uno.ubicacion ? ' · ' + this.titulo(uno.ubicacion) : '') + (uno.responsable ? ' · ' + this.titulo(uno.responsable) : '')
+                  : (persona ? 'Bienes de ' + persona : 'Bienes filtrados') + (this.sedeEfectiva ? ' en ' + this.titulo(this.nombreSedeEfectiva) : ''),
+      idUbicacion: 'igual', idResponsable: 'igual', idUsuario: 'igual', motivo: '', guardando: false, error: ''
+    };
+  }
+
+  get movHayCambio(): boolean {
+    const m = this.mov;
+    return !!m && (m.idUbicacion !== 'igual' || m.idResponsable !== 'igual' || m.idUsuario !== 'igual');
+  }
+
+  guardarMover(): void {
+    const m = this.mov;
+    if (!m || m.guardando || !this.movHayCambio) return;
+    const datos: any = { ids: m.ids, motivo: (m.motivo || '').trim() || null };
+    if (m.idUbicacion !== 'igual') datos.idUbicacion = m.idUbicacion;
+    if (m.idResponsable !== 'igual') datos.idResponsableArea = m.idResponsable;
+    if (m.idUsuario !== 'igual') datos.idUsuarioDirecto = m.idUsuario;
+    m.guardando = true; m.error = '';
+    this.http.post<any>(this.api + '/bienes/mover', datos).subscribe({
+      next: r => {
+        this.mov = null;
+        const ap = Number(r?.aplicados || 0), pe = Number(r?.pendientes || 0);
+        if (pe) this.notificar('pendiente', 'Solicitud enviada', pe === 1 ? 'El cambio espera autorización.' : pe + ' cambios esperan autorización.');
+        else this.notificar('exito', 'Listo', ap === 1 ? 'El bien se movió.' : ap + ' bienes se movieron.', 2500);
+        for (const id of m.ids) delete this.movimientosDe[id];
+        this.loadBienes();
+        if (this.bienAbierto && m.ids.includes(this.bienAbierto)) setTimeout(() => this.cargarMovimientos(this.bienAbierto, true), 800);
+      },
+      error: e => { m.guardando = false; m.error = this.mensajeError(e, 'No se pudo mover.'); }
+    });
+  }
+
+  cargarMovimientos(idBien: any, forzar = false): void {
+    if (!idBien || (!forzar && this.movimientosDe[idBien])) return;
+    const h = { cargando: true, lista: [] as any[], todos: false, error: '' };
+    this.movimientosDe[idBien] = h;
+    this.http.get<any[]>(this.api + '/bienes/' + idBien + '/movimientos').subscribe({
+      next: v => { h.lista = v || []; h.cargando = false; },
+      error: () => { h.cargando = false; h.error = 'No se pudo cargar el historial.'; }
+    });
+  }
+
+  textoLugar(ubic: any, sede: any): string {
+    const u = ubic ? this.titulo(ubic) : '';
+    const s = sede ? this.titulo(sede) : '';
+    return u && s ? u + ' (' + s + ')' : (u || s || 'Sin ubicación');
   }
 
   // Días que faltan para una fecha (negativo = ya pasó)
