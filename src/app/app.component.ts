@@ -101,6 +101,7 @@ interface FormatoDoc {
       <ng-container *ngSwitchCase="'search'"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></ng-container>
       <ng-container *ngSwitchCase="'gear'"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></ng-container>
       <ng-container *ngSwitchCase="'chevright'"><path d="M9 6l6 6-6 6"/></ng-container>
+      <ng-container *ngSwitchCase="'dots'"><circle cx="5" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="19" cy="12" r="1.6" fill="currentColor"/></ng-container>
       <ng-container *ngSwitchCase="'move'"><path d="M5 9l-3 3 3 3M19 9l3 3-3 3M2 12h20"/><path d="M9 5l3-3 3 3M9 19l3 3 3-3M12 2v20"/></ng-container>
       <ng-container *ngSwitchCase="'history'"><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6"/><path d="M3 4v4h4"/><path d="M12 7.5V12l3 2"/></ng-container>
       <ng-container *ngSwitchCase="'spark'"><path d="M12 3.5l1.9 5.1 5.1 1.9-5.1 1.9L12 17.5l-1.9-5.1L5 10.5l5.1-1.9L12 3.5z"/><path d="M18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2z"/></ng-container>
@@ -1080,82 +1081,98 @@ export class IcoComponent { @Input() n = ''; }
 
                                 <div class="fi-main">
                                   <div class="fi-estado">
-                                    <span class="fi-chip" [ngClass]="claseEstadoFisico(b.estado_fisico)"><i class="edot" [ngClass]="claseEstadoFisico(b.estado_fisico)"></i>{{ estadoCorto(b) }}</span>
-                                    <span class="fi-chip" [class.fi-falta]="!b.etiqueta"><ico n="qr"></ico>{{ b.etiqueta || 'Sin etiqueta QR' }}</span>
-                                    <span class="fi-chip" *ngIf="b.requiere_calibracion" [ngClass]="'fi-cm-' + estadoFechaCM(b.fecha_calibracion)"><ico n="gauge"></ico>Calibración · {{ cuentaCM(b.fecha_calibracion) }}</span>
-                                    <span class="fi-chip" *ngIf="b.requiere_mantenimiento" [ngClass]="'fi-cm-' + estadoFechaCM(b.fecha_mantenimiento)"><ico n="wrench"></ico>Mantenimiento · {{ cuentaCM(b.fecha_mantenimiento) }}</span>
+                                    <span class="fi-chip"><i class="edot" [ngClass]="claseEstadoFisico(b.estado_fisico)"></i>{{ estadoCorto(b) }}</span>
+                                    <div class="fi-pop">
+                                      <button type="button" class="fi-chip fi-chip-btn" [class.fi-falta]="!b.etiqueta" [disabled]="!b.etiqueta && !isAdmin"
+                                              (click)="b.etiqueta ? (qrAbierto = qrAbierto===b.id_bien ? null : b.id_bien) : abrirAsignarEtiqueta(b)">
+                                        <ico n="qr"></ico>{{ b.etiqueta || (isAdmin ? 'Asignar QR' : 'Sin QR') }}<ico *ngIf="b.etiqueta" class="fi-chev" n="chev"></ico>
+                                      </button>
+                                      <div class="fi-back" *ngIf="qrAbierto===b.id_bien" (click)="qrAbierto=null"></div>
+                                      <div class="fi-menu fi-menu-abajo" *ngIf="qrAbierto===b.id_bien">
+                                        <button (click)="imprimirCodigos([b.etiqueta]); qrAbierto=null"><ico n="printer"></ico>Imprimir etiqueta</button>
+                                        <button *ngIf="isAdmin" (click)="abrirAsignarEtiqueta(b); qrAbierto=null"><ico n="qr"></ico>Cambiar etiqueta</button>
+                                      </div>
+                                    </div>
+                                    <button type="button" class="fi-chip fi-chip-btn" *ngIf="b.requiere_calibracion" [ngClass]="'fi-cm-' + estadoFechaCM(b.fecha_calibracion)"
+                                            [disabled]="!(isAdmin || canAuthorize)" (click)="abrirCalForm(b)" title="Registrar calibración">
+                                      <ico n="gauge"></ico>Calibración · {{ cuentaCM(b.fecha_calibracion) }}
+                                    </button>
+                                    <button type="button" class="fi-chip fi-chip-btn" *ngIf="b.requiere_mantenimiento" [ngClass]="'fi-cm-' + estadoFechaCM(b.fecha_mantenimiento)"
+                                            [disabled]="!(isAdmin || canAuthorize)" (click)="abrirCalForm(b)" title="Registrar mantenimiento">
+                                      <ico n="wrench"></ico>Mantenimiento · {{ cuentaCM(b.fecha_mantenimiento) }}
+                                    </button>
                                     <span class="fi-chip" *ngIf="b.estatus_inventario && b.estatus_inventario !== 'ACTIVO'" [ngClass]="'pt-tag-' + b.estatus_inventario">{{ displayStatus(b) }}</span>
                                   </div>
 
-                                  <div class="fi-bloques">
-                                    <div class="fi-b">
-                                      <h5>Dónde está</h5>
-                                      <strong [class.pt-nada]="!b.ubicacion">{{ (b.ubicacion | titlecase) || 'Sin ubicación' }}</strong>
-                                      <span *ngIf="b.sede">Sede {{ b.sede | titlecase }}</span>
+                                  <dl class="fi-datos">
+                                    <div>
+                                      <dt>Ubicación<button type="button" class="fi-link" (click)="abrirMover([b], 'ubicacion')">Cambiar</button></dt>
+                                      <dd><strong [class.pt-nada]="!b.ubicacion">{{ (b.ubicacion | titlecase) || 'Sin ubicación' }}</strong><span *ngIf="b.sede">Sede {{ b.sede | titlecase }}</span></dd>
                                     </div>
-                                    <div class="fi-b">
-                                      <h5>Quién lo tiene</h5>
-                                      <strong class="pt-per" [class.pt-nada]="!b.responsable"><i class="pt-av" *ngIf="b.responsable">{{ inicialesDe(b.responsable) }}</i>{{ (b.responsable | titlecase) || 'Sin responsable' }}</strong>
-                                      <span *ngIf="b.usuario_directo">Lo usa {{ b.usuario_directo | titlecase }}</span>
+                                    <div>
+                                      <dt>Responsable<button type="button" class="fi-link" (click)="abrirMover([b], 'persona')">Reasignar</button></dt>
+                                      <dd>
+                                        <strong class="pt-per" [class.pt-nada]="!b.responsable"><i class="pt-av" *ngIf="b.responsable">{{ inicialesDe(b.responsable) }}</i>{{ (b.responsable | titlecase) || 'Sin asignar' }}</strong>
+                                        <span *ngIf="b.usuario_directo">Usuario: {{ b.usuario_directo | titlecase }}</span>
+                                      </dd>
                                     </div>
-                                    <div class="fi-b">
-                                      <h5>Qué es</h5>
-                                      <strong>{{ marcaModelo(b) | titlecase }}</strong>
-                                      <span *ngIf="esTexto(b.numero_serie)">Serie {{ b.numero_serie }}</span>
-                                      <span *ngIf="b.clasificacion">{{ b.clasificacion | titlecase }}<ng-container *ngIf="b.subcategoria"> · {{ b.subcategoria | titlecase }}</ng-container></span>
+                                    <div>
+                                      <dt>Descripción</dt>
+                                      <dd>
+                                        <strong>{{ marcaModelo(b) | titlecase }}</strong>
+                                        <span *ngIf="esTexto(b.numero_serie)">Serie {{ b.numero_serie }}</span>
+                                        <span *ngIf="b.clasificacion">{{ b.clasificacion | titlecase }}<ng-container *ngIf="b.subcategoria"> · {{ b.subcategoria | titlecase }}</ng-container></span>
+                                      </dd>
                                     </div>
-                                    <div class="fi-b fi-b-reg">
-                                      <h5>Registro</h5>
-                                      <span>Clave <b>{{ b.clave || '—' }}</b></span>
-                                      <span *ngIf="b.fecha_alta">Alta {{ b.fecha_alta | date:'dd MMM yyyy' }}</span>
-                                      <span>{{ b.cantidad_piezas || 1 }} {{ (b.cantidad_piezas || 1) == 1 ? 'pieza' : 'piezas' }}<ng-container *ngIf="b.color"> · {{ b.color | titlecase }}</ng-container></span>
+                                    <div>
+                                      <dt>Registro</dt>
+                                      <dd>
+                                        <strong class="fi-clave">{{ b.clave || '—' }}</strong>
+                                        <span *ngIf="b.fecha_alta">Alta {{ b.fecha_alta | date:'d MMM yyyy' }}</span>
+                                        <span>{{ b.cantidad_piezas || 1 }} {{ (b.cantidad_piezas || 1) == 1 ? 'pieza' : 'piezas' }}<ng-container *ngIf="b.color"> · {{ b.color | titlecase }}</ng-container></span>
+                                      </dd>
                                     </div>
-                                  </div>
+                                  </dl>
 
                                   <p class="fi-carac" *ngIf="esTexto(b.caracteristicas)">{{ b.caracteristicas }}</p>
 
+                                  <div class="fi-hist" *ngIf="movimientosDe[b.id_bien] as hist">
+                                    <ng-container *ngIf="hist.lista.length">
+                                      <button type="button" class="fi-hist-tit" (click)="hist.todos = !hist.todos" [class.on]="hist.todos">
+                                        <ico n="history"></ico>Historial<span>{{ hist.lista.length }}</span>
+                                        <em>Último: {{ hist.lista[0].fecha | date:'d MMM yyyy' }}</em><ico class="fi-chev" n="chev"></ico>
+                                      </button>
+                                      <ol *ngIf="hist.todos">
+                                        <li *ngFor="let m of hist.lista">
+                                          <i></i>
+                                          <div>
+                                            <span class="fi-hist-fecha">{{ m.fecha | date:'d MMM yyyy, HH:mm' }}<ng-container *ngIf="m.registrado_por"> · {{ m.registrado_por | titlecase }}</ng-container></span>
+                                            <span *ngIf="m.ubicacion_nueva || m.ubicacion_anterior || m.sede_nueva">{{ textoLugar(m.ubicacion_anterior, m.sede_anterior) }} → {{ textoLugar(m.ubicacion_nueva, m.sede_nueva) }}</span>
+                                            <span *ngIf="m.responsable_nuevo || m.responsable_anterior">Responsable: {{ (m.responsable_anterior | titlecase) || 'nadie' }} → {{ (m.responsable_nuevo | titlecase) || 'nadie' }}</span>
+                                            <span *ngIf="m.usuario_nuevo || m.usuario_anterior">Usuario: {{ (m.usuario_anterior | titlecase) || 'nadie' }} → {{ (m.usuario_nuevo | titlecase) || 'nadie' }}</span>
+                                            <em *ngIf="m.motivo">{{ m.motivo }}</em>
+                                          </div>
+                                        </li>
+                                      </ol>
+                                    </ng-container>
+                                  </div>
+
                                   <div class="fi-acc">
                                     <button class="fi-pri" (click)="editarDesdePanel(b)"><ico n="edit"></ico>{{ isAdmin ? 'Editar' : 'Solicitar cambio' }}</button>
-                                    <button (click)="abrirMover([b])"><ico n="move"></ico>Mover / Reasignar</button>
-                                    <button *ngIf="b.etiqueta" (click)="imprimirCodigos([b.etiqueta])"><ico n="printer"></ico>Imprimir QR</button>
-                                    <button *ngIf="isAdmin && !b.etiqueta" (click)="abrirAsignarEtiqueta(b)"><ico n="qr"></ico>Asignar QR</button>
-                                    <button *ngIf="(isAdmin || canAuthorize) && (b.requiere_calibracion || b.requiere_mantenimiento)" (click)="abrirCalForm(b)"><ico n="gauge"></ico>Registrar calibración</button>
                                     <div class="fi-mas">
-                                      <button (click)="masAbierto = masAbierto===b.id_bien ? null : b.id_bien" [class.on]="masAbierto===b.id_bien" aria-label="Más acciones">Más<ico n="chev"></ico></button>
+                                      <button class="fi-icono" (click)="masAbierto = masAbierto===b.id_bien ? null : b.id_bien" [class.on]="masAbierto===b.id_bien" aria-label="Más acciones" title="Más acciones"><ico n="dots"></ico></button>
                                       <div class="fi-back" *ngIf="masAbierto===b.id_bien" (click)="masAbierto=null"></div>
                                       <div class="fi-menu" *ngIf="masAbierto===b.id_bien">
                                         <label *ngIf="isAdmin && b.foto_mini" [class.off]="fotoSubiendo"><ico n="camera"></ico>{{ fotoSubiendo ? 'Subiendo…' : 'Cambiar foto' }}
                                           <input type="file" accept="image/*" capture="environment" (change)="cambiarFotoBien($event, b); masAbierto=null" [disabled]="fotoSubiendo" hidden>
                                         </label>
-                                        <button *ngIf="isAdmin && b.etiqueta" (click)="abrirAsignarEtiqueta(b); masAbierto=null"><ico n="qr"></ico>Cambiar etiqueta QR</button>
                                         <button *ngIf="(isAdmin || canAuthorize) && !b.requiere_calibracion && !b.requiere_mantenimiento" (click)="abrirCalForm(b, true); masAbierto=null"><ico n="gauge"></ico>Controlar calibración</button>
                                         <button *ngIf="isAdmin" (click)="formatoAltaDeBien(b); masAbierto=null"><ico n="file"></ico>Formato de alta (PDF)</button>
-                                        <button class="peligro" (click)="deleteBien(b.id_bien); masAbierto=null"><ico n="trash"></ico>{{ isAdmin ? 'Dar de baja' : 'Solicitar la baja' }}</button>
+                                        <button class="peligro" (click)="abrirBaja(b); masAbierto=null"><ico n="trash"></ico>{{ isAdmin ? 'Dar de baja…' : 'Solicitar baja…' }}</button>
                                       </div>
                                     </div>
                                   </div>
                                   <p class="fi-nota" *ngIf="!isAdmin">Los cambios y bajas se envían al administrador para su autorización.</p>
-
-                                  <div class="fi-hist" *ngIf="movimientosDe[b.id_bien] as hist">
-                                    <h5><ico n="history"></ico>Movimientos</h5>
-                                    <p class="fi-hist-vacio" *ngIf="hist.cargando">Cargando…</p>
-                                    <p class="fi-hist-vacio" *ngIf="!hist.cargando && !hist.lista.length">{{ hist.error || 'Sin movimientos registrados. A partir de ahora aquí se verá cada cambio de lugar o de persona.' }}</p>
-                                    <ol *ngIf="hist.lista.length">
-                                      <li *ngFor="let m of hist.todos ? hist.lista : hist.lista.slice(0, 3)">
-                                        <i></i>
-                                        <div>
-                                          <span class="fi-hist-fecha">{{ m.fecha | date:'d MMM yyyy, HH:mm' }}<ng-container *ngIf="m.registrado_por"> · {{ m.registrado_por | titlecase }}</ng-container></span>
-                                          <span *ngIf="m.ubicacion_nueva || m.ubicacion_anterior || m.sede_nueva">
-                                            <b>Lugar:</b> {{ textoLugar(m.ubicacion_anterior, m.sede_anterior) }} → {{ textoLugar(m.ubicacion_nueva, m.sede_nueva) }}
-                                          </span>
-                                          <span *ngIf="m.responsable_nuevo || m.responsable_anterior"><b>Responsable:</b> {{ (m.responsable_anterior | titlecase) || 'Nadie' }} → {{ (m.responsable_nuevo | titlecase) || 'Nadie' }}</span>
-                                          <span *ngIf="m.usuario_nuevo || m.usuario_anterior"><b>Usuario:</b> {{ (m.usuario_anterior | titlecase) || 'Nadie' }} → {{ (m.usuario_nuevo | titlecase) || 'Nadie' }}</span>
-                                          <em *ngIf="m.motivo">“{{ m.motivo }}”</em>
-                                        </div>
-                                      </li>
-                                    </ol>
-                                    <button class="fi-hist-mas" *ngIf="hist.lista.length > 3" (click)="hist.todos = !hist.todos">{{ hist.todos ? 'Ver menos' : 'Ver los ' + hist.lista.length + ' movimientos' }}</button>
-                                  </div>
                                 </div>
                               </div>
                             </td>
@@ -1183,29 +1200,29 @@ export class IcoComponent { @Input() n = ''; }
               <div class="modal-card wizard mv">
                 <div class="modal-header">
                   <div>
-                    <h2>{{ m.ids.length === 1 ? 'Mover o reasignar' : 'Mover o reasignar ' + m.ids.length + ' bienes' }}</h2>
+                    <h2>{{ m.ver === 'ubicacion' ? 'Cambiar ubicación' : m.ver === 'persona' ? 'Reasignar' : (m.ids.length === 1 ? 'Mover o reasignar' : 'Mover o reasignar ' + m.ids.length + ' bienes') }}</h2>
                     <p>{{ m.titulo }}</p>
                   </div>
                   <button class="close-button" [disabled]="m.guardando" (click)="mov=null">×</button>
                 </div>
                 <div class="form-section">
-                  <p class="mv-ayuda">Cambia solo lo que necesites; lo que dejes en “Sin cambio” se queda igual.</p>
-                  <label class="mv-campo">
+                  <p class="mv-ayuda" *ngIf="m.ver === 'todo'">Lo que dejes en “Sin cambio” se queda igual.</p>
+                  <label class="mv-campo" *ngIf="m.ver !== 'persona'">
                     <span><ico n="pin"></ico>Nueva ubicación</span>
                     <select [(ngModel)]="m.idUbicacion">
                       <option [ngValue]="'igual'">Sin cambio</option>
                       <option *ngFor="let x of activos(catalogs.ubicaciones, null, 'id_ubicacion')" [ngValue]="x.id_ubicacion">{{ x.nombre_area }}{{ x.nombre_sede ? ' · ' + x.nombre_sede : '' }}</option>
                     </select>
                   </label>
-                  <label class="mv-campo">
-                    <span><ico n="user"></ico>Responsable de área</span>
+                  <label class="mv-campo" *ngIf="m.ver !== 'ubicacion'">
+                    <span><ico n="user"></ico>Responsable</span>
                     <select [(ngModel)]="m.idResponsable">
                       <option [ngValue]="'igual'">Sin cambio</option>
                       <option [ngValue]="null">Quitar responsable</option>
                       <option *ngFor="let x of activos(catalogs.personas, null, 'id_persona')" [ngValue]="x.id_persona">{{ x.nombre_completo }}</option>
                     </select>
                   </label>
-                  <label class="mv-campo">
+                  <label class="mv-campo" *ngIf="m.ver !== 'ubicacion'">
                     <span><ico n="users"></ico>Usuario directo</span>
                     <select [(ngModel)]="m.idUsuario">
                       <option [ngValue]="'igual'">Sin cambio</option>
@@ -1217,6 +1234,7 @@ export class IcoComponent { @Input() n = ''; }
                     <span>Motivo <small>(opcional)</small></span>
                     <input [(ngModel)]="m.motivo" maxlength="300" placeholder="Ej. Cambio de área, renuncia, préstamo…">
                   </label>
+                  <button type="button" class="mv-mas" *ngIf="m.ver !== 'todo'" (click)="m.ver = 'todo'">{{ m.ver === 'ubicacion' ? 'También cambiar responsable' : 'También cambiar ubicación' }}</button>
                   <p class="mv-nota" *ngIf="!isAdmin">Se enviará al administrador para su autorización.</p>
                 </div>
                 <div class="inline-error" *ngIf="m.error" style="margin:0 24px 12px">{{ m.error }}</div>
@@ -1225,6 +1243,41 @@ export class IcoComponent { @Input() n = ''; }
                   <button class="btn-primary" [disabled]="m.guardando || !movHayCambio" (click)="guardarMover()">
                     <span class="mini-ring light" *ngIf="m.guardando"></span>
                     {{ m.guardando ? 'Guardando…' : (isAdmin ? 'Mover' : 'Enviar solicitud') }}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- DAR DE BAJA: motivo + escribir la clave -->
+            <div class="modal-backdrop" *ngIf="baja as k">
+              <div class="modal-card wizard bj">
+                <div class="modal-header">
+                  <div>
+                    <h2>{{ isAdmin ? 'Dar de baja' : 'Solicitar baja' }}</h2>
+                    <p>{{ (k.b.articulo | titlecase) || 'Bien' }}<ng-container *ngIf="k.b.marca || k.b.modelo"> · {{ marcaModelo(k.b) | titlecase }}</ng-container></p>
+                  </div>
+                  <button class="close-button" [disabled]="k.guardando" (click)="baja=null">×</button>
+                </div>
+                <div class="form-section">
+                  <span class="bj-et">Motivo</span>
+                  <div class="bj-motivos">
+                    <button type="button" *ngFor="let x of motivosBaja" [class.on]="k.motivo===x" (click)="k.motivo = x">{{ x }}</button>
+                  </div>
+                  <label class="mv-campo">
+                    <span>Detalle <small>{{ k.motivo === 'Otro' ? '(obligatorio)' : '(opcional)' }}</small></span>
+                    <input [(ngModel)]="k.detalle" maxlength="300" placeholder="Ej. pantalla rota, reporte de robo #123…">
+                  </label>
+                  <label class="mv-campo bj-confirma">
+                    <span>Para confirmar escribe <b>{{ claveBaja(k.b) }}</b></span>
+                    <input [(ngModel)]="k.confirma" autocomplete="off" autocapitalize="characters" spellcheck="false" [placeholder]="claveBaja(k.b)">
+                  </label>
+                  <p class="bj-aviso">{{ isAdmin ? 'Dejará de aparecer en el inventario. El registro y su formato de baja se conservan.' : 'El bien sigue activo hasta que el administrador autorice la baja.' }}</p>
+                </div>
+                <div class="inline-error" *ngIf="k.error" style="margin:0 24px 12px">{{ k.error }}</div>
+                <div class="modal-footer">
+                  <button class="btn-outline" [disabled]="k.guardando" (click)="baja=null">Cancelar</button>
+                  <button class="bj-btn" [disabled]="k.guardando || !bajaLista" (click)="confirmarBaja()">
+                    <span class="mini-ring light" *ngIf="k.guardando"></span>{{ k.guardando ? 'Enviando…' : (isAdmin ? 'Dar de baja' : 'Solicitar baja') }}
                   </button>
                 </div>
               </div>
@@ -4205,6 +4258,48 @@ export class IcoComponent { @Input() n = ''; }
     .fi-menu .peligro ico{color:#b42318}
     .fi-menu label.off{opacity:.5;pointer-events:none}
     .fi-nota{margin:0;font-size:12.5px;color:#8a96a6}
+    .fi-pop{position:relative}
+    .fi-chip-btn{border:0;font:inherit;cursor:pointer;transition:box-shadow .15s,background .15s}
+    .fi-chip-btn:hover:not(:disabled){box-shadow:0 0 0 1px #c9d3e0}
+    .fi-chip-btn:disabled{cursor:default}
+    .fi-chip-btn.fi-falta{color:#3d6fb0;background:#eef4fb;box-shadow:none}
+    .fi-chip-btn.fi-falta ico{color:#3d6fb0}
+    .fi-chip .fi-chev{width:13px;height:13px;margin-left:-2px}
+    .fi-menu.fi-menu-abajo{top:38px;bottom:auto;left:0;right:auto}
+    .fi-datos{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));margin:0;background:#fff;border-radius:16px;box-shadow:0 0 0 1px #e9edf3}
+    .fi-datos>div{padding:14px 16px;min-width:0;border-left:1px solid #f0f2f6}
+    .fi-datos>div:first-child{border-left:0}
+    .fi-datos dt{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 6px;font-size:12px;font-weight:600;color:#8a96a6}
+    .fi-datos dd{display:flex;flex-direction:column;gap:2px;margin:0;min-width:0}
+    .fi-datos strong{font-size:14.5px;font-weight:650;color:#14243a;overflow:hidden;text-overflow:ellipsis}
+    .fi-datos span{font-size:13px;color:#6b7a8d}
+    .fi-clave{font-family:"SFMono-Regular",Consolas,monospace;font-size:13.5px!important;letter-spacing:.3px}
+    .fi-link{border:0;background:transparent;padding:0;color:#3d6fb0;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer}
+    .fi-link:hover{text-decoration:underline}
+    .fi-hist{border-top:0;padding-top:0}
+    .fi-hist-tit{display:flex;align-items:center;gap:8px;width:100%;padding:8px 0;border:0;background:transparent;color:#4a5a70;font:inherit;font-size:13px;font-weight:650;cursor:pointer;text-align:left}
+    .fi-hist-tit ico{width:16px;height:16px;color:#8a96a6}
+    .fi-hist-tit span{min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:#e9eef5;color:#4a5a70;font-size:11.5px;font-weight:700;display:inline-grid;place-items:center}
+    .fi-hist-tit em{font-style:normal;font-weight:500;color:#8a96a6;margin-left:auto}
+    .fi-hist-tit .fi-chev{transition:transform .15s}
+    .fi-hist-tit.on .fi-chev{transform:rotate(180deg)}
+    .fi-hist ol{margin-top:6px}
+    .fi-acc{justify-content:space-between}
+    .fi-acc .fi-mas{margin-left:0}
+    .fi-icono{width:40px;height:40px;padding:0!important;justify-content:center}
+    .fi-icono ico{width:20px!important;height:20px!important;transform:none!important}
+    .mv-mas{align-self:flex-start;border:0;background:transparent;padding:0;color:#3d6fb0;font:inherit;font-size:13.5px;font-weight:700;cursor:pointer}
+    .bj .form-section{display:flex;flex-direction:column;gap:14px}
+    .bj-et{font-size:13px;font-weight:700;color:#25364c}
+    .bj-motivos{display:flex;flex-wrap:wrap;gap:8px;margin-top:-6px}
+    .bj-motivos button{height:38px;padding:0 14px;border:0;border-radius:999px;background:#fff;box-shadow:0 0 0 1px #e2e8f0;color:#25364c;font:inherit;font-size:14px;font-weight:600;cursor:pointer}
+    .bj-motivos button.on{background:#14243a;color:#fff;box-shadow:none}
+    .bj-confirma b{font-family:"SFMono-Regular",Consolas,monospace;color:#a3262e;letter-spacing:.4px}
+    .bj-confirma input{font-family:"SFMono-Regular",Consolas,monospace;letter-spacing:.6px;text-transform:uppercase}
+    .bj-aviso{margin:0;font-size:13px;color:#6b7a8d}
+    .bj-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 20px;border:0;border-radius:11px;background:#c0352f;color:#fff;font:inherit;font-size:15px;font-weight:700;cursor:pointer;transition:opacity .15s}
+    .bj-btn:disabled{opacity:.35;cursor:default}
+    @media(max-width:1280px){.fi-datos{grid-template-columns:repeat(2,minmax(0,1fr))}.fi-datos>div:nth-child(3){border-left:0}.fi-datos>div:nth-child(n+3){border-top:1px solid #f0f2f6}}
     .fi-hist{padding-top:12px;border-top:1px solid #e6ebf2}
     .fi-hist h5{display:flex;align-items:center;gap:7px;margin:0 0 10px;font-size:11.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#8a96a6}
     .fi-hist h5 ico{width:15px;height:15px}
@@ -5561,6 +5656,15 @@ export class IcoComponent { @Input() n = ''; }
       .fi-hist li>div{font-size:13px}
       .bx-lote{margin-left:0}
       .fi,.fi-bloques{grid-template-columns:minmax(0,1fr)}
+      .fi-datos{grid-template-columns:minmax(0,1fr)}
+      .fi-datos>div{border-left:0!important;border-top:1px solid #f0f2f6;padding:12px 14px}
+      .fi-datos>div:first-child{border-top:0}
+      .fi-acc{flex-wrap:nowrap}
+      .fi-acc>.fi-pri{flex:1}
+      .fi-acc .fi-mas{flex:0 0 auto}
+      .fi-mas>.fi-icono{width:44px;height:44px}
+      .fi-menu.fi-menu-abajo{left:0;right:auto;min-width:220px}
+      .bj-btn{flex:1}
       .fi-main,.fi-estado{min-width:0}
       .fi-chip{max-width:100%;overflow:hidden;text-overflow:ellipsis}
       .fi-b strong,.fi-b span{white-space:normal}
@@ -7841,6 +7945,7 @@ export class AppComponent {
 
   alternarFila(b: any): void {
     this.masAbierto = null;
+    this.qrAbierto = null;
     this.bienAbierto = this.bienAbierto === b.id_bien ? null : b.id_bien;
     if (!this.bienAbierto) return;
     this.refrescarFotoBien(b);
@@ -7865,7 +7970,53 @@ export class AppComponent {
     return hayFiltro && this.bienesVista.length > 1 && this.bienesVista.length <= 500;
   }
 
-  abrirMover(lista: any[]): void {
+  qrAbierto: any = null;
+  baja: any = null;
+  readonly motivosBaja = ['Dañado', 'Obsoleto', 'Extraviado', 'Robo', 'Donación', 'Otro'];
+
+  abrirBaja(b: any): void {
+    if (!b) return;
+    this.baja = { b, motivo: '', detalle: '', confirma: '', guardando: false, error: '' };
+  }
+
+  claveBaja(b: any): string {
+    return String(b?.clave || 'BAJA').trim().toUpperCase();
+  }
+
+  get bajaLista(): boolean {
+    const k = this.baja;
+    if (!k || !k.motivo) return false;
+    if (k.motivo === 'Otro' && !String(k.detalle || '').trim()) return false;
+    return String(k.confirma || '').trim().toUpperCase() === this.claveBaja(k.b);
+  }
+
+  confirmarBaja(): void {
+    const k = this.baja;
+    if (!k || k.guardando || !this.bajaLista) return;
+    const bien = k.b, id = bien.id_bien;
+    const motivo = k.motivo + (String(k.detalle || '').trim() ? ': ' + String(k.detalle).trim() : '');
+    k.guardando = true; k.error = '';
+    this.http.delete<any>(this.api + '/bienes/' + id, { params: { motivo } }).subscribe({
+      next: response => {
+        this.baja = null;
+        this.bienSeleccionado = null;
+        this.bienAbierto = null;
+        if (response?.pendienteAutorizacion) {
+          this.notificar('pendiente', 'Solicitud de baja enviada', 'Tu solicitud #' + response.idSolicitud + ' espera la autorización del administrador.');
+        } else {
+          this.notificar('baja', 'Bien dado de baja', 'Ya no aparece en el inventario activo. Su formato de baja quedó guardado en Documentos.', 3500,
+            { texto: '📄 Ver formato de baja', fn: () => this.verOFormato(response?.idDocumento, () => this.formatoDesdeBien('BAJA', bien, {
+              folio: this.folio('BAJA', null, bien.id_bien), solicito: this.miNombre, autorizo: this.miNombre,
+              observaciones: 'Baja registrada directamente por el administrador. Motivo: ' + motivo })) });
+        }
+        this.loadBienes();
+        if (response?.pendienteAutorizacion) this.loadSolicitudes();
+      },
+      error: e => { k.guardando = false; k.error = this.mensajeError(e, 'No se pudo dar de baja el bien.'); }
+    });
+  }
+
+  abrirMover(lista: any[], foco: 'ubicacion' | 'persona' | 'todo' = 'todo'): void {
     const ids = (lista || []).map(b => b.id_bien).filter(Boolean);
     if (!ids.length) return;
     const uno = lista.length === 1 ? lista[0] : null;
@@ -7874,7 +8025,7 @@ export class AppComponent {
       ids,
       titulo: uno ? this.titulo(uno.articulo || 'Bien') + (uno.ubicacion ? ' · ' + this.titulo(uno.ubicacion) : '') + (uno.responsable ? ' · ' + this.titulo(uno.responsable) : '')
                   : (persona ? 'Bienes de ' + persona : 'Bienes filtrados') + (this.sedeEfectiva ? ' en ' + this.titulo(this.nombreSedeEfectiva) : ''),
-      idUbicacion: 'igual', idResponsable: 'igual', idUsuario: 'igual', motivo: '', guardando: false, error: ''
+      idUbicacion: 'igual', idResponsable: 'igual', idUsuario: 'igual', motivo: '', guardando: false, error: '', ver: lista.length === 1 ? foco : 'todo'
     };
   }
 
@@ -12198,6 +12349,7 @@ export class AppComponent {
 
   deleteBien(id: number): void {
     const bien = this.bienes.find(b => b.id_bien === id) || this.bienSeleccionado;
+    if (bien) { this.abrirBaja(bien); return; }
     this.abrirDialogo({
       tipo: 'peligro',
       icono: '⚠',
