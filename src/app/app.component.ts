@@ -2888,79 +2888,87 @@ export class ElegirComponent {
                 </div>
               </ng-container>
 
-              <!-- Paso 3: el bien -->
+              <!-- Paso 3: el bien (todo lo que falta, a la vista) -->
               <ng-container *ngIf="!cap.cargando && cap.paso==='bien' && cap.bien as b">
-                <div class="cb-foto" [class.vacia]="!b.foto_mini && !cap.fotoUrl">
-                  <img *ngIf="cap.fotoUrl" [src]="cap.fotoUrl" alt="Foto nueva">
-                  <img *ngIf="!cap.fotoUrl && b.foto_mini" [src]="b.foto_mini" alt="Foto del bien" (click)="ampliarFoto(b)">
-                  <label class="cb-sin" *ngIf="!cap.fotoUrl && !b.foto_mini">
-                    <ico n="camera"></ico><b>{{ b.tiene_foto ? 'Tiene foto (se verá con señal)' : 'Sin foto · toca para tomarla' }}</b>
-                    <input type="file" accept="image/*" capture="environment" (change)="tomarFotoBien($event)" hidden>
-                  </label>
-                  <span class="cb-nueva" *ngIf="cap.fotoUrl">Foto nueva</span>
-                  <label class="cb-tomar" *ngIf="b.tiene_foto || cap.fotoUrl">
-                    <ico n="camera"></ico>{{ cap.fotoUrl ? 'Repetir foto' : 'Actualizar foto' }}
-                    <input type="file" accept="image/*" capture="environment" (change)="tomarFotoBien($event)" hidden>
-                  </label>
-                </div>
-                <div class="cap-bien">
-                  <b class="chip-key">{{ b.clave }}</b>
-                  <h2>{{ b.articulo | titlecase }}</h2>
-                  <small *ngIf="[b.marca, b.modelo].filter(esTexto).length">{{ [b.marca, b.modelo].filter(esTexto).join(' · ') | titlecase }}</small>
-                  <span class="cb-dato"><ico n="pin"></ico>{{ (b.ubicacion | titlecase) || 'Sin ubicación' }}</span>
-                  <span class="cb-dato"><ico n="user"></ico>{{ (b.persona | titlecase) || 'Sin resguardante' }}</span>
-                  <span class="cb-dato" *ngIf="b.etiqueta"><ico n="qr"></ico>Etiqueta {{ b.etiqueta }}</span>
-                  <div class="cap-warn" *ngIf="cap.area && b.id_ubicacion !== cap.area.id">⚠ Está registrado en otra área: se marcará como fuera de lugar.</div>
-                  <div class="cap-info" *ngIf="b.estatus==='REVISADO'">Ya se revisó antes ({{ b.respuesta }}). Si guardas, se actualiza.</div>
-                  <div class="cap-info" *ngIf="b.estatus==='NO_ENCONTRADO'">Estaba marcado como no encontrado. Si lo guardas, queda revisado.</div>
-                </div>
+                <button class="doc-back" [disabled]="cap.guardando" (click)="cancelarBienCaptura()">← Volver a la lista</button>
 
-                <!-- Paso 1: la etiqueta (si no tiene) -->
-                <div class="cap-step cap-etq" *ngIf="!b.etiqueta && !cap.omitirEtq">
-                  <div class="step-title"><span>1</span> Pégale una etiqueta en blanco y escanéala</div>
-                  <label class="cap-photo">
-                    <span>🏷</span> {{ cap.leyendoEtq ? 'Leyendo…' : 'Escanear la etiqueta' }}
-                    <input type="file" accept="image/*" capture="environment" (change)="leerEtiquetaBienCap($event)" hidden>
-                  </label>
-                  <div class="cap-clave">
-                    <input [(ngModel)]="cap.etqTexto" placeholder="o escribe el código (DZ-000123)" (keyup.enter)="usarEtiquetaBienCap()">
-                    <button class="btn-outline" (click)="usarEtiquetaBienCap()">Usar</button>
+                <div class="cfx">
+                  <div class="cfx-cab">
+                    <div class="cfx-foto" [class.vacia]="!cap.fotoUrl && !b.foto_mini">
+                      <img *ngIf="cap.fotoUrl" [src]="cap.fotoUrl" alt="Foto nueva">
+                      <img *ngIf="!cap.fotoUrl && b.foto_mini" [src]="b.foto_mini" alt="Foto del bien" (click)="ampliarFoto(b)">
+                      <label *ngIf="!cap.fotoUrl && !b.foto_mini" class="cfx-foto-tomar">
+                        <ico n="camera"></ico><small>{{ b.tiene_foto ? 'Tiene foto' : 'Sin foto' }}</small>
+                        <input type="file" accept="image/*" capture="environment" (change)="tomarFotoBien($event)" hidden>
+                      </label>
+                      <span class="cfx-nueva" *ngIf="cap.fotoUrl">Nueva</span>
+                    </div>
+                    <div class="cfx-info">
+                      <b class="chip-key">{{ b.clave }}</b>
+                      <h2>{{ (b.articulo | titlecase) || 'Bien sin nombre' }}</h2>
+                      <small *ngIf="[b.marca, b.modelo].filter(esTexto).length">{{ [b.marca, b.modelo].filter(esTexto).join(' · ') | titlecase }}</small>
+                      <span class="cb-dato"><ico n="pin"></ico>{{ (b.ubicacion | titlecase) || 'Sin ubicación' }}</span>
+                      <span class="cb-dato"><ico n="user"></ico>{{ (b.persona | titlecase) || 'Sin resguardante' }}</span>
+                    </div>
                   </div>
-                  <p class="cap-hint" *ngIf="hayLectorPosible">🔫 ¿Usas el lector de códigos (la pistola USB)? Apunta al QR de la etiqueta y aprieta el gatillo: se registra solo.</p>
-                  <button class="lev-more" (click)="cap.omitirEtq=true">Este bien no puede llevar etiqueta</button>
-                </div>
-                <div class="cap-info cap-etq-ok" *ngIf="b.etiqueta && cap.etqRecien">✓ Etiqueta {{ b.etiqueta }} asignada</div>
 
-                <ng-container *ngIf="b.etiqueta || cap.omitirEtq">
-                <div class="cap-step" *ngIf="!b.tiene_foto">
-                  <div class="step-title"><span>{{ pasoBienCap(b, 'foto') }}</span> Foto del bien</div>
-                  <label class="cap-photo" *ngIf="!cap.fotoUrl">
-                    <ico n="camera"></ico> Tomar foto
-                    <input type="file" accept="image/*" capture="environment" (change)="tomarFotoBien($event)" hidden>
-                  </label>
-                  <p class="cap-hint" *ngIf="cap.fotoUrl">✓ Foto lista. Si no salió bien, toca "Repetir foto" arriba.</p>
-                </div>
+                  <div class="cap-warn" *ngIf="cap.area && b.id_ubicacion !== cap.area.id">Está registrado en otra área: se marcará como fuera de lugar.</div>
+                  <div class="cfx-aviso ok" *ngIf="b.estatus==='REVISADO'"><ico n="check"></ico><span>Ya está revisado ({{ b.respuesta }}). Si cambias algo y guardas, se corrige.</span></div>
+                  <div class="cfx-aviso" *ngIf="b.estatus==='NO_ENCONTRADO'"><ico n="info"></ico><span>Estaba marcado como no encontrado. Al guardarlo queda revisado.</span></div>
 
+                  <!-- Etiqueta -->
+                  <div class="cfx-paso" [class.ok]="b.etiqueta || cap.omitirEtq">
+                    <div class="cfx-tit">
+                      <i>{{ b.etiqueta || cap.omitirEtq ? '✓' : '1' }}</i><b>Etiqueta QR</b>
+                      <span>{{ b.etiqueta ? b.etiqueta : cap.omitirEtq ? 'No lleva etiqueta' : 'Falta' }}</span>
+                    </div>
+                    <ng-container *ngIf="!b.etiqueta && !cap.omitirEtq">
+                      <label class="cfx-btn">
+                        <ico n="qr"></ico>{{ cap.leyendoEtq ? 'Leyendo…' : 'Escanear la etiqueta pegada' }}
+                        <input type="file" accept="image/*" capture="environment" (change)="leerEtiquetaBienCap($event)" hidden>
+                      </label>
+                      <div class="cap-clave">
+                        <input [(ngModel)]="cap.etqTexto" placeholder="o escribe el código (DZ-000123)" (keyup.enter)="usarEtiquetaBienCap()">
+                        <button class="btn-outline" (click)="usarEtiquetaBienCap()">Usar</button>
+                      </div>
+                      <small class="cfx-nota" *ngIf="hayLectorPosible">Con la pistola lectora: dispara al QR y se registra solo.</small>
+                      <button class="cfx-link" (click)="cap.omitirEtq=true">Este bien no puede llevar etiqueta</button>
+                    </ng-container>
+                    <button class="cfx-link" *ngIf="cap.omitirEtq && !b.etiqueta" (click)="cap.omitirEtq=false">Sí puede llevar etiqueta</button>
+                  </div>
 
-                <div class="cap-step" *ngIf="b.tiene_foto || cap.fotoUrl">
-                  <div class="step-title"><span>{{ pasoBienCap(b, 'estado') }}</span> {{ cap.lev.pregunta?.texto }}</div>
-                  <div class="cap-options">
-                    <button *ngFor="let o of cap.lev.pregunta?.opciones" [class.on]="cap.respuesta===o" (click)="cap.respuesta=o">{{ o }}</button>
+                  <!-- Foto -->
+                  <div class="cfx-paso" [class.ok]="b.tiene_foto || cap.fotoUrl">
+                    <div class="cfx-tit">
+                      <i>{{ b.tiene_foto || cap.fotoUrl ? '✓' : '2' }}</i><b>Foto</b>
+                      <span>{{ cap.fotoUrl ? 'Nueva, lista' : b.tiene_foto ? 'Ya tiene' : 'Falta' }}</span>
+                    </div>
+                    <label class="cfx-btn" [class.sec]="b.tiene_foto && !cap.fotoUrl">
+                      <ico n="camera"></ico>{{ cap.fotoUrl ? 'Repetir foto' : b.tiene_foto ? 'Actualizar foto (opcional)' : 'Tomar foto' }}
+                      <input type="file" accept="image/*" capture="environment" (change)="tomarFotoBien($event)" hidden>
+                    </label>
+                  </div>
+
+                  <!-- Estado -->
+                  <div class="cfx-paso" [class.ok]="cap.respuesta">
+                    <div class="cfx-tit">
+                      <i>{{ cap.respuesta ? '✓' : '3' }}</i><b>{{ cap.lev.pregunta?.texto || 'Estado del bien' }}</b>
+                      <span>{{ cap.respuesta || 'Falta' }}</span>
+                    </div>
+                    <div class="cap-options">
+                      <button *ngFor="let o of (cap.lev.pregunta?.opciones || [])" [class.on]="cap.respuesta===o" (click)="cap.respuesta=o">{{ o }}</button>
+                    </div>
                   </div>
                 </div>
-                </ng-container>
 
                 <div class="inline-error" *ngIf="cap.error">{{ cap.error }}</div>
-                <div class="cap-footer">
-                  <button class="btn-outline" [disabled]="cap.guardando" (click)="cancelarBienCaptura()">Cancelar</button>
-                  <button class="btn-primary" [disabled]="cap.guardando || !cap.respuesta || (!b.tiene_foto && !cap.foto) || (!b.etiqueta && !cap.omitirEtq)" (click)="guardarCaptura()">
+                <div class="cap-footer cfx-pie">
+                  <button class="cfx-noenc" *ngIf="cap.desdeLista && b.estatus!=='NO_ENCONTRADO'" [disabled]="cap.guardando" (click)="marcarNoEncontradoCap()"><ico n="x"></ico> No lo encuentro</button>
+                  <button class="btn-primary cfx-guardar" [disabled]="cap.guardando || !!faltaCaptura(b)" (click)="guardarCaptura()">
                     <span class="mini-ring light" *ngIf="cap.guardando"></span>
-                    {{ cap.guardando ? 'Guardando…' : 'Guardar y siguiente' }}
+                    {{ cap.guardando ? 'Guardando…' : faltaCaptura(b) ? 'Falta: ' + faltaCaptura(b) : 'Guardar y siguiente' }}
                   </button>
                 </div>
-                <button class="cap-noenc" *ngIf="cap.desdeLista && b.estatus!=='NO_ENCONTRADO'" [disabled]="cap.guardando" (click)="marcarNoEncontradoCap()">
-                  ✗ No lo encuentro · marcar como no encontrado
-                </button>
               </ng-container>
             </div>
 
@@ -5037,6 +5045,39 @@ export class ElegirComponent {
     .cb-dato{display:flex;align-items:center;gap:7px;font-size:14px;color:#4a5a70}
     .cb-dato ico{width:16px;height:16px;color:#8a96a6}
     .cap-photo ico{width:24px;height:24px}
+    /* Ficha del bien en la captura: foto, datos y lo que falta, todo a la vista */
+    .cfx{display:flex;flex-direction:column;gap:12px}
+    .cfx-cab{display:flex;gap:14px;align-items:flex-start;padding:14px;background:#fff;border:1px solid #e3e9f1;border-radius:18px}
+    .cfx-foto{position:relative;width:112px;height:112px;flex-shrink:0;border-radius:14px;overflow:hidden;background:#eef1f5;display:grid;place-items:center}
+    .cfx-foto img{width:100%;height:100%;object-fit:cover;cursor:zoom-in}
+    .cfx-foto-tomar{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;width:100%;height:100%;margin:0;color:#3d6fb0;cursor:pointer}
+    .cfx-foto-tomar ico{width:28px;height:28px}
+    .cfx-foto-tomar small{font-size:12px;font-weight:700}
+    .cfx-nueva{position:absolute;left:6px;top:6px;padding:2px 8px;border-radius:999px;background:#26a269;color:#fff;font-size:11px;font-weight:700}
+    .cfx-info{display:flex;flex-direction:column;gap:4px;min-width:0}
+    .cfx-info .chip-key{align-self:flex-start}
+    .cfx-info h2{margin:2px 0 0;font-size:19px;font-weight:800;color:#14243a;line-height:1.2}
+    .cfx-info small{font-size:13.5px;color:#6b7a8d}
+    .cfx-aviso{display:flex;align-items:flex-start;gap:9px;padding:11px 14px;border-radius:13px;background:#eef4fb;color:#1f4f86;font-size:13.5px}
+    .cfx-aviso.ok{background:#e9f6ef;color:#1d7a4c}
+    .cfx-aviso ico{width:17px;height:17px;flex-shrink:0;margin-top:1px}
+    .cfx-paso{display:flex;flex-direction:column;gap:10px;padding:14px;background:#fff;border:1px solid #e3e9f1;border-radius:16px}
+    .cfx-paso.ok{border-color:#cfe8da}
+    .cfx-tit{display:flex;align-items:center;gap:10px}
+    .cfx-tit i{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;flex-shrink:0;background:#14243a;color:#fff;font-style:normal;font-size:13px;font-weight:800}
+    .cfx-paso.ok .cfx-tit i{background:#26a269}
+    .cfx-tit b{flex:1;font-size:15.5px;color:#14243a}
+    .cfx-tit span{font-size:13px;font-weight:700;color:#b45309}
+    .cfx-paso.ok .cfx-tit span{color:#1d7a4c}
+    .cfx-btn{display:flex;align-items:center;justify-content:center;gap:9px;min-height:52px;margin:0;border-radius:13px;background:#14243a;color:#fff;font-size:15px;font-weight:700;cursor:pointer}
+    .cfx-btn.sec{background:#fff;color:#14243a;box-shadow:0 0 0 1px #dfe5ec}
+    .cfx-btn ico{width:20px;height:20px}
+    .cfx-nota{font-size:12.5px;color:#7a8799}
+    .cfx-link{align-self:flex-start;border:0;background:transparent;padding:0;color:#3d6fb0;font:inherit;font-size:13.5px;font-weight:700;cursor:pointer}
+    .cfx-pie{display:flex;gap:10px;align-items:stretch}
+    .cfx-noenc{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:52px;padding:0 14px;border:0;border-radius:13px;background:#fdeeee;color:#a3262e;font:inherit;font-size:14.5px;font-weight:700;cursor:pointer;flex-shrink:0}
+    .cfx-noenc ico{width:16px;height:16px}
+    .cfx-guardar{flex:1;min-height:52px;font-size:15px}
     .chk-pie{position:sticky;bottom:0;z-index:4;padding:10px 0 calc(10px + env(safe-area-inset-bottom));background:linear-gradient(transparent,#f4f6fa 30%)}
     .chk-pie .chk-terminar{width:100%;display:inline-flex;align-items:center;justify-content:center;gap:9px;box-shadow:0 8px 20px #17263d26}
     .chk-pie .chk-terminar ico{width:19px;height:19px}
@@ -11405,6 +11446,16 @@ export class AppComponent {
   }
 
   // Número de cada paso del bien (la etiqueta va primero si no tiene)
+  // Qué le falta a un bien para poder guardarlo en la captura (vacío = listo)
+  faltaCaptura(b: any): string {
+    const c = this.cap, f: string[] = [];
+    if (!b) return '';
+    if (!b.etiqueta && !c?.omitirEtq) f.push('etiqueta');
+    if (!b.tiene_foto && !c?.foto) f.push('foto');
+    if (!c?.respuesta) f.push('estado');
+    return f.join(', ');
+  }
+
   pasoBienCap(b: any, paso: 'foto' | 'estado'): number {
     let n = b.etiqueta && !this.cap?.etqRecien ? 0 : 1;
     if (paso === 'foto') return n + 1;
