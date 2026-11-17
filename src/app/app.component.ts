@@ -2783,8 +2783,8 @@ export class ElegirComponent {
                   <button class="cap-big" *ngIf="camaraEnVivo" (click)="iniciarEscaner()">
                     <ico n="qr"></ico> Abrir un bien por su QR
                   </button>
-                  <label class="cap-big" [class.secondary]="camaraEnVivo">
-                    <ico n="image"></ico> {{ camaraEnVivo ? 'Leer el QR desde una foto' : 'Tomar foto del QR' }}
+                  <label [ngClass]="camaraEnVivo ? 'cap-foto-qr' : 'cap-big'">
+                    <ico n="image"></ico> {{ camaraEnVivo ? '¿No enfoca la cámara? Leer el QR desde una foto' : 'Tomar foto del QR' }}
                     <input type="file" accept="image/*" capture="environment" (change)="leerQrDeFoto($event)" hidden>
                   </label>
                   <p class="cap-hint" *ngIf="!camaraEnVivo">Para escanear en vivo, el celular necesita abrir DOZZER con https. Mientras, toma una foto del QR.</p>
@@ -5055,6 +5055,8 @@ export class ElegirComponent {
     .cfx-foto-tomar ico{width:28px;height:28px}
     .cfx-foto-tomar.sin{color:#a3aebd;cursor:default}
     .cap-para{margin:0 0 -2px}
+    .cap-foto-qr{display:inline-flex;align-items:center;justify-content:center;gap:7px;align-self:center;margin:-2px 0 0;padding:6px 10px;color:#3d6fb0;font-size:13.5px;font-weight:600;cursor:pointer}
+    .cap-foto-qr ico{width:16px;height:16px}
     .cfx-foto-tomar small{font-size:12px;font-weight:700}
     .cfx-nueva{position:absolute;left:6px;top:6px;padding:2px 8px;border-radius:999px;background:#26a269;color:#fff;font-size:11px;font-weight:700}
     .cfx-info{display:flex;flex-direction:column;gap:4px;min-width:0}
@@ -6639,6 +6641,7 @@ export class AppComponent {
   constructor(private http: HttpClient, private sanitizer: DomSanitizer) {
     document.addEventListener('keydown', this.alTeclaLector, true);
     window.addEventListener('dozzer-sesion-vencida', () => this.alSesionVencida());
+    window.addEventListener('popstate', this.alAtras);
     // Se abrió la app con una sesión que ya venció: directo a iniciar sesión
     if (this.logged && navigator.onLine !== false && tokenVencido(localStorage.getItem('dozzer_token'))) {
       this.logged = false;
@@ -7401,8 +7404,85 @@ export class AppComponent {
     return l?.estado === 'EN_CURSO' && !!(l.soyCapturista || l.puedoAdministrar);
   }
 
+  // ----- Botón / gesto "atrás" del celular -----
+  // Mientras haya algo abierto (o no estés en Inicio) se mantiene una entrada en el historial del navegador:
+  // "atrás" cierra lo último abierto en lugar de salir de la app. Desde Inicio sí sale.
+  private historialGuardia = false;
+  private historialIgnorar = false;
+
+  private capaSuperior(): (() => void) | null {
+    if (!this.logged || this.mustChangePassword) return null;
+    const c = this.cap;
+    if (this.fotoAmpliada) return () => this.fotoAmpliada = null;
+    if (this.dialogo && !this.dialogo.cargando) return () => this.dialogo = null;
+    if (this.firmaDoc && !this.firmaDoc.guardando) return () => this.firmaDoc = null;
+    if (this.firmaIni && !this.firmaIni.guardando) return () => this.firmaIni = null;
+    if (this.baja && !this.baja.guardando) return () => this.baja = null;
+    if (this.mov && !this.mov.guardando) return () => this.mov = null;
+    if (this.etqAsignar && !this.etqAsignar.guardando) return () => this.cerrarAsignarEtiqueta();
+    if (this.calForm && !this.calForm.guardando) return () => this.calForm = null;
+    if (this.documento) return () => this.cerrarFormato();
+    if (this.editing && !this.saving) return () => this.editing = false;
+    if (this.capNuevo) return () => this.capNuevo = null;
+    if (this.capBuscar) return () => this.capBuscar = null;
+    if (this.rqNueva && !this.rqNueva.guardando) return () => this.rqNueva = null;
+    if (this.rqDet && !this.rqDet.guardando) return () => this.rqDet = null;
+    if (this.colaPanel) return () => this.colaPanel = null;
+    if (this.excelModal) return () => this.excelModal = false;
+    if (this.levNuevo) return () => this.levNuevo = null;
+    if (this.admins) return () => this.admins = null;
+    if (this.calAgregar) return () => this.calAgregar = null;
+    if (this.columnPickerOpen) return () => this.columnPickerOpen = false;
+    if (this.menuInv) return () => this.menuInv = '';
+    if (this.masAbierto) return () => this.masAbierto = null;
+    if (this.qrAbierto) return () => this.qrAbierto = null;
+    if (this.levMenu) return () => this.levMenu = null;
+    if (c?.menu) return () => c.menu = false;
+    if (!this.menuCollapsed) return () => this.menuCollapsed = true;
+    if (this.bienSeleccionado) return () => this.bienSeleccionado = null;
+    if (this.bienAbierto) return () => this.bienAbierto = null;
+    if (this.section === 'anual') {
+      if (this.av) return () => this.cerrarAvance();
+      if (c && this.anualVista === 'captura') {
+        if (c.guardando) return null;
+        if (c.paso === 'bien') return () => this.cancelarBienCaptura();
+        if (c.paso === 'terminar') return () => c.paso = 'escanear';
+        if (c.paso === 'escanear') return () => { c.paso = 'area'; };
+        return () => this.salirCaptura();
+      }
+      if (this.anualVista === 'cierre' && this.cierre && !this.cierre.guardando) return () => this.salirCierre();
+      if (this.anualVista === 'resultado') return () => this.salirResultado();
+      if (this.etq) return () => this.etq = null;
+    }
+    if (this.section === 'documentos' && this.docsVista !== 'menu') return () => { this.docsVista = 'menu'; this.docsBusqueda = ''; };
+    if (this.section !== 'inicio') return () => this.irA('inicio');
+    return null;
+  }
+
+  private sincronizarHistorial(): void {
+    const hay = !!this.capaSuperior();
+    try {
+      if (hay && !this.historialGuardia) {
+        history.pushState({ dozzer: true }, '', location.href);
+        this.historialGuardia = true;
+      } else if (!hay && this.historialGuardia) {
+        this.historialGuardia = false;
+        this.historialIgnorar = true;
+        history.back();
+      }
+    } catch { /* navegador sin historial */ }
+  }
+
+  private alAtras = () => {
+    if (this.historialIgnorar) { this.historialIgnorar = false; return; }
+    this.historialGuardia = false;
+    const cerrar = this.capaSuperior();
+    if (cerrar) cerrar();
+  };
+
   // Guarda en el dispositivo en qué pantalla vas (y el formulario a medias) para no perderlo al recargar
   ngDoCheck(): void {
+    this.sincronizarHistorial();
     const n = this.logged && !this.mustChangePassword ? this.pendientesBadge : 0;
     const titulo = (n > 0 ? '(' + n + ') ' : '') + 'DOZZER';
     if (document.title !== titulo) document.title = titulo;
