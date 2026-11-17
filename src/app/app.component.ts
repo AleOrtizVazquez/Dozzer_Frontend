@@ -2779,11 +2779,12 @@ export class ElegirComponent {
                 </div>
 
                 <ng-container *ngIf="!cap.escaneando">
+                  <p class="cap-hint cap-para">Para abrir un bien, escanea la etiqueta QR que ya tiene o tócalo en la lista de abajo.</p>
                   <button class="cap-big" *ngIf="camaraEnVivo" (click)="iniciarEscaner()">
-                    <ico n="camera"></ico> Escanear QR
+                    <ico n="qr"></ico> Abrir un bien por su QR
                   </button>
                   <label class="cap-big" [class.secondary]="camaraEnVivo">
-                    <ico n="image"></ico> {{ camaraEnVivo ? 'Leer QR desde una foto' : 'Tomar foto del QR' }}
+                    <ico n="image"></ico> {{ camaraEnVivo ? 'Leer el QR desde una foto' : 'Tomar foto del QR' }}
                     <input type="file" accept="image/*" capture="environment" (change)="leerQrDeFoto($event)" hidden>
                   </label>
                   <p class="cap-hint" *ngIf="!camaraEnVivo">Para escanear en vivo, el celular necesita abrir DOZZER con https. Mientras, toma una foto del QR.</p>
@@ -2897,10 +2898,9 @@ export class ElegirComponent {
                     <div class="cfx-foto" [class.vacia]="!cap.fotoUrl && !b.foto_mini">
                       <img *ngIf="cap.fotoUrl" [src]="cap.fotoUrl" alt="Foto nueva">
                       <img *ngIf="!cap.fotoUrl && b.foto_mini" [src]="b.foto_mini" alt="Foto del bien" (click)="ampliarFoto(b)">
-                      <label *ngIf="!cap.fotoUrl && !b.foto_mini" class="cfx-foto-tomar">
-                        <ico n="camera"></ico><small>{{ b.tiene_foto ? 'Tiene foto' : 'Sin foto' }}</small>
-                        <input type="file" accept="image/*" capture="environment" (change)="tomarFotoBien($event)" hidden>
-                      </label>
+                      <span *ngIf="!cap.fotoUrl && !b.foto_mini" class="cfx-foto-tomar sin">
+                        <ico n="image"></ico><small>{{ b.tiene_foto ? 'Tiene foto' : 'Sin foto' }}</small>
+                      </span>
                       <span class="cfx-nueva" *ngIf="cap.fotoUrl">Nueva</span>
                     </div>
                     <div class="cfx-info">
@@ -2919,12 +2919,13 @@ export class ElegirComponent {
                   <!-- Etiqueta -->
                   <div class="cfx-paso" [class.ok]="b.etiqueta || cap.omitirEtq">
                     <div class="cfx-tit">
-                      <i>{{ b.etiqueta || cap.omitirEtq ? '✓' : '1' }}</i><b>Etiqueta QR</b>
+                      <i>{{ b.etiqueta || cap.omitirEtq ? '✓' : '1' }}</i><b>{{ b.etiqueta ? 'Etiqueta QR' : 'Asignar etiqueta nueva' }}</b>
                       <span>{{ b.etiqueta ? b.etiqueta : cap.omitirEtq ? 'No lleva etiqueta' : 'Falta' }}</span>
                     </div>
                     <ng-container *ngIf="!b.etiqueta && !cap.omitirEtq">
+                      <small class="cfx-nota">Este bien no tiene etiqueta: pégale una en blanco y escanéala para ligarla a él.</small>
                       <label class="cfx-btn">
-                        <ico n="qr"></ico>{{ cap.leyendoEtq ? 'Leyendo…' : 'Escanear la etiqueta pegada' }}
+                        <ico n="qr"></ico>{{ cap.leyendoEtq ? 'Leyendo…' : 'Escanear la etiqueta que le pegaste' }}
                         <input type="file" accept="image/*" capture="environment" (change)="leerEtiquetaBienCap($event)" hidden>
                       </label>
                       <div class="cap-clave">
@@ -5052,6 +5053,8 @@ export class ElegirComponent {
     .cfx-foto img{width:100%;height:100%;object-fit:cover;cursor:zoom-in}
     .cfx-foto-tomar{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;width:100%;height:100%;margin:0;color:#3d6fb0;cursor:pointer}
     .cfx-foto-tomar ico{width:28px;height:28px}
+    .cfx-foto-tomar.sin{color:#a3aebd;cursor:default}
+    .cap-para{margin:0 0 -2px}
     .cfx-foto-tomar small{font-size:12px;font-weight:700}
     .cfx-nueva{position:absolute;left:6px;top:6px;padding:2px 8px;border-radius:999px;background:#26a269;color:#fff;font-size:11px;font-weight:700}
     .cfx-info{display:flex;flex-direction:column;gap:4px;min-width:0}
