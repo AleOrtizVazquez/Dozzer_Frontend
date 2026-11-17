@@ -2810,13 +2810,22 @@ export class ElegirComponent {
                     <span class="firma-tag" *ngIf="(cap.grupo.modo==='persona' ? estadoPersona(cap.grupo.id) : null) as e" [ngClass]="'fe-' + e">{{ textoEstadoPersona(e) }}</span>
                   </div>
                   <div class="chk-list">
-                    <button class="chk-item" *ngFor="let b of checklistGrupo; trackBy: trackBien" [ngClass]="'st-' + avEstado(b)" (click)="tocarChecklist(b)">
-                      <span class="av-ico">{{ avEstado(b)==='ok' ? '✓' : avEstado(b)==='fuera' ? '⚠' : avEstado(b)==='no' ? '✗' : '○' }}</span>
-                      <span class="av-txt">
-                        <span><b class="chip-key">{{ b.clave }}</b> {{ b.articulo }}<em class="av-orig" *ngIf="esVehiculo(b)">🚗 Vehículo</em></span>
-                        <small>{{ b.etiqueta || 'Sin etiqueta' }} · {{ avEstado(b)==='ok' || avEstado(b)==='fuera' ? b.respuesta : avEstado(b)==='no' ? 'No encontrado' : (b.tiene_foto ? 'Pendiente' : 'Pendiente · 📷') }}</small>
+                    <button class="chk-item ci" *ngFor="let b of checklistGrupo; trackBy: trackBien" [ngClass]="'st-' + avEstado(b)" (click)="tocarChecklist(b)">
+                      <span class="ci-foto" [class.vacia]="!b.foto_mini">
+                        <img *ngIf="b.foto_mini" [src]="b.foto_mini" alt="" loading="lazy">
+                        <span *ngIf="!b.foto_mini">{{ inicialesDe(b.articulo) }}</span>
+                        <i class="ci-dot" [ngClass]="'ci-' + avEstado(b)"></i>
                       </span>
-                      <span class="av-go">›</span>
+                      <span class="ci-txt">
+                        <strong>{{ (b.articulo | titlecase) || 'Bien sin nombre' }}<em class="ci-veh" *ngIf="esVehiculo(b)">Vehículo</em></strong>
+                        <small><b class="ci-clave">{{ b.clave }}</b>{{ [b.marca, b.modelo].filter(esTexto).join(' · ') | titlecase }}</small>
+                        <span class="ci-chips">
+                          <span class="ci-chip" [ngClass]="'ci-c-' + avEstado(b)">{{ avEstado(b)==='ok' ? b.respuesta : avEstado(b)==='fuera' ? (b.respuesta + ' · fuera de lugar') : avEstado(b)==='no' ? 'No encontrado' : 'Pendiente' }}</span>
+                          <span class="ci-chip ci-falta" *ngIf="!b.tiene_foto && avEstado(b)==='pendiente'">Sin foto</span>
+                          <span class="ci-chip ci-falta" *ngIf="!b.etiqueta && avEstado(b)==='pendiente'">Sin etiqueta</span>
+                        </span>
+                      </span>
+                      <ico class="ci-go" n="chevright"></ico>
                     </button>
                   </div>
                   <div class="cap-acciones">
@@ -2881,13 +2890,26 @@ export class ElegirComponent {
 
               <!-- Paso 3: el bien -->
               <ng-container *ngIf="!cap.cargando && cap.paso==='bien' && cap.bien as b">
+                <div class="cb-foto" [class.vacia]="!b.foto_mini && !cap.fotoUrl">
+                  <img *ngIf="cap.fotoUrl" [src]="cap.fotoUrl" alt="Foto nueva">
+                  <img *ngIf="!cap.fotoUrl && b.foto_mini" [src]="b.foto_mini" alt="Foto del bien" (click)="ampliarFoto(b)">
+                  <label class="cb-sin" *ngIf="!cap.fotoUrl && !b.foto_mini">
+                    <ico n="camera"></ico><b>{{ b.tiene_foto ? 'Tiene foto (se verá con señal)' : 'Sin foto · toca para tomarla' }}</b>
+                    <input type="file" accept="image/*" capture="environment" (change)="tomarFotoBien($event)" hidden>
+                  </label>
+                  <span class="cb-nueva" *ngIf="cap.fotoUrl">Foto nueva</span>
+                  <label class="cb-tomar" *ngIf="b.tiene_foto || cap.fotoUrl">
+                    <ico n="camera"></ico>{{ cap.fotoUrl ? 'Repetir foto' : 'Actualizar foto' }}
+                    <input type="file" accept="image/*" capture="environment" (change)="tomarFotoBien($event)" hidden>
+                  </label>
+                </div>
                 <div class="cap-bien">
                   <b class="chip-key">{{ b.clave }}</b>
-                  <h2>{{ b.articulo }}</h2>
-                  <small>{{ [b.marca, b.modelo].filter(esTexto).join(' · ') }}</small>
-                  <small>📍 Registrado en: {{ b.ubicacion || 'Sin ubicación' }}</small>
-                  <small>👤 {{ b.persona || 'Sin resguardante' }}</small>
-                  <small *ngIf="b.etiqueta">🏷 Etiqueta {{ b.etiqueta }}</small>
+                  <h2>{{ b.articulo | titlecase }}</h2>
+                  <small *ngIf="[b.marca, b.modelo].filter(esTexto).length">{{ [b.marca, b.modelo].filter(esTexto).join(' · ') | titlecase }}</small>
+                  <span class="cb-dato"><ico n="pin"></ico>{{ (b.ubicacion | titlecase) || 'Sin ubicación' }}</span>
+                  <span class="cb-dato"><ico n="user"></ico>{{ (b.persona | titlecase) || 'Sin resguardante' }}</span>
+                  <span class="cb-dato" *ngIf="b.etiqueta"><ico n="qr"></ico>Etiqueta {{ b.etiqueta }}</span>
                   <div class="cap-warn" *ngIf="cap.area && b.id_ubicacion !== cap.area.id">⚠ Está registrado en otra área: se marcará como fuera de lugar.</div>
                   <div class="cap-info" *ngIf="b.estatus==='REVISADO'">Ya se revisó antes ({{ b.respuesta }}). Si guardas, se actualiza.</div>
                   <div class="cap-info" *ngIf="b.estatus==='NO_ENCONTRADO'">Estaba marcado como no encontrado. Si lo guardas, queda revisado.</div>
@@ -2913,18 +2935,12 @@ export class ElegirComponent {
                 <div class="cap-step" *ngIf="!b.tiene_foto">
                   <div class="step-title"><span>{{ pasoBienCap(b, 'foto') }}</span> Foto del bien</div>
                   <label class="cap-photo" *ngIf="!cap.fotoUrl">
-                    <span>📷</span> Tomar foto
+                    <ico n="camera"></ico> Tomar foto
                     <input type="file" accept="image/*" capture="environment" (change)="tomarFotoBien($event)" hidden>
                   </label>
-                  <div class="cap-preview" *ngIf="cap.fotoUrl">
-                    <img [src]="cap.fotoUrl" alt="Foto del bien">
-                    <label class="btn-outline btn-small">Repetir<input type="file" accept="image/*" capture="environment" (change)="tomarFotoBien($event)" hidden></label>
-                  </div>
+                  <p class="cap-hint" *ngIf="cap.fotoUrl">✓ Foto lista. Si no salió bien, toca "Repetir foto" arriba.</p>
                 </div>
-                <div class="cap-info cap-tiene-foto" *ngIf="b.tiene_foto">
-                  <img *ngIf="b.foto_mini" [src]="b.foto_mini" alt="Foto del bien" loading="lazy" (click)="ampliarFoto(b)">
-                  <span>✓ Este bien ya tiene foto</span>
-                </div>
+
 
                 <div class="cap-step" *ngIf="b.tiene_foto || cap.fotoUrl">
                   <div class="step-title"><span>{{ pasoBienCap(b, 'estado') }}</span> {{ cap.lev.pregunta?.texto }}</div>
@@ -4990,6 +5006,37 @@ export class ElegirComponent {
     .cap-acciones span{display:flex;flex-direction:column;gap:2px}
     .cap-acciones b{font-size:15px}
     .cap-acciones small{font-size:12.5px;color:#7a8799}
+    /* Bien en la lista de la captura (mismo lenguaje que Bienes) */
+    .chk-item.ci{display:flex;align-items:center;gap:14px;padding:10px 12px;text-align:left}
+    .ci-foto{position:relative;width:56px;height:56px;border-radius:13px;flex-shrink:0;display:grid;place-items:center;background:#eef1f5;color:#4a6a92;font-size:17px;font-weight:800}
+    .ci-foto img{width:100%;height:100%;object-fit:cover;border-radius:13px}
+    .ci-dot{position:absolute;right:-3px;bottom:-3px;width:14px;height:14px;border-radius:50%;border:2.5px solid #fff;background:#c3ccd8}
+    .ci-dot.ci-ok{background:#26a269}.ci-dot.ci-fuera{background:#e3a21a}.ci-dot.ci-no{background:#d24c55}
+    .ci-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+    .ci-txt strong{font-size:15px;font-weight:700;color:#14243a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .ci-txt small{display:flex;gap:7px;font-size:12.5px;color:#7a8799;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+    .ci-clave{font-family:"SFMono-Regular",Consolas,monospace;font-weight:700;color:#4a5a70}
+    .ci-veh{margin-left:6px;font-style:normal;font-size:11px;font-weight:700;color:#5b47a0;background:#f1edfb;border-radius:999px;padding:1px 7px}
+    .ci-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:2px}
+    .ci-chip{font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:999px;background:#eef1f5;color:#5d6d82}
+    .ci-chip.ci-c-ok{background:#e9f6ef;color:#1d7a4c}
+    .ci-chip.ci-c-fuera{background:#fff3df;color:#8a4b00}
+    .ci-chip.ci-c-no{background:#fdeeee;color:#a3262e}
+    .ci-chip.ci-falta{background:#fff;box-shadow:0 0 0 1px #e4e9f0;color:#8a96a6}
+    .ci-go{width:18px;height:18px;color:#a3aebd;flex-shrink:0}
+    /* Ficha del bien en la captura: la foto ayuda a reconocerlo */
+    .cb-foto{position:relative;border-radius:18px;overflow:hidden;background:#eef1f5;aspect-ratio:4/3;max-height:320px;display:grid;place-items:center}
+    .cb-foto img{width:100%;height:100%;object-fit:cover;cursor:zoom-in}
+    .cb-foto.vacia{aspect-ratio:auto;height:110px}
+    .cb-sin{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;width:100%;height:100%;margin:0;color:#3d6fb0;cursor:pointer}
+    .cb-sin ico{width:28px;height:28px}
+    .cb-sin b{font-size:14px}
+    .cb-nueva{position:absolute;top:10px;left:10px;padding:4px 10px;border-radius:999px;background:#26a269;color:#fff;font-size:12px;font-weight:700}
+    .cb-tomar{position:absolute;right:10px;bottom:10px;display:inline-flex;align-items:center;gap:7px;height:38px;margin:0;padding:0 14px;border-radius:999px;background:#ffffffeb;color:#14243a;font-size:13.5px;font-weight:700;cursor:pointer;box-shadow:0 2px 10px #17263d33}
+    .cb-tomar ico{width:17px;height:17px}
+    .cb-dato{display:flex;align-items:center;gap:7px;font-size:14px;color:#4a5a70}
+    .cb-dato ico{width:16px;height:16px;color:#8a96a6}
+    .cap-photo ico{width:24px;height:24px}
     .chk-pie{position:sticky;bottom:0;z-index:4;padding:10px 0 calc(10px + env(safe-area-inset-bottom));background:linear-gradient(transparent,#f4f6fa 30%)}
     .chk-pie .chk-terminar{width:100%;display:inline-flex;align-items:center;justify-content:center;gap:9px;box-shadow:0 8px 20px #17263d26}
     .chk-pie .chk-terminar ico{width:19px;height:19px}
@@ -11564,7 +11611,7 @@ export class AppComponent {
     if (!b || c.guardando) return;
     const campos: any = { idBien: String(b.id_bien), respuesta: c.respuesta };
     if (c.area?.id) campos.idUbicacion = String(c.area.id);
-    const foto = !b.tiene_foto && c.foto ? c.foto : null;
+    const foto = c.foto ? c.foto : null;
     c.guardando = true;
     c.error = '';
     const res = await this.enviarOEncolar({
@@ -11583,14 +11630,15 @@ export class AppComponent {
       b.tiene_foto = true; b.foto_mini = r.foto_mini; b.foto_url = r.foto_url;
       this.actualizarFotoEnInventario(b.id_bien, r.foto_mini, r.foto_url);
     } else if (res.offline && foto) {
-      b.tiene_foto = true; b.foto_mini = ''; b.foto_url = '';
+      // Sin señal: se muestra la foto recién tomada mientras se sube
+      b.tiene_foto = true; b.foto_mini = c.fotoUrl || b.foto_mini || ''; b.foto_url = '';
     }
     c.ultimo = b.clave + ' · ' + c.respuesta + (b.fuera_de_lugar ? ' · fuera de lugar' : '') + (res.offline ? ' — guardado en el celular' : ' — listo, escanea el siguiente');
     if (this.esChecklist && this.estadoPersona(c.grupo.id) && this.estadoPersona(c.grupo.id) !== 'EN_PROCESO') {
       if (res.offline) c.estadosPersona[String(c.grupo.id)] = { ...c.estadosPersona[String(c.grupo.id)], estado: 'REQUIERE_FIRMA' };
       else this.cargarEstadoPersonas();
     }
-    if (!res.offline) this.limpiarFotoCaptura(); else { c.foto = null; c.fotoUrl = ''; }
+    if (!res.offline) this.limpiarFotoCaptura(); else { c.foto = null; c.fotoUrl = ''; /* la URL local se queda como vista previa */ }
     c.bien = null;
     c.paso = 'escanear';
     window.scrollTo({ top: 0 });
