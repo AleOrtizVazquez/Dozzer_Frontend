@@ -971,23 +971,32 @@ export class ElegirComponent {
               <ng-container *ngIf="etq.formato==='rollo'">
                 <label>Tamaño de la etiqueta</label>
                 <div class="etq-tam">
-                  <button [class.on]="etq.tamano!=='chica'" (click)="cambiarTamanoEtq('grande')"><b>Grande</b><small>1 por etiqueta del rollo</small></button>
-                  <button [class.on]="etq.tamano==='chica'" (click)="cambiarTamanoEtq('chica')"><b>Chica</b><small>2 por etiqueta del rollo, para cortar</small></button>
+                  <button [class.on]="etq.tamano==='grande'" (click)="cambiarTamanoEtq('grande')"><b>Grande</b><small>1 por etiqueta del rollo</small></button>
+                  <button [class.on]="etq.tamano==='mediana'" (click)="cambiarTamanoEtq('mediana')"><b>Mediana</b><small>2 por etiqueta, para cortar</small></button>
+                  <button [class.on]="etq.tamano==='chica'" (click)="cambiarTamanoEtq('chica')"><b>Chica</b><small>4 por etiqueta (mouse, cargadores)</small></button>
                 </div>
 
                 <!-- Vista previa en proporción real (62 x 29) -->
                 <div class="etq-muestra">
-                  <div class="etq-pieza" *ngIf="etq.tamano!=='chica'">
+                  <div class="etq-pieza" *ngIf="etq.tamano==='grande'">
                     <span class="etq-pieza-qr"><ico n="qr"></ico></span>
                     <span class="etq-pieza-tx"><b>DOZZER</b><em>{{ codigoEtiqueta(r.ultimo + 1) }}</em><small>Propiedad de DOZZER Construcción y Asesoría</small></span>
                   </div>
-                  <div class="etq-pieza doble" *ngIf="etq.tamano==='chica'">
+                  <div class="etq-pieza cuatro" *ngIf="etq.tamano==='chica'">
+                    <span class="etq-cuarto" *ngFor="let k of [1, 2, 3, 4]">
+                      <span class="etq-pieza-qr"><ico n="qr"></ico></span>
+                      <em>{{ codigoEtiqueta(r.ultimo + k) }}</em>
+                    </span>
+                  </div>
+                  <div class="etq-pieza doble" *ngIf="etq.tamano==='mediana'">
                     <span class="etq-mitad" *ngFor="let k of [1, 2]">
                       <span class="etq-pieza-qr"><ico n="qr"></ico></span>
                       <em>{{ codigoEtiqueta(r.ultimo + k) }}</em>
                     </span>
                   </div>
-                  <small>{{ etq.tamano==='chica' ? 'Dos etiquetas chicas en cada etiqueta del rollo (62 × 29 mm). Córtala por la línea.' : 'Así sale cada etiqueta del rollo (62 × 29 mm).' }}</small>
+                  <small>{{ etq.tamano==='chica' ? 'Cuatro etiquetas chicas en cada etiqueta del rollo (62 × 29 mm). Córtalas por las líneas.'
+                          : etq.tamano==='mediana' ? 'Dos etiquetas medianas en cada etiqueta del rollo (62 × 29 mm). Córtala por la línea.'
+                          : 'Así sale cada etiqueta del rollo (62 × 29 mm).' }}</small>
                 </div>
 
                 <label>¿Cuántas etiquetas vas a imprimir?</label>
@@ -999,11 +1008,11 @@ export class ElegirComponent {
                 <div class="etq-rap">
                   <button *ngFor="let n of [10, 50, 100, 800]" [class.on]="etq.cantidad===n" (click)="etq.cantidad=n">{{ n === 800 ? 'Rollo completo (800)' : n }}</button>
                 </div>
-                <p class="cap-hint">De <b>{{ codigoEtiqueta(r.ultimo + 1) }}</b> a <b>{{ codigoEtiqueta(r.ultimo + (etq.cantidad || 0)) }}</b><ng-container *ngIf="etq.tamano==='chica'"> · usa <b>{{ mathCeil((etq.cantidad || 0) / 2) | number }}</b> etiquetas del rollo</ng-container>. Faltan ≈ <b>{{ etqFaltan | number }}</b> bienes por etiquetar.</p>
+                <p class="cap-hint">De <b>{{ codigoEtiqueta(r.ultimo + 1) }}</b> a <b>{{ codigoEtiqueta(r.ultimo + (etq.cantidad || 0)) }}</b><ng-container *ngIf="etq.tamano!=='grande'"> · usa <b>{{ mathCeil((etq.cantidad || 0) / porEtiquetaRollo) | number }}</b> etiquetas del rollo</ng-container>. Faltan ≈ <b>{{ etqFaltan | number }}</b> bienes por etiquetar.</p>
                 <details class="etq-como">
                   <summary>Cómo configurar la impresión (solo la primera vez)</summary>
                   <ol>
-                    <li>Conecta la Brother QL-800 por USB, con su controlador instalado, y pon el rollo <b>DK-1209</b>. Sirve para las grandes y las chicas.</li>
+                    <li>Conecta la Brother QL-800 por USB, con su controlador instalado, y pon el rollo <b>DK-1209</b>. Sirve para las grandes, medianas y chicas.</li>
                     <li>En la ventana de impresión elige <b>Destino: Brother QL-800</b>.</li>
                     <li>En <b>Más opciones</b>: tamaño de papel <b>29mm x 62mm</b> (DK-1209), márgenes <b>Ninguno</b>, escala <b>100%</b>, color <b>Blanco y negro</b>.</li>
                     <li>Imprime primero una sola para comprobar. Después, a cada etiqueta pegada ponle su <b>protector transparente</b>.</li>
@@ -1034,7 +1043,7 @@ export class ElegirComponent {
             <button class="btn-primary" [disabled]="etq.cargando || etq.generando || (etq.formato==='rollo' ? !(etq.cantidad >= 1) : !(etq.hojas >= 1))" (click)="generarEtiquetas()">
               <span class="mini-ring light" *ngIf="etq.generando"></span>
               {{ etq.generando ? 'Generando…' : etq.formato==='rollo'
-                  ? '⎙ Imprimir ' + (etq.cantidad || 0) + ((etq.cantidad || 0) === 1 ? ' etiqueta' : ' etiquetas') + (etq.tamano === 'chica' ? ' chicas' : '')
+                  ? '⎙ Imprimir ' + (etq.cantidad || 0) + ((etq.cantidad || 0) === 1 ? ' etiqueta' : ' etiquetas') + (etq.tamano === 'chica' ? ' chicas' : etq.tamano === 'mediana' ? ' medianas' : ' grandes')
                   : '⎙ Generar e imprimir ' + (etq.hojas || 0) + (etq.hojas === 1 ? ' hoja' : ' hojas') }}
             </button>
           </div>
@@ -4128,7 +4137,15 @@ export class ElegirComponent {
     .etq-como{background:#f6f8fb;border-radius:12px;padding:10px 14px;margin:6px 0 10px;font-size:13.5px;color:#41546b}
     .etq-como summary{cursor:pointer;font-weight:700;color:#244c78}
     .etq-como ol{margin:8px 0 2px;padding-left:20px;display:flex;flex-direction:column;gap:5px}
-    .etq-tam{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:2px 0 10px}
+    .etq-tam{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:2px 0 10px}
+    @media(max-width:520px){.etq-tam{grid-template-columns:1fr}}
+    .etq-pieza.cuatro{padding:0;gap:0;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr}
+    .etq-cuarto{display:flex;align-items:center;gap:5px;padding:3px 6px;font-size:0}
+    .etq-cuarto:nth-child(2n){border-left:1.5px dashed #000}
+    .etq-cuarto:nth-child(n+3){border-top:1.5px dashed #000}
+    .etq-cuarto .etq-pieza-qr{width:42px;height:42px;border-width:3px}
+    .etq-cuarto .etq-pieza-qr ico{width:16px;height:16px;padding:2px}
+    .etq-cuarto em{font-style:normal;font-family:"Courier New",monospace;font-weight:900;font-size:10px}
     .etq-tam button{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:10px 12px;border:1.5px solid #dbe3ee;border-radius:12px;background:#fff;cursor:pointer;text-align:left;font:inherit;color:#17263d}
     .etq-tam button b{font-size:15px}
     .etq-tam button small{font-size:12px;color:#6b7a8f}
@@ -8973,16 +8990,23 @@ export class AppComponent {
     try { localStorage.setItem('dozzer_formato_etq', f); } catch { /* */ }
   }
 
-  // Rollo Brother DK-1209: etiqueta grande (1 por etiqueta del rollo) o chica (2 por etiqueta, para cortar); se recuerda en este equipo
+  // Rollo Brother DK-1209: grande (1 por etiqueta del rollo), mediana (2, para cortar) o chica (4, para cortar); se recuerda en este equipo
   mathCeil = Math.ceil;
 
-  get tamanoEtiquetas(): 'grande' | 'chica' {
-    try { return localStorage.getItem('dozzer_tamano_etq') === 'chica' ? 'chica' : 'grande'; } catch { return 'grande'; }
+  get tamanoEtiquetas(): 'grande' | 'mediana' | 'chica' {
+    try {
+      const t = localStorage.getItem('dozzer_etq_tam');
+      return t === 'mediana' || t === 'chica' ? t : 'grande';
+    } catch { return 'grande'; }
   }
 
-  cambiarTamanoEtq(t: 'grande' | 'chica'): void {
+  cambiarTamanoEtq(t: 'grande' | 'mediana' | 'chica'): void {
     if (this.etq) this.etq.tamano = t;
-    try { localStorage.setItem('dozzer_tamano_etq', t); } catch { /* */ }
+    try { localStorage.setItem('dozzer_etq_tam', t); } catch { /* */ }
+  }
+
+  get porEtiquetaRollo(): number {
+    return this.etq?.tamano === 'chica' ? 4 : this.etq?.tamano === 'mediana' ? 2 : 1;
   }
 
   abrirEtiquetas(): void {
@@ -9064,14 +9088,17 @@ export class AppComponent {
   // Brother QL-800 con rollo DK-1209: una etiqueta de 62 × 29 mm por página, solo negro (térmica)
   private async imprimirRollo(codigos: string[], ventana: Window): Promise<void> {
     const e = (v: any) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as any)[c]);
-    const chica = this.etq?.tamano === 'chica';
+    const por = this.porEtiquetaRollo;
+    const nombreTam = por === 4 ? ' chicas' : por === 2 ? ' medianas' : '';
     const piezas: string[] = [];
-    if (chica) {
-      for (let i = 0; i < codigos.length; i += 2) {
-        let h = '<div class="et doble">';
-        for (const cod of codigos.slice(i, i + 2)) {
+    if (por > 1) {
+      for (let i = 0; i < codigos.length; i += por) {
+        let h = '<div class="et ' + (por === 4 ? 'cuatro' : 'doble') + '">';
+        for (const cod of codigos.slice(i, i + por)) {
           const svg = await QRCode.toString(this.urlEtiqueta(cod), { type: 'svg', errorCorrectionLevel: 'M', margin: 0, color: { dark: '#000000', light: '#ffffff' } });
-          h += '<div class="mitad"><div class="qr">' + svg + '</div><div class="cod">' + e(cod) + '</div><div class="pie">DOZZER</div></div>';
+          h += por === 4
+            ? '<div class="cuarto"><div class="qr">' + svg + '</div><div class="ctx"><div class="cod">' + e(cod) + '</div><div class="pie">DOZZER</div></div></div>'
+            : '<div class="mitad"><div class="qr">' + svg + '</div><div class="cod">' + e(cod) + '</div><div class="pie">DOZZER</div></div>';
         }
         piezas.push(h + '</div>');
       }
@@ -9097,12 +9124,17 @@ export class AppComponent {
       '.mitad{width:31mm;height:29mm;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.6mm;padding:1.2mm 1mm}' +
       '.mitad+.mitad{border-left:.25mm dashed #000}' +
       '.mitad .qr{width:19mm;height:19mm}.mitad .cod{font-size:9pt;letter-spacing:0}.mitad .pie{font-size:5pt;letter-spacing:1.5pt;font-weight:900}' +
+      '.et.cuatro{padding:0;gap:0;display:grid;grid-template-columns:31mm 31mm;grid-template-rows:14.5mm 14.5mm;align-items:stretch}' +
+      '.cuarto{display:flex;align-items:center;gap:1.2mm;padding:1.1mm 1.2mm;overflow:hidden}' +
+      '.cuarto:nth-child(2n){border-left:.25mm dashed #000}.cuarto:nth-child(n+3){border-top:.25mm dashed #000}' +
+      '.cuarto .qr{width:12.2mm;height:12.2mm}.ctx{display:flex;flex-direction:column;gap:.4mm;min-width:0}' +
+      '.cuarto .cod{font-size:6.2pt;letter-spacing:0}.cuarto .pie{font-size:4.2pt;letter-spacing:1pt;font-weight:900}' +
       '.barra{position:sticky;top:0;z-index:2;background:#17263d;color:#fff;padding:10px 16px;font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:12px}' +
       '.barra button{background:#fff;color:#17263d;border:0;border-radius:6px;padding:7px 14px;font-weight:700;cursor:pointer}' +
       '.lista{display:flex;flex-wrap:wrap;gap:4mm;padding:6mm}.lista .et{box-shadow:0 1px 4px #0003;border-radius:1.5mm}' +
       '@media print{body{background:#fff}.barra{display:none}.lista{display:block;padding:0}.lista .et{box-shadow:none;border-radius:0}}' +
       '</style></head><body><div class="barra"><span>' + codigos.length + ' etiqueta(s) · ' + e(codigos[0]) + (codigos.length > 1 ? ' a ' + e(codigos[codigos.length - 1]) : '') +
-      (chica ? ' chicas en ' + Math.ceil(codigos.length / 2) + ' etiqueta(s) del rollo' : '') + ' · Brother QL-800, papel 29mm x 62mm, márgenes Ninguno, escala 100%, blanco y negro</span><button onclick="window.print()">Imprimir</button></div>' +
+      (por > 1 ? nombreTam + ' en ' + Math.ceil(codigos.length / por) + ' etiqueta(s) del rollo' : '') + ' · Brother QL-800, papel 29mm x 62mm, márgenes Ninguno, escala 100%, blanco y negro</span><button onclick="window.print()">Imprimir</button></div>' +
       '<div class="lista">' + piezas.join('') + '</div></body></html>');
     ventana.document.close();
     ventana.focus();
