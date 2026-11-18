@@ -952,7 +952,7 @@ export class ElegirComponent {
             <div class="etq-imp">
               <button [class.on]="etq.formato==='rollo'" (click)="cambiarFormatoEtq('rollo')">
                 <span class="etq-imp-ico"><ico n="printer"></ico></span>
-                <span><b>Brother QL-800</b><small>Rollo DK-1209 (62 × 29) o DK-1204 (17 × 54)</small></span>
+                <span><b>Brother QL-800</b><small>Rollo DK-1209 · 29 × 62 mm</small></span>
               </button>
               <button [class.on]="etq.formato==='carta'" (click)="cambiarFormatoEtq('carta')">
                 <span class="etq-imp-ico"><ico n="file"></ico></span>
@@ -970,39 +970,26 @@ export class ElegirComponent {
 
               <ng-container *ngIf="etq.formato==='rollo'">
                 <label>Tamaño de la etiqueta</label>
-                <div class="etq-rap etq-metodo">
-                  <button [class.on]="etq.tamano!=='chica'" (click)="cambiarTamanoEtq('normal')">Normal · 62 × 29 mm</button>
-                  <button [class.on]="etq.tamano==='chica'" (click)="cambiarTamanoEtq('chica')">Chica · 17 × 54 mm</button>
+                <div class="etq-tam">
+                  <button [class.on]="etq.tamano!=='chica'" (click)="cambiarTamanoEtq('grande')"><b>Grande</b><small>1 por etiqueta del rollo</small></button>
+                  <button [class.on]="etq.tamano==='chica'" (click)="cambiarTamanoEtq('chica')"><b>Chica</b><small>2 por etiqueta del rollo, para cortar</small></button>
                 </div>
-              </ng-container>
 
-              <!-- Vista previa en proporción real -->
-              <div class="etq-muestra" *ngIf="etq.formato==='rollo'">
-                <div class="etq-pieza" [class.chica]="etq.tamano==='chica'">
-                  <span class="etq-pieza-qr"><ico n="qr"></ico></span>
-                  <span class="etq-pieza-tx"><b>DOZZER</b><em>{{ codigoEtiqueta(r.ultimo + 1) }}</em><small>{{ etq.tamano==='chica' ? 'Propiedad de DOZZER' : 'Propiedad de DOZZER Construcción y Asesoría' }}</small></span>
+                <!-- Vista previa en proporción real (62 x 29) -->
+                <div class="etq-muestra">
+                  <div class="etq-pieza" *ngIf="etq.tamano!=='chica'">
+                    <span class="etq-pieza-qr"><ico n="qr"></ico></span>
+                    <span class="etq-pieza-tx"><b>DOZZER</b><em>{{ codigoEtiqueta(r.ultimo + 1) }}</em><small>Propiedad de DOZZER Construcción y Asesoría</small></span>
+                  </div>
+                  <div class="etq-pieza doble" *ngIf="etq.tamano==='chica'">
+                    <span class="etq-mitad" *ngFor="let k of [1, 2]">
+                      <span class="etq-pieza-qr"><ico n="qr"></ico></span>
+                      <em>{{ codigoEtiqueta(r.ultimo + k) }}</em>
+                    </span>
+                  </div>
+                  <small>{{ etq.tamano==='chica' ? 'Dos etiquetas chicas en cada etiqueta del rollo (62 × 29 mm). Córtala por la línea.' : 'Así sale cada etiqueta del rollo (62 × 29 mm).' }}</small>
                 </div>
-                <small>Así sale cada etiqueta del rollo {{ medidaEtq.rollo }} ({{ medidaEtq.texto }}).</small>
-              </div>
 
-              <ng-container *ngIf="etq.formato==='rollo'">
-                <label>¿Cómo imprimes?</label>
-                <div class="etq-rap etq-metodo">
-                  <button [class.on]="etq.metodo==='navegador'" (click)="cambiarMetodoEtq('navegador')">Desde DOZZER</button>
-                  <button [class.on]="etq.metodo==='pdf'" (click)="cambiarMetodoEtq('pdf')">Descargar PDF</button>
-                  <button [class.on]="etq.metodo==='ptouch'" (click)="cambiarMetodoEtq('ptouch')">Con P-touch Editor</button>
-                </div>
-                <details class="etq-como" *ngIf="etq.metodo==='pdf'" open>
-                  <summary>Imprimir el PDF</summary>
-                  <ol>
-                    <li>Pon en la impresora el rollo <b>{{ medidaEtq.rollo }}</b>.</li>
-                    <li>Descarga el PDF con el botón de abajo. Trae una etiqueta por página, de {{ medidaEtq.texto }}, solo en negro.</li>
-                    <li>Ábrelo con <b>Adobe Acrobat Reader</b> (o el visor de PDF de Windows) y elige <b>Imprimir</b>.</li>
-                    <li>Impresora <b>Brother QL-800</b> y tamaño <b>Real / 100%</b> (no "Ajustar").</li>
-                    <li>En <b>Propiedades</b>: papel <b>{{ medidaEtq.driver }}</b> y <b>monocromo</b> (sin negro/rojo).</li>
-                    <li>Prueba primero con 1 o 2 etiquetas.</li>
-                  </ol>
-                </details>
                 <label>¿Cuántas etiquetas vas a imprimir?</label>
                 <div class="etq-hojas">
                   <button class="btn-outline" (click)="etq.cantidad = mathMax(1, (etq.cantidad || 0) - 10)">−</button>
@@ -1012,36 +999,13 @@ export class ElegirComponent {
                 <div class="etq-rap">
                   <button *ngFor="let n of [10, 50, 100, 800]" [class.on]="etq.cantidad===n" (click)="etq.cantidad=n">{{ n === 800 ? 'Rollo completo (800)' : n }}</button>
                 </div>
-                <p class="cap-hint">De <b>{{ codigoEtiqueta(r.ultimo + 1) }}</b> a <b>{{ codigoEtiqueta(r.ultimo + (etq.cantidad || 0)) }}</b>. Faltan ≈ <b>{{ etqFaltan | number }}</b> bienes por etiquetar.</p>
-                <ng-container *ngIf="etq.metodo==='ptouch'">
-                  <div class="wiz-summary">DOZZER te descarga el archivo <b>etiquetas-dozzer.csv</b> con los códigos. Ábrelo en tu plantilla de P-touch Editor e imprime todas de un jalón.</div>
-                  <details class="etq-como" open>
-                    <summary>Imprimir con P-touch Editor</summary>
-                    <p class="etq-como-sub">Cada vez:</p>
-                    <ol>
-                      <li>Descarga el archivo con el botón de abajo.</li>
-                      <li>Abre tu plantilla <b>DOZZER.lbx</b> en P-touch Editor.</li>
-                      <li><b>Archivo → Base de datos → Reemplazar</b> (o Conectar) y elige el <b>etiquetas-dozzer.csv</b> que acabas de bajar. Marca <b>"La primera fila contiene nombres de campo"</b>.</li>
-                      <li><b>Imprimir</b> → <b>Todos los registros</b>. Sale una etiqueta por código.</li>
-                    </ol>
-                    <p class="etq-como-sub">Crear la plantilla (solo la primera vez):</p>
-                    <ol>
-                      <li>En P-touch Editor crea un diseño nuevo con papel <b>29mm x 62mm (DK-1209)</b>, en horizontal.</li>
-                      <li><b>Archivo → Base de datos → Conectar</b> y elige un <b>etiquetas-dozzer.csv</b> descargado (primera fila = nombres de campo).</li>
-                      <li><b>Insertar → Código de barras</b>, protocolo <b>QR Code</b>. Colócalo a la izquierda, de unos 24 mm.</li>
-                      <li>Liga el QR al campo <b>QR</b>: arrastra la columna <b>QR</b> de la base de datos sobre el código (o clic derecho → Combinar campo).</li>
-                      <li>Arrastra el campo <b>Codigo</b> a la derecha del QR, en letra grande y negrita.</li>
-                      <li>Agrega el texto fijo <b>DOZZER</b> arriba y <b>Propiedad de DOZZER Construcción y Asesoría</b> abajo, en letra chica.</li>
-                      <li>Guarda como <b>DOZZER.lbx</b>. Ya no tienes que volver a diseñarla.</li>
-                    </ol>
-                  </details>
-                </ng-container>
-                <details class="etq-como" *ngIf="etq.metodo==='navegador'">
+                <p class="cap-hint">De <b>{{ codigoEtiqueta(r.ultimo + 1) }}</b> a <b>{{ codigoEtiqueta(r.ultimo + (etq.cantidad || 0)) }}</b><ng-container *ngIf="etq.tamano==='chica'"> · usa <b>{{ mathCeil((etq.cantidad || 0) / 2) | number }}</b> etiquetas del rollo</ng-container>. Faltan ≈ <b>{{ etqFaltan | number }}</b> bienes por etiquetar.</p>
+                <details class="etq-como">
                   <summary>Cómo configurar la impresión (solo la primera vez)</summary>
                   <ol>
-                    <li>Conecta la Brother QL-800 por USB, con su controlador instalado, y pon el rollo <b>{{ medidaEtq.rollo }}</b>.</li>
+                    <li>Conecta la Brother QL-800 por USB, con su controlador instalado, y pon el rollo <b>DK-1209</b>. Sirve para las grandes y las chicas.</li>
                     <li>En la ventana de impresión elige <b>Destino: Brother QL-800</b>.</li>
-                    <li>En <b>Más opciones</b>: tamaño de papel <b>{{ medidaEtq.driver }}</b> ({{ medidaEtq.rollo }}), márgenes <b>Ninguno</b>, escala <b>100%</b>, color <b>Blanco y negro</b>.</li>
+                    <li>En <b>Más opciones</b>: tamaño de papel <b>29mm x 62mm</b> (DK-1209), márgenes <b>Ninguno</b>, escala <b>100%</b>, color <b>Blanco y negro</b>.</li>
                     <li>Imprime primero una sola para comprobar. Después, a cada etiqueta pegada ponle su <b>protector transparente</b>.</li>
                   </ol>
                 </details>
@@ -1061,7 +1025,7 @@ export class ElegirComponent {
                 <div class="wiz-summary">En la impresora elige <b>tamaño carta</b>, <b>escala 100%</b> y <b>sin márgenes</b>.</div>
               </ng-container>
 
-              <button class="lev-more" *ngIf="r.libres" [disabled]="etq.generando" (click)="reimprimirLibres()">{{ esPtouch || esPdfEtq ? '⬇ Volver a descargar' : '⎙ Volver a imprimir' }} las {{ mathMin(r.libres, 800) | number }} que siguen sin pegar</button>
+              <button class="lev-more" *ngIf="r.libres" [disabled]="etq.generando" (click)="reimprimirLibres()">⎙ Volver a imprimir las {{ mathMin(r.libres, 800) | number }} que siguen sin pegar</button>
             </ng-container>
           </div>
           <div class="inline-error" *ngIf="etq.error" style="margin:0 24px 12px">{{ etq.error }}</div>
@@ -1070,7 +1034,7 @@ export class ElegirComponent {
             <button class="btn-primary" [disabled]="etq.cargando || etq.generando || (etq.formato==='rollo' ? !(etq.cantidad >= 1) : !(etq.hojas >= 1))" (click)="generarEtiquetas()">
               <span class="mini-ring light" *ngIf="etq.generando"></span>
               {{ etq.generando ? 'Generando…' : etq.formato==='rollo'
-                  ? (esPtouch || esPdfEtq ? '⬇ Descargar ' : '⎙ Imprimir ') + (etq.cantidad || 0) + ((etq.cantidad || 0) === 1 ? ' etiqueta' : ' etiquetas') + (esPtouch ? ' para P-touch' : esPdfEtq ? ' en PDF' : '')
+                  ? '⎙ Imprimir ' + (etq.cantidad || 0) + ((etq.cantidad || 0) === 1 ? ' etiqueta' : ' etiquetas') + (etq.tamano === 'chica' ? ' chicas' : '')
                   : '⎙ Generar e imprimir ' + (etq.hojas || 0) + (etq.hojas === 1 ? ' hoja' : ' hojas') }}
             </button>
           </div>
@@ -4158,21 +4122,23 @@ export class ElegirComponent {
     .etq-pieza-tx b{font-size:12px;letter-spacing:2px;font-weight:900}
     .etq-pieza-tx em{font-style:normal;font-family:"Courier New",monospace;font-weight:900;font-size:17px}
     .etq-pieza-tx small{font-size:7.5px;font-weight:700;line-height:1.2}
-    .etq-pieza.chica{width:216px;height:68px;gap:7px;padding:5px 8px 5px 5px}
-    .etq-pieza.chica .etq-pieza-qr{width:56px;height:56px;border-width:3px}
-    .etq-pieza.chica .etq-pieza-qr ico{width:24px;height:24px;padding:2px}
-    .etq-pieza.chica .etq-pieza-tx{gap:2px}
-    .etq-pieza.chica .etq-pieza-tx b{font-size:8.5px;letter-spacing:1.5px}
-    .etq-pieza.chica .etq-pieza-tx em{font-size:14px}
-    .etq-pieza.chica .etq-pieza-tx small{font-size:6.5px}
     .etq-rap{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 8px}
     .etq-rap button{border:1.5px solid #d5e0ec;background:#fff;color:#244c78;border-radius:999px;padding:6px 12px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
     .etq-rap button.on{background:#244c78;color:#fff;border-color:#244c78}
     .etq-como{background:#f6f8fb;border-radius:12px;padding:10px 14px;margin:6px 0 10px;font-size:13.5px;color:#41546b}
     .etq-como summary{cursor:pointer;font-weight:700;color:#244c78}
     .etq-como ol{margin:8px 0 2px;padding-left:20px;display:flex;flex-direction:column;gap:5px}
-    .etq-como-sub{margin:10px 0 0;font-weight:700;color:#17263d}
-    .etq-metodo button{flex:1;min-width:140px}
+    .etq-tam{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:2px 0 10px}
+    .etq-tam button{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:10px 12px;border:1.5px solid #dbe3ee;border-radius:12px;background:#fff;cursor:pointer;text-align:left;font:inherit;color:#17263d}
+    .etq-tam button b{font-size:15px}
+    .etq-tam button small{font-size:12px;color:#6b7a8f}
+    .etq-tam button.on{border-color:#244c78;background:#eef4fb;box-shadow:0 0 0 3px #244c7822}
+    .etq-pieza.doble{padding:0;gap:0}
+    .etq-mitad{flex:1;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
+    .etq-mitad+.etq-mitad{border-left:1.5px dashed #000}
+    .etq-mitad .etq-pieza-qr{width:70px;height:70px;border-width:4px}
+    .etq-mitad .etq-pieza-qr ico{width:28px;height:28px;padding:3px}
+    .etq-mitad em{font-style:normal;font-family:"Courier New",monospace;font-weight:900;font-size:11.5px}
     .pistola-tip{display:flex;align-items:center;gap:10px;background:#eef4fb;border-radius:12px;padding:10px 12px;font-size:13.5px;color:#33465e;margin:4px 0}
     .pistola-tip ico{width:20px;height:20px;color:#2d5d93;flex-shrink:0}
     @media(max-width:700px){.etq-imp{grid-template-columns:1fr}}
@@ -9007,100 +8973,20 @@ export class AppComponent {
     try { localStorage.setItem('dozzer_formato_etq', f); } catch { /* */ }
   }
 
-  // Rollo Brother: imprimir desde el navegador o descargar CSV para P-touch Editor; se recuerda en este equipo
-  get metodoEtiquetas(): 'navegador' | 'pdf' | 'ptouch' {
-    try {
-      const m = localStorage.getItem('dozzer_metodo_etq');
-      return m === 'ptouch' || m === 'pdf' ? m : 'navegador';
-    } catch { return 'navegador'; }
+  // Rollo Brother DK-1209: etiqueta grande (1 por etiqueta del rollo) o chica (2 por etiqueta, para cortar); se recuerda en este equipo
+  mathCeil = Math.ceil;
+
+  get tamanoEtiquetas(): 'grande' | 'chica' {
+    try { return localStorage.getItem('dozzer_tamano_etq') === 'chica' ? 'chica' : 'grande'; } catch { return 'grande'; }
   }
 
-  // Tamaño del rollo Brother: normal DK-1209 (62 × 29) o chica DK-1204 (17 × 54); se recuerda en este equipo
-  get tamanoEtiquetas(): 'normal' | 'chica' {
-    try { return localStorage.getItem('dozzer_tamano_etq') === 'chica' ? 'chica' : 'normal'; } catch { return 'normal'; }
-  }
-
-  cambiarTamanoEtq(t: 'normal' | 'chica'): void {
+  cambiarTamanoEtq(t: 'grande' | 'chica'): void {
     if (this.etq) this.etq.tamano = t;
     try { localStorage.setItem('dozzer_tamano_etq', t); } catch { /* */ }
   }
 
-  get medidaEtq(): { rollo: string; texto: string; driver: string } {
-    return this.etq?.tamano === 'chica'
-      ? { rollo: 'DK-1204', texto: '54 × 17 mm', driver: '17mm x 54mm' }
-      : { rollo: 'DK-1209', texto: '62 × 29 mm', driver: '29mm x 62mm' };
-  }
-
-  // Medidas (mm) de cada tamaño: página, QR y textos
-  private disenoEtq(chica: boolean) {
-    return chica
-      ? { w: 54, h: 17, qrX: 1.5, qrY: 1.5, qr: 14, txX: 17.5, mk: 6.5, mkY: 6, cod: 11, codY: 10.8, pie: 4.5, pieY: 14.2, pieTx: 'Propiedad de DOZZER' }
-      : { w: 62, h: 29, qrX: 2, qrY: 2.25, qr: 24.5, txX: 28.7, mk: 9, mkY: 9, cod: 13.5, codY: 15.5, pie: 5.4, pieY: 20, pieTx: 'Propiedad de DOZZER Construcción y Asesoría S.A. de C.V.' };
-  }
-
-  get esPdfEtq(): boolean {
-    return this.etq?.formato === 'rollo' && this.etq?.metodo === 'pdf';
-  }
-
-  // PDF para la Brother QL-800 con DK-1209: una etiqueta de 62 × 29 mm por página, todo en negro puro (QR vectorial)
-  private descargarPdfRollo(codigos: string[]): void {
-    if (!codigos.length) return;
-    const d = this.disenoEtq(this.etq?.tamano === 'chica');
-    const doc = new jsPDF({ unit: 'mm', format: [d.w, d.h], orientation: 'landscape', compress: true });
-    const qrX = d.qrX, qrY = d.qrY, qrLado = d.qr, txX = d.txX, txAncho = d.w - txX - 1.5;
-    codigos.forEach((cod, i) => {
-      if (i > 0) doc.addPage([d.w, d.h], 'landscape');
-      doc.setFillColor(0, 0, 0);
-      doc.setTextColor(0, 0, 0);
-      const qr: any = (QRCode as any).create(this.urlEtiqueta(cod), { errorCorrectionLevel: 'M' });
-      const n = qr.modules.size, m = qrLado / n;
-      for (let f = 0; f < n; f++) {
-        let c = 0;
-        while (c < n) {
-          if (!qr.modules.get(f, c)) { c++; continue; }
-          const ini = c;
-          while (c < n && qr.modules.get(f, c)) c++;
-          doc.rect(qrX + ini * m, qrY + f * m, (c - ini) * m + 0.01, m + 0.01, 'F');
-        }
-      }
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(d.mk);
-      doc.text('D O Z Z E R', txX, d.mkY);
-      doc.setFont('courier', 'bold'); doc.setFontSize(d.cod);
-      doc.text(cod, txX, d.codY);
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(d.pie);
-      doc.text(doc.splitTextToSize(d.pieTx, txAncho), txX, d.pieY);
-    });
-    const nombre = 'etiquetas-dozzer-' + (d.w === 54 ? 'chicas-' : '') + codigos[0] + (codigos.length > 1 ? '-a-' + codigos[codigos.length - 1] : '') + '.pdf';
-    doc.save(nombre);
-    this.notificar('exito', 'PDF listo', codigos.length + ' etiqueta(s) de ' + this.medidaEtq.texto + '. Imprímelo en la Brother QL-800 a tamaño real, papel ' + this.medidaEtq.driver + '.', 6000);
-  }
-
-  cambiarMetodoEtq(m: 'navegador' | 'pdf' | 'ptouch'): void {
-    if (this.etq) this.etq.metodo = m;
-    try { localStorage.setItem('dozzer_metodo_etq', m); } catch { /* */ }
-  }
-
-  get esPtouch(): boolean {
-    return this.etq?.formato === 'rollo' && this.etq?.metodo === 'ptouch';
-  }
-
-  // Archivo para la base de datos de P-touch Editor: Codigo (texto) y QR (lo que lleva el código QR)
-  private descargarCsvPtouch(codigos: string[]): void {
-    if (!codigos.length) return;
-    const filas = ['Codigo,QR', ...codigos.map(c => c + ',' + this.urlEtiqueta(c))];
-    const blob = new Blob(['﻿' + filas.join('\r\n') + '\r\n'], { type: 'text/csv;charset=utf-8' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'etiquetas-dozzer.csv';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-    this.notificar('exito', 'Archivo listo para P-touch', codigos.length + ' etiqueta(s): ' + codigos[0] + (codigos.length > 1 ? ' a ' + codigos[codigos.length - 1] : '') + '. Ábrelo en tu plantilla DOZZER.lbx.', 6000);
-  }
-
   abrirEtiquetas(): void {
-    this.etq = { cargando: true, generando: false, error: '', resumen: null, hojas: 1, cantidad: 50, formato: this.formatoEtiquetas, metodo: this.metodoEtiquetas, tamano: this.tamanoEtiquetas, verSedes: false };
+    this.etq = { cargando: true, generando: false, error: '', resumen: null, hojas: 1, cantidad: 50, formato: this.formatoEtiquetas, tamano: this.tamanoEtiquetas, verSedes: false };
     this.http.get<any>(this.api + '/etiquetas/resumen').subscribe({
       next: r => {
         this.etq.resumen = r;
@@ -9118,21 +9004,6 @@ export class AppComponent {
     const cantidad = rollo ? Math.floor(Number(e.cantidad)) : hojas * 30;
     if (rollo && !(cantidad >= 1 && cantidad <= 800)) { e.error = 'Imprime entre 1 y 800 etiquetas por vez (un rollo).'; return; }
     if (!rollo && !(hojas >= 1 && hojas <= 30)) { e.error = 'Imprime entre 1 y 30 hojas por vez.'; return; }
-    if (this.esPtouch || this.esPdfEtq) {
-      const pdf = this.esPdfEtq;
-      e.generando = true; e.error = '';
-      this.http.post<any>(this.api + '/etiquetas/lote', { cantidad }).subscribe({
-        next: r => {
-          const cods = r.codigos || [];
-          try { pdf ? this.descargarPdfRollo(cods) : this.descargarCsvPtouch(cods); }
-          catch { e.error = 'Las etiquetas se generaron pero no se pudo crear el archivo. Usa "Volver a descargar las que siguen sin pegar".'; }
-          e.generando = false;
-          if (!e.error) this.abrirEtiquetas();
-        },
-        error: err => { e.generando = false; e.error = this.mensajeError(err, 'No se generaron las etiquetas.'); }
-      });
-      return;
-    }
     const ventana = window.open('', '_blank');
     if (!ventana) { e.error = 'El navegador bloqueó la ventana de impresión. Permite ventanas emergentes para DOZZER.'; return; }
     ventana.document.write('<p style="font-family:Arial;padding:30px;color:#41546b">Generando etiquetas...</p>');
@@ -9148,19 +9019,6 @@ export class AppComponent {
   }
 
   reimprimirLibres(): void {
-    if (this.esPtouch || this.esPdfEtq) {
-      const pdf = this.esPdfEtq;
-      this.etq.generando = true;
-      this.http.get<string[]>(this.api + '/etiquetas/libres', { params: { limite: 800 } }).subscribe({
-        next: cods => {
-          try { pdf ? this.descargarPdfRollo(cods || []) : this.descargarCsvPtouch(cods || []); }
-          catch { this.etq.error = 'No se pudo crear el archivo.'; }
-          this.etq.generando = false;
-        },
-        error: err => { this.etq.generando = false; this.etq.error = this.mensajeError(err, 'No se pudo.'); }
-      });
-      return;
-    }
     const ventana = window.open('', '_blank');
     if (!ventana) { this.etq.error = 'El navegador bloqueó la ventana de impresión.'; return; }
     this.etq.generando = true;
@@ -9206,30 +9064,45 @@ export class AppComponent {
   // Brother QL-800 con rollo DK-1209: una etiqueta de 62 × 29 mm por página, solo negro (térmica)
   private async imprimirRollo(codigos: string[], ventana: Window): Promise<void> {
     const e = (v: any) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as any)[c]);
-    const d = this.disenoEtq(this.etq?.tamano === 'chica');
+    const chica = this.etq?.tamano === 'chica';
     const piezas: string[] = [];
-    for (const cod of codigos) {
-      const svg = await QRCode.toString(this.urlEtiqueta(cod), { type: 'svg', errorCorrectionLevel: 'M', margin: 0, color: { dark: '#000000', light: '#ffffff' } });
-      piezas.push('<div class="et"><div class="qr">' + svg + '</div><div class="tx"><div class="mk">DOZZER</div><div class="cod">' + e(cod) + '</div>' +
-        '<div class="pie">' + e(d.pieTx) + '</div></div></div>');
+    if (chica) {
+      for (let i = 0; i < codigos.length; i += 2) {
+        let h = '<div class="et doble">';
+        for (const cod of codigos.slice(i, i + 2)) {
+          const svg = await QRCode.toString(this.urlEtiqueta(cod), { type: 'svg', errorCorrectionLevel: 'M', margin: 0, color: { dark: '#000000', light: '#ffffff' } });
+          h += '<div class="mitad"><div class="qr">' + svg + '</div><div class="cod">' + e(cod) + '</div><div class="pie">DOZZER</div></div>';
+        }
+        piezas.push(h + '</div>');
+      }
+    } else {
+      for (const cod of codigos) {
+        const svg = await QRCode.toString(this.urlEtiqueta(cod), { type: 'svg', errorCorrectionLevel: 'M', margin: 0, color: { dark: '#000000', light: '#ffffff' } });
+        piezas.push('<div class="et"><div class="qr">' + svg + '</div><div class="tx"><div class="mk">DOZZER</div><div class="cod">' + e(cod) + '</div>' +
+          '<div class="pie">Propiedad de DOZZER Construcción y Asesoría S.A. de C.V.</div></div></div>');
+      }
     }
     ventana.document.open();
     ventana.document.write('<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Etiquetas DOZZER ' + e(codigos[0]) + ' a ' + e(codigos[codigos.length - 1]) + '</title><style>' +
-      '@page{size:' + d.w + 'mm ' + d.h + 'mm;margin:0}*{box-sizing:border-box}html,body{margin:0;padding:0}' +
+      '@page{size:62mm 29mm;margin:0}*{box-sizing:border-box}html,body{margin:0;padding:0}' +
       'body{font-family:Arial,Helvetica,sans-serif;color:#000;background:#e9edf2}' +
-      '.et{width:' + d.w + 'mm;height:' + d.h + 'mm;padding:' + d.qrY + 'mm 1.5mm ' + d.qrY + 'mm ' + d.qrX + 'mm;display:flex;align-items:center;gap:' + (d.txX - d.qrX - d.qr).toFixed(1) + 'mm;overflow:hidden;background:#fff;page-break-after:always;break-after:page}' +
+      '.et{width:62mm;height:29mm;padding:2mm 2.5mm 2mm 2mm;display:flex;align-items:center;gap:2.2mm;overflow:hidden;background:#fff;page-break-after:always;break-after:page}' +
       '.et:last-child{page-break-after:auto;break-after:auto}' +
-      '.qr{width:' + d.qr + 'mm;height:' + d.qr + 'mm;flex-shrink:0}.qr svg{width:100%;height:100%;display:block;shape-rendering:crispEdges}' +
-      '.tx{min-width:0;flex:1;display:flex;flex-direction:column;justify-content:center;gap:' + (d.w === 54 ? '.4' : '1') + 'mm}' +
-      '.mk{font-size:' + d.mk + 'pt;font-weight:900;letter-spacing:' + (d.w === 54 ? '1.4' : '2') + 'pt}' +
-      '.cod{font-family:"Courier New",monospace;font-size:' + d.cod + 'pt;font-weight:900;letter-spacing:.2pt;white-space:nowrap}' +
-      '.pie{font-size:' + d.pie + 'pt;line-height:1.2;font-weight:700}' +
+      '.qr{width:24.5mm;height:24.5mm;flex-shrink:0}.qr svg{width:100%;height:100%;display:block;shape-rendering:crispEdges}' +
+      '.tx{min-width:0;flex:1;display:flex;flex-direction:column;justify-content:center;gap:1mm}' +
+      '.mk{font-size:9pt;font-weight:900;letter-spacing:2pt}' +
+      '.cod{font-family:"Courier New",monospace;font-size:13.5pt;font-weight:900;letter-spacing:.2pt;white-space:nowrap}' +
+      '.pie{font-size:5.4pt;line-height:1.2;font-weight:700}' +
+      '.et.doble{padding:0;gap:0}' +
+      '.mitad{width:31mm;height:29mm;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.6mm;padding:1.2mm 1mm}' +
+      '.mitad+.mitad{border-left:.25mm dashed #000}' +
+      '.mitad .qr{width:19mm;height:19mm}.mitad .cod{font-size:9pt;letter-spacing:0}.mitad .pie{font-size:5pt;letter-spacing:1.5pt;font-weight:900}' +
       '.barra{position:sticky;top:0;z-index:2;background:#17263d;color:#fff;padding:10px 16px;font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:12px}' +
       '.barra button{background:#fff;color:#17263d;border:0;border-radius:6px;padding:7px 14px;font-weight:700;cursor:pointer}' +
       '.lista{display:flex;flex-wrap:wrap;gap:4mm;padding:6mm}.lista .et{box-shadow:0 1px 4px #0003;border-radius:1.5mm}' +
       '@media print{body{background:#fff}.barra{display:none}.lista{display:block;padding:0}.lista .et{box-shadow:none;border-radius:0}}' +
       '</style></head><body><div class="barra"><span>' + codigos.length + ' etiqueta(s) · ' + e(codigos[0]) + (codigos.length > 1 ? ' a ' + e(codigos[codigos.length - 1]) : '') +
-      ' · Brother QL-800, papel ' + e(this.medidaEtq.driver) + ', márgenes Ninguno, escala 100%, blanco y negro</span><button onclick="window.print()">Imprimir</button></div>' +
+      (chica ? ' chicas en ' + Math.ceil(codigos.length / 2) + ' etiqueta(s) del rollo' : '') + ' · Brother QL-800, papel 29mm x 62mm, márgenes Ninguno, escala 100%, blanco y negro</span><button onclick="window.print()">Imprimir</button></div>' +
       '<div class="lista">' + piezas.join('') + '</div></body></html>');
     ventana.document.close();
     ventana.focus();
