@@ -978,6 +978,11 @@ export class ElegirComponent {
               </div>
 
               <ng-container *ngIf="etq.formato==='rollo'">
+                <label>¿Cómo imprimes?</label>
+                <div class="etq-rap etq-metodo">
+                  <button [class.on]="etq.metodo==='navegador'" (click)="cambiarMetodoEtq('navegador')">Desde DOZZER</button>
+                  <button [class.on]="etq.metodo==='ptouch'" (click)="cambiarMetodoEtq('ptouch')">Con P-touch Editor</button>
+                </div>
                 <label>¿Cuántas etiquetas vas a imprimir?</label>
                 <div class="etq-hojas">
                   <button class="btn-outline" (click)="etq.cantidad = mathMax(1, (etq.cantidad || 0) - 10)">−</button>
@@ -988,7 +993,30 @@ export class ElegirComponent {
                   <button *ngFor="let n of [10, 50, 100, 800]" [class.on]="etq.cantidad===n" (click)="etq.cantidad=n">{{ n === 800 ? 'Rollo completo (800)' : n }}</button>
                 </div>
                 <p class="cap-hint">De <b>{{ codigoEtiqueta(r.ultimo + 1) }}</b> a <b>{{ codigoEtiqueta(r.ultimo + (etq.cantidad || 0)) }}</b>. Faltan ≈ <b>{{ etqFaltan | number }}</b> bienes por etiquetar.</p>
-                <details class="etq-como">
+                <ng-container *ngIf="etq.metodo==='ptouch'">
+                  <div class="wiz-summary">DOZZER te descarga el archivo <b>etiquetas-dozzer.csv</b> con los códigos. Ábrelo en tu plantilla de P-touch Editor e imprime todas de un jalón.</div>
+                  <details class="etq-como" open>
+                    <summary>Imprimir con P-touch Editor</summary>
+                    <p class="etq-como-sub">Cada vez:</p>
+                    <ol>
+                      <li>Descarga el archivo con el botón de abajo.</li>
+                      <li>Abre tu plantilla <b>DOZZER.lbx</b> en P-touch Editor.</li>
+                      <li><b>Archivo → Base de datos → Reemplazar</b> (o Conectar) y elige el <b>etiquetas-dozzer.csv</b> que acabas de bajar. Marca <b>"La primera fila contiene nombres de campo"</b>.</li>
+                      <li><b>Imprimir</b> → <b>Todos los registros</b>. Sale una etiqueta por código.</li>
+                    </ol>
+                    <p class="etq-como-sub">Crear la plantilla (solo la primera vez):</p>
+                    <ol>
+                      <li>En P-touch Editor crea un diseño nuevo con papel <b>29mm x 62mm (DK-1209)</b>, en horizontal.</li>
+                      <li><b>Archivo → Base de datos → Conectar</b> y elige un <b>etiquetas-dozzer.csv</b> descargado (primera fila = nombres de campo).</li>
+                      <li><b>Insertar → Código de barras</b>, protocolo <b>QR Code</b>. Colócalo a la izquierda, de unos 24 mm.</li>
+                      <li>Liga el QR al campo <b>QR</b>: arrastra la columna <b>QR</b> de la base de datos sobre el código (o clic derecho → Combinar campo).</li>
+                      <li>Arrastra el campo <b>Codigo</b> a la derecha del QR, en letra grande y negrita.</li>
+                      <li>Agrega el texto fijo <b>DOZZER</b> arriba y <b>Propiedad de DOZZER Construcción y Asesoría</b> abajo, en letra chica.</li>
+                      <li>Guarda como <b>DOZZER.lbx</b>. Ya no tienes que volver a diseñarla.</li>
+                    </ol>
+                  </details>
+                </ng-container>
+                <details class="etq-como" *ngIf="etq.metodo!=='ptouch'">
                   <summary>Cómo configurar la impresión (solo la primera vez)</summary>
                   <ol>
                     <li>Conecta la Brother QL-800 por USB, con su controlador instalado, y pon el rollo <b>DK-1209</b>.</li>
@@ -1013,7 +1041,7 @@ export class ElegirComponent {
                 <div class="wiz-summary">En la impresora elige <b>tamaño carta</b>, <b>escala 100%</b> y <b>sin márgenes</b>.</div>
               </ng-container>
 
-              <button class="lev-more" *ngIf="r.libres" [disabled]="etq.generando" (click)="reimprimirLibres()">⎙ Volver a imprimir las {{ mathMin(r.libres, 800) | number }} que siguen sin pegar</button>
+              <button class="lev-more" *ngIf="r.libres" [disabled]="etq.generando" (click)="reimprimirLibres()">{{ esPtouch ? '⬇ Volver a descargar' : '⎙ Volver a imprimir' }} las {{ mathMin(r.libres, 800) | number }} que siguen sin pegar</button>
             </ng-container>
           </div>
           <div class="inline-error" *ngIf="etq.error" style="margin:0 24px 12px">{{ etq.error }}</div>
@@ -1022,7 +1050,7 @@ export class ElegirComponent {
             <button class="btn-primary" [disabled]="etq.cargando || etq.generando || (etq.formato==='rollo' ? !(etq.cantidad >= 1) : !(etq.hojas >= 1))" (click)="generarEtiquetas()">
               <span class="mini-ring light" *ngIf="etq.generando"></span>
               {{ etq.generando ? 'Generando…' : etq.formato==='rollo'
-                  ? '⎙ Imprimir ' + (etq.cantidad || 0) + ((etq.cantidad || 0) === 1 ? ' etiqueta' : ' etiquetas')
+                  ? (esPtouch ? '⬇ Descargar ' : '⎙ Imprimir ') + (etq.cantidad || 0) + ((etq.cantidad || 0) === 1 ? ' etiqueta' : ' etiquetas') + (esPtouch ? ' para P-touch' : '')
                   : '⎙ Generar e imprimir ' + (etq.hojas || 0) + (etq.hojas === 1 ? ' hoja' : ' hojas') }}
             </button>
           </div>
@@ -4116,6 +4144,8 @@ export class ElegirComponent {
     .etq-como{background:#f6f8fb;border-radius:12px;padding:10px 14px;margin:6px 0 10px;font-size:13.5px;color:#41546b}
     .etq-como summary{cursor:pointer;font-weight:700;color:#244c78}
     .etq-como ol{margin:8px 0 2px;padding-left:20px;display:flex;flex-direction:column;gap:5px}
+    .etq-como-sub{margin:10px 0 0;font-weight:700;color:#17263d}
+    .etq-metodo button{flex:1;min-width:140px}
     .pistola-tip{display:flex;align-items:center;gap:10px;background:#eef4fb;border-radius:12px;padding:10px 12px;font-size:13.5px;color:#33465e;margin:4px 0}
     .pistola-tip ico{width:20px;height:20px;color:#2d5d93;flex-shrink:0}
     @media(max-width:700px){.etq-imp{grid-template-columns:1fr}}
@@ -8950,8 +8980,37 @@ export class AppComponent {
     try { localStorage.setItem('dozzer_formato_etq', f); } catch { /* */ }
   }
 
+  // Rollo Brother: imprimir desde el navegador o descargar CSV para P-touch Editor; se recuerda en este equipo
+  get metodoEtiquetas(): 'navegador' | 'ptouch' {
+    try { return localStorage.getItem('dozzer_metodo_etq') === 'ptouch' ? 'ptouch' : 'navegador'; } catch { return 'navegador'; }
+  }
+
+  cambiarMetodoEtq(m: 'navegador' | 'ptouch'): void {
+    if (this.etq) this.etq.metodo = m;
+    try { localStorage.setItem('dozzer_metodo_etq', m); } catch { /* */ }
+  }
+
+  get esPtouch(): boolean {
+    return this.etq?.formato === 'rollo' && this.etq?.metodo === 'ptouch';
+  }
+
+  // Archivo para la base de datos de P-touch Editor: Codigo (texto) y QR (lo que lleva el código QR)
+  private descargarCsvPtouch(codigos: string[]): void {
+    if (!codigos.length) return;
+    const filas = ['Codigo,QR', ...codigos.map(c => c + ',' + this.urlEtiqueta(c))];
+    const blob = new Blob(['﻿' + filas.join('\r\n') + '\r\n'], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'etiquetas-dozzer.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    this.notificar('exito', 'Archivo listo para P-touch', codigos.length + ' etiqueta(s): ' + codigos[0] + (codigos.length > 1 ? ' a ' + codigos[codigos.length - 1] : '') + '. Ábrelo en tu plantilla DOZZER.lbx.', 6000);
+  }
+
   abrirEtiquetas(): void {
-    this.etq = { cargando: true, generando: false, error: '', resumen: null, hojas: 1, cantidad: 50, formato: this.formatoEtiquetas, verSedes: false };
+    this.etq = { cargando: true, generando: false, error: '', resumen: null, hojas: 1, cantidad: 50, formato: this.formatoEtiquetas, metodo: this.metodoEtiquetas, verSedes: false };
     this.http.get<any>(this.api + '/etiquetas/resumen').subscribe({
       next: r => {
         this.etq.resumen = r;
@@ -8969,6 +9028,14 @@ export class AppComponent {
     const cantidad = rollo ? Math.floor(Number(e.cantidad)) : hojas * 30;
     if (rollo && !(cantidad >= 1 && cantidad <= 800)) { e.error = 'Imprime entre 1 y 800 etiquetas por vez (un rollo).'; return; }
     if (!rollo && !(hojas >= 1 && hojas <= 30)) { e.error = 'Imprime entre 1 y 30 hojas por vez.'; return; }
+    if (this.esPtouch) {
+      e.generando = true; e.error = '';
+      this.http.post<any>(this.api + '/etiquetas/lote', { cantidad }).subscribe({
+        next: r => { this.descargarCsvPtouch(r.codigos || []); e.generando = false; this.abrirEtiquetas(); },
+        error: err => { e.generando = false; e.error = this.mensajeError(err, 'No se generaron las etiquetas.'); }
+      });
+      return;
+    }
     const ventana = window.open('', '_blank');
     if (!ventana) { e.error = 'El navegador bloqueó la ventana de impresión. Permite ventanas emergentes para DOZZER.'; return; }
     ventana.document.write('<p style="font-family:Arial;padding:30px;color:#41546b">Generando etiquetas...</p>');
@@ -8984,6 +9051,14 @@ export class AppComponent {
   }
 
   reimprimirLibres(): void {
+    if (this.esPtouch) {
+      this.etq.generando = true;
+      this.http.get<string[]>(this.api + '/etiquetas/libres', { params: { limite: 800 } }).subscribe({
+        next: cods => { this.descargarCsvPtouch(cods || []); this.etq.generando = false; },
+        error: err => { this.etq.generando = false; this.etq.error = this.mensajeError(err, 'No se pudo.'); }
+      });
+      return;
+    }
     const ventana = window.open('', '_blank');
     if (!ventana) { this.etq.error = 'El navegador bloqueó la ventana de impresión.'; return; }
     this.etq.generando = true;
