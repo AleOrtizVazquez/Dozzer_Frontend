@@ -981,8 +981,19 @@ export class ElegirComponent {
                 <label>¿Cómo imprimes?</label>
                 <div class="etq-rap etq-metodo">
                   <button [class.on]="etq.metodo==='navegador'" (click)="cambiarMetodoEtq('navegador')">Desde DOZZER</button>
+                  <button [class.on]="etq.metodo==='pdf'" (click)="cambiarMetodoEtq('pdf')">Descargar PDF</button>
                   <button [class.on]="etq.metodo==='ptouch'" (click)="cambiarMetodoEtq('ptouch')">Con P-touch Editor</button>
                 </div>
+                <details class="etq-como" *ngIf="etq.metodo==='pdf'" open>
+                  <summary>Imprimir el PDF</summary>
+                  <ol>
+                    <li>Descarga el PDF con el botón de abajo. Trae una etiqueta por página, de 62 × 29 mm, solo en negro.</li>
+                    <li>Ábrelo con <b>Adobe Acrobat Reader</b> (o el visor de PDF de Windows) y elige <b>Imprimir</b>.</li>
+                    <li>Impresora <b>Brother QL-800</b> y tamaño <b>Real / 100%</b> (no "Ajustar").</li>
+                    <li>En <b>Propiedades</b>: papel <b>29mm x 62mm</b> y <b>monocromo</b> (sin negro/rojo).</li>
+                    <li>Prueba primero con 1 o 2 etiquetas.</li>
+                  </ol>
+                </details>
                 <label>¿Cuántas etiquetas vas a imprimir?</label>
                 <div class="etq-hojas">
                   <button class="btn-outline" (click)="etq.cantidad = mathMax(1, (etq.cantidad || 0) - 10)">−</button>
@@ -1016,7 +1027,7 @@ export class ElegirComponent {
                     </ol>
                   </details>
                 </ng-container>
-                <details class="etq-como" *ngIf="etq.metodo!=='ptouch'">
+                <details class="etq-como" *ngIf="etq.metodo==='navegador'">
                   <summary>Cómo configurar la impresión (solo la primera vez)</summary>
                   <ol>
                     <li>Conecta la Brother QL-800 por USB, con su controlador instalado, y pon el rollo <b>DK-1209</b>.</li>
@@ -1041,7 +1052,7 @@ export class ElegirComponent {
                 <div class="wiz-summary">En la impresora elige <b>tamaño carta</b>, <b>escala 100%</b> y <b>sin márgenes</b>.</div>
               </ng-container>
 
-              <button class="lev-more" *ngIf="r.libres" [disabled]="etq.generando" (click)="reimprimirLibres()">{{ esPtouch ? '⬇ Volver a descargar' : '⎙ Volver a imprimir' }} las {{ mathMin(r.libres, 800) | number }} que siguen sin pegar</button>
+              <button class="lev-more" *ngIf="r.libres" [disabled]="etq.generando" (click)="reimprimirLibres()">{{ esPtouch || esPdfEtq ? '⬇ Volver a descargar' : '⎙ Volver a imprimir' }} las {{ mathMin(r.libres, 800) | number }} que siguen sin pegar</button>
             </ng-container>
           </div>
           <div class="inline-error" *ngIf="etq.error" style="margin:0 24px 12px">{{ etq.error }}</div>
@@ -1050,7 +1061,7 @@ export class ElegirComponent {
             <button class="btn-primary" [disabled]="etq.cargando || etq.generando || (etq.formato==='rollo' ? !(etq.cantidad >= 1) : !(etq.hojas >= 1))" (click)="generarEtiquetas()">
               <span class="mini-ring light" *ngIf="etq.generando"></span>
               {{ etq.generando ? 'Generando…' : etq.formato==='rollo'
-                  ? (esPtouch ? '⬇ Descargar ' : '⎙ Imprimir ') + (etq.cantidad || 0) + ((etq.cantidad || 0) === 1 ? ' etiqueta' : ' etiquetas') + (esPtouch ? ' para P-touch' : '')
+                  ? (esPtouch || esPdfEtq ? '⬇ Descargar ' : '⎙ Imprimir ') + (etq.cantidad || 0) + ((etq.cantidad || 0) === 1 ? ' etiqueta' : ' etiquetas') + (esPtouch ? ' para P-touch' : esPdfEtq ? ' en PDF' : '')
                   : '⎙ Generar e imprimir ' + (etq.hojas || 0) + (etq.hojas === 1 ? ' hoja' : ' hojas') }}
             </button>
           </div>
@@ -8981,11 +8992,50 @@ export class AppComponent {
   }
 
   // Rollo Brother: imprimir desde el navegador o descargar CSV para P-touch Editor; se recuerda en este equipo
-  get metodoEtiquetas(): 'navegador' | 'ptouch' {
-    try { return localStorage.getItem('dozzer_metodo_etq') === 'ptouch' ? 'ptouch' : 'navegador'; } catch { return 'navegador'; }
+  get metodoEtiquetas(): 'navegador' | 'pdf' | 'ptouch' {
+    try {
+      const m = localStorage.getItem('dozzer_metodo_etq');
+      return m === 'ptouch' || m === 'pdf' ? m : 'navegador';
+    } catch { return 'navegador'; }
   }
 
-  cambiarMetodoEtq(m: 'navegador' | 'ptouch'): void {
+  get esPdfEtq(): boolean {
+    return this.etq?.formato === 'rollo' && this.etq?.metodo === 'pdf';
+  }
+
+  // PDF para la Brother QL-800 con DK-1209: una etiqueta de 62 × 29 mm por página, todo en negro puro (QR vectorial)
+  private descargarPdfRollo(codigos: string[]): void {
+    if (!codigos.length) return;
+    const doc = new jsPDF({ unit: 'mm', format: [62, 29], orientation: 'landscape', compress: true });
+    const qrX = 2, qrY = 2.25, qrLado = 24.5, txX = 28.7, txAncho = 62 - txX - 2.5;
+    codigos.forEach((cod, i) => {
+      if (i > 0) doc.addPage([62, 29], 'landscape');
+      doc.setFillColor(0, 0, 0);
+      doc.setTextColor(0, 0, 0);
+      const qr: any = (QRCode as any).create(this.urlEtiqueta(cod), { errorCorrectionLevel: 'M' });
+      const n = qr.modules.size, m = qrLado / n;
+      for (let f = 0; f < n; f++) {
+        let c = 0;
+        while (c < n) {
+          if (!qr.modules.get(f, c)) { c++; continue; }
+          const ini = c;
+          while (c < n && qr.modules.get(f, c)) c++;
+          doc.rect(qrX + ini * m, qrY + f * m, (c - ini) * m + 0.01, m + 0.01, 'F');
+        }
+      }
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
+      doc.text('D O Z Z E R', txX, 9);
+      doc.setFont('courier', 'bold'); doc.setFontSize(13.5);
+      doc.text(cod, txX, 15.5);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(5.4);
+      doc.text(doc.splitTextToSize('Propiedad de DOZZER Construcción y Asesoría S.A. de C.V.', txAncho), txX, 20);
+    });
+    const nombre = 'etiquetas-dozzer-' + codigos[0] + (codigos.length > 1 ? '-a-' + codigos[codigos.length - 1] : '') + '.pdf';
+    doc.save(nombre);
+    this.notificar('exito', 'PDF listo', codigos.length + ' etiqueta(s) de 62 × 29 mm. Ábrelo e imprímelo en la Brother QL-800 a tamaño real.', 6000);
+  }
+
+  cambiarMetodoEtq(m: 'navegador' | 'pdf' | 'ptouch'): void {
     if (this.etq) this.etq.metodo = m;
     try { localStorage.setItem('dozzer_metodo_etq', m); } catch { /* */ }
   }
@@ -9028,10 +9078,17 @@ export class AppComponent {
     const cantidad = rollo ? Math.floor(Number(e.cantidad)) : hojas * 30;
     if (rollo && !(cantidad >= 1 && cantidad <= 800)) { e.error = 'Imprime entre 1 y 800 etiquetas por vez (un rollo).'; return; }
     if (!rollo && !(hojas >= 1 && hojas <= 30)) { e.error = 'Imprime entre 1 y 30 hojas por vez.'; return; }
-    if (this.esPtouch) {
+    if (this.esPtouch || this.esPdfEtq) {
+      const pdf = this.esPdfEtq;
       e.generando = true; e.error = '';
       this.http.post<any>(this.api + '/etiquetas/lote', { cantidad }).subscribe({
-        next: r => { this.descargarCsvPtouch(r.codigos || []); e.generando = false; this.abrirEtiquetas(); },
+        next: r => {
+          const cods = r.codigos || [];
+          try { pdf ? this.descargarPdfRollo(cods) : this.descargarCsvPtouch(cods); }
+          catch { e.error = 'Las etiquetas se generaron pero no se pudo crear el archivo. Usa "Volver a descargar las que siguen sin pegar".'; }
+          e.generando = false;
+          if (!e.error) this.abrirEtiquetas();
+        },
         error: err => { e.generando = false; e.error = this.mensajeError(err, 'No se generaron las etiquetas.'); }
       });
       return;
@@ -9051,10 +9108,15 @@ export class AppComponent {
   }
 
   reimprimirLibres(): void {
-    if (this.esPtouch) {
+    if (this.esPtouch || this.esPdfEtq) {
+      const pdf = this.esPdfEtq;
       this.etq.generando = true;
       this.http.get<string[]>(this.api + '/etiquetas/libres', { params: { limite: 800 } }).subscribe({
-        next: cods => { this.descargarCsvPtouch(cods || []); this.etq.generando = false; },
+        next: cods => {
+          try { pdf ? this.descargarPdfRollo(cods || []) : this.descargarCsvPtouch(cods || []); }
+          catch { this.etq.error = 'No se pudo crear el archivo.'; }
+          this.etq.generando = false;
+        },
         error: err => { this.etq.generando = false; this.etq.error = this.mensajeError(err, 'No se pudo.'); }
       });
       return;
