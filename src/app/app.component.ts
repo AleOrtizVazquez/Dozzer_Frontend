@@ -991,9 +991,7 @@ export class ElegirComponent {
                   <div class="etq-pieza doble" *ngIf="etq.tamano==='mediana'">
                     <span class="etq-mitad" *ngFor="let k of [1, 2]">
                       <span class="etq-pieza-qr"><ico n="qr"></ico></span>
-                      <b>DOZZER</b>
-                      <em>{{ codigoEtiqueta(r.ultimo + k) }}</em>
-                      <small>Propiedad de DOZZER Construcción y Asesoría S.A. de C.V.</small>
+                      <span class="etq-cuarto-tx"><b>DOZZER</b><em>{{ codigoEtiqueta(r.ultimo + k) }}</em><small>Propiedad de DOZZER Construcción y Asesoría S.A. de C.V.</small></span>
                     </span>
                   </div>
                   <small>{{ etq.tamano==='chica' ? 'Cuatro etiquetas chicas en cada etiqueta del rollo (62 × 29 mm). Córtalas por las líneas.'
@@ -4157,9 +4155,12 @@ export class ElegirComponent {
     .etq-tam button small{font-size:12px;color:#6b7a8f}
     .etq-tam button.on{border-color:#244c78;background:#eef4fb;box-shadow:0 0 0 3px #244c7822}
     .etq-pieza.doble{padding:0;gap:0}
-    .etq-mitad{flex:1;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
+    .etq-mitad{flex:1;min-width:0;height:100%;display:flex;align-items:center;gap:4px;padding:0 5px 0 7px}
+    .etq-mitad+.etq-mitad{padding:0 7px 0 5px}
+    .etq-mitad .etq-cuarto-tx em{font-size:9.5px}
+    .etq-mitad .etq-cuarto-tx small{font-size:5.2px}
     .etq-mitad+.etq-mitad{border-left:1.5px dashed #000}
-    .etq-mitad .etq-pieza-qr{width:54px;height:54px;border-width:4px}
+    .etq-mitad .etq-pieza-qr{width:52px;height:52px;border-width:4px;flex-shrink:0}
     .etq-mitad small{font-size:6px;font-weight:700;line-height:1.15;text-align:center;padding:0 5px}
     .etq-mitad .etq-pieza-qr ico{width:28px;height:28px;padding:3px}
     .etq-mitad em{font-style:normal;font-family:"Courier New",monospace;font-weight:900;font-size:11.5px}
@@ -9105,7 +9106,7 @@ export class AppComponent {
           const svg = await QRCode.toString(this.urlEtiqueta(cod), { type: 'svg', errorCorrectionLevel: 'M', margin: 0, color: { dark: '#000000', light: '#ffffff' } });
           h += por === 4
             ? '<div class="cuarto"><div class="qr">' + svg + '</div><div class="ctx"><div class="mk">DOZZER</div><div class="cod">' + e(cod) + '</div><div class="pie">Propiedad de DOZZER Construcción y Asesoría S.A. de C.V.</div></div></div>'
-            : '<div class="mitad"><div class="qr">' + svg + '</div><div class="mk">DOZZER</div><div class="cod">' + e(cod) + '</div><div class="pie">Propiedad de DOZZER Construcción y Asesoría S.A. de C.V.</div></div>';
+            : '<div class="mitad"><div class="qr">' + svg + '</div><div class="mtx"><div class="mk">DOZZER</div><div class="cod">' + e(cod) + '</div><div class="pie">Propiedad de DOZZER Construcción y Asesoría S.A. de C.V.</div></div></div>';
         }
         piezas.push(h + '</div>');
       }
@@ -9120,20 +9121,21 @@ export class AppComponent {
     ventana.document.write('<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Etiquetas DOZZER ' + e(codigos[0]) + ' a ' + e(codigos[codigos.length - 1]) + '</title><style>' +
       '@page{size:62mm 29mm;margin:0}*{box-sizing:border-box}html,body{margin:0;padding:0}' +
       'body{font-family:Arial,Helvetica,sans-serif;color:#000;background:#e9edf2}' +
-      '.et{width:62mm;height:29mm;padding:2mm 2.5mm 2mm 2mm;display:flex;align-items:center;gap:2.2mm;overflow:hidden;background:#fff;page-break-after:always;break-after:page}' +
+      '.et{width:62mm;height:29mm;padding:3mm 2.5mm 3mm 3mm;display:flex;align-items:center;gap:2.4mm;overflow:hidden;background:#fff;page-break-after:always;break-after:page}' +
       '.et:last-child{page-break-after:auto;break-after:auto}' +
-      '.qr{width:24.5mm;height:24.5mm;flex-shrink:0}.qr svg{width:100%;height:100%;display:block;shape-rendering:crispEdges}' +
+      '.qr{width:21.5mm;height:21.5mm;flex-shrink:0}.qr svg{width:100%;height:100%;display:block;shape-rendering:crispEdges}' +
       '.tx{min-width:0;flex:1;display:flex;flex-direction:column;justify-content:center;gap:1mm}' +
       '.mk{font-size:9pt;font-weight:900;letter-spacing:2pt}' +
       '.cod{font-family:"Courier New",monospace;font-size:13.5pt;font-weight:900;letter-spacing:.2pt;white-space:nowrap}' +
       '.pie{font-size:5.4pt;line-height:1.2;font-weight:700}' +
       '.et.doble{padding:0;gap:0}' +
       // La Brother no imprime en ~1.5 mm de cada orilla: todo queda a 2 mm o más del borde de la etiqueta
-      '.mitad{width:31mm;height:29mm;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.35mm;padding:2mm 1.2mm 2mm 2mm;overflow:hidden}' +
-      '.mitad+.mitad{border-left:.25mm dashed #000;padding:2mm 2mm 2mm 1.2mm}' +
-      '.mitad .qr{width:14mm;height:14mm;margin-bottom:.3mm}.mitad .mk{font-size:5.5pt;letter-spacing:1.6pt;line-height:1}' +
-      '.mitad .cod{font-size:8.5pt;letter-spacing:0;line-height:1.05}' +
-      '.mitad .pie{font-size:4.2pt;line-height:1.15;font-weight:700;text-align:center}' +
+      '.mitad{width:31mm;height:29mm;display:flex;align-items:center;gap:1.1mm;padding:2.5mm 1.2mm 2.5mm 2.2mm;overflow:hidden}' +
+      '.mitad+.mitad{border-left:.25mm dashed #000;padding:2.5mm 2.2mm 2.5mm 1.2mm}' +
+      '.mitad .qr{width:14mm;height:14mm}.mtx{display:flex;flex-direction:column;gap:.5mm;min-width:0}' +
+      '.mitad .mk{font-size:5pt;letter-spacing:1.2pt;line-height:1}' +
+      '.mitad .cod{font-size:6.3pt;letter-spacing:0;line-height:1.05}' +
+      '.mitad .pie{font-size:3.6pt;line-height:1.15;font-weight:700}' +
       '.et.cuatro{padding:0;gap:0;display:grid;grid-template-columns:31mm 31mm;grid-template-rows:14.5mm 14.5mm;align-items:stretch}' +
       '.cuarto{display:flex;align-items:center;gap:1mm;overflow:hidden;padding-top:2mm;padding-bottom:.8mm;padding-left:2mm;padding-right:.8mm}' +
       '.cuarto:nth-child(2n){border-left:.25mm dashed #000;padding-left:.8mm;padding-right:2mm}' +
