@@ -992,6 +992,7 @@ export class ElegirComponent {
                     <span class="etq-mitad" *ngFor="let k of [1, 2]">
                       <span class="etq-pieza-qr"><ico n="qr"></ico></span>
                       <em>{{ codigoEtiqueta(r.ultimo + k) }}</em>
+                      <small>Propiedad de DOZZER Construcción y Asesoría S.A. de C.V.</small>
                     </span>
                   </div>
                   <small>{{ etq.tamano==='chica' ? 'Cuatro etiquetas chicas en cada etiqueta del rollo (62 × 29 mm). Córtalas por las líneas.'
@@ -4153,7 +4154,8 @@ export class ElegirComponent {
     .etq-pieza.doble{padding:0;gap:0}
     .etq-mitad{flex:1;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
     .etq-mitad+.etq-mitad{border-left:1.5px dashed #000}
-    .etq-mitad .etq-pieza-qr{width:70px;height:70px;border-width:4px}
+    .etq-mitad .etq-pieza-qr{width:60px;height:60px;border-width:4px}
+    .etq-mitad small{font-size:6px;font-weight:700;line-height:1.15;text-align:center;padding:0 5px}
     .etq-mitad .etq-pieza-qr ico{width:28px;height:28px;padding:3px}
     .etq-mitad em{font-style:normal;font-family:"Courier New",monospace;font-weight:900;font-size:11.5px}
     .pistola-tip{display:flex;align-items:center;gap:10px;background:#eef4fb;border-radius:12px;padding:10px 12px;font-size:13.5px;color:#33465e;margin:4px 0}
@@ -9098,7 +9100,7 @@ export class AppComponent {
           const svg = await QRCode.toString(this.urlEtiqueta(cod), { type: 'svg', errorCorrectionLevel: 'M', margin: 0, color: { dark: '#000000', light: '#ffffff' } });
           h += por === 4
             ? '<div class="cuarto"><div class="qr">' + svg + '</div><div class="ctx"><div class="cod">' + e(cod) + '</div><div class="pie">DOZZER</div></div></div>'
-            : '<div class="mitad"><div class="qr">' + svg + '</div><div class="cod">' + e(cod) + '</div><div class="pie">DOZZER</div></div>';
+            : '<div class="mitad"><div class="qr">' + svg + '</div><div class="cod">' + e(cod) + '</div><div class="pie">Propiedad de DOZZER Construcción y Asesoría S.A. de C.V.</div></div>';
         }
         piezas.push(h + '</div>');
       }
@@ -9121,9 +9123,10 @@ export class AppComponent {
       '.cod{font-family:"Courier New",monospace;font-size:13.5pt;font-weight:900;letter-spacing:.2pt;white-space:nowrap}' +
       '.pie{font-size:5.4pt;line-height:1.2;font-weight:700}' +
       '.et.doble{padding:0;gap:0}' +
-      '.mitad{width:31mm;height:29mm;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.6mm;padding:1.2mm 1mm}' +
+      '.mitad{width:31mm;height:29mm;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.5mm;padding:1mm 1.3mm}' +
       '.mitad+.mitad{border-left:.25mm dashed #000}' +
-      '.mitad .qr{width:19mm;height:19mm}.mitad .cod{font-size:9pt;letter-spacing:0}.mitad .pie{font-size:5pt;letter-spacing:1.5pt;font-weight:900}' +
+      '.mitad .qr{width:16.5mm;height:16.5mm}.mitad .cod{font-size:9pt;letter-spacing:0}' +
+      '.mitad .pie{font-size:4.4pt;line-height:1.15;font-weight:700;text-align:center}' +
       '.et.cuatro{padding:0;gap:0;display:grid;grid-template-columns:31mm 31mm;grid-template-rows:14.5mm 14.5mm;align-items:stretch}' +
       '.cuarto{display:flex;align-items:center;gap:1.2mm;padding:1.1mm 1.2mm;overflow:hidden}' +
       '.cuarto:nth-child(2n){border-left:.25mm dashed #000}.cuarto:nth-child(n+3){border-top:.25mm dashed #000}' +
