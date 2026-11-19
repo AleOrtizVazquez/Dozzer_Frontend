@@ -980,17 +980,18 @@ export class ElegirComponent {
                 <div class="etq-muestra">
                   <div class="etq-pieza" *ngIf="etq.tamano==='grande'">
                     <span class="etq-pieza-qr"><ico n="qr"></ico></span>
-                    <span class="etq-pieza-tx"><b>DOZZER</b><em>{{ codigoEtiqueta(r.ultimo + 1) }}</em><small>Propiedad de DOZZER Construcción y Asesoría</small></span>
+                    <span class="etq-pieza-tx"><b>DOZZER</b><em>{{ codigoEtiqueta(r.ultimo + 1) }}</em><small>Propiedad de DOZZER Construcción y Asesoría S.A. de C.V.</small></span>
                   </div>
                   <div class="etq-pieza cuatro" *ngIf="etq.tamano==='chica'">
                     <span class="etq-cuarto" *ngFor="let k of [1, 2, 3, 4]">
                       <span class="etq-pieza-qr"><ico n="qr"></ico></span>
-                      <em>{{ codigoEtiqueta(r.ultimo + k) }}</em>
+                      <span class="etq-cuarto-tx"><b>DOZZER</b><em>{{ codigoEtiqueta(r.ultimo + k) }}</em><small>Propiedad de DOZZER Construcción y Asesoría S.A. de C.V.</small></span>
                     </span>
                   </div>
                   <div class="etq-pieza doble" *ngIf="etq.tamano==='mediana'">
                     <span class="etq-mitad" *ngFor="let k of [1, 2]">
                       <span class="etq-pieza-qr"><ico n="qr"></ico></span>
+                      <b>DOZZER</b>
                       <em>{{ codigoEtiqueta(r.ultimo + k) }}</em>
                       <small>Propiedad de DOZZER Construcción y Asesoría S.A. de C.V.</small>
                     </span>
@@ -4146,7 +4147,11 @@ export class ElegirComponent {
     .etq-cuarto:nth-child(n+3){border-top:1.5px dashed #000}
     .etq-cuarto .etq-pieza-qr{width:42px;height:42px;border-width:3px}
     .etq-cuarto .etq-pieza-qr ico{width:16px;height:16px;padding:2px}
+    .etq-cuarto-tx{display:flex;flex-direction:column;gap:1px;min-width:0}
+    .etq-cuarto-tx b{font-size:6px;letter-spacing:1.2px;font-weight:900}
     .etq-cuarto em{font-style:normal;font-family:"Courier New",monospace;font-weight:900;font-size:10px}
+    .etq-cuarto-tx small{font-size:4.6px;font-weight:700;line-height:1.15}
+    .etq-mitad>b{font-size:7.5px;letter-spacing:1.5px;font-weight:900}
     .etq-tam button{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:10px 12px;border:1.5px solid #dbe3ee;border-radius:12px;background:#fff;cursor:pointer;text-align:left;font:inherit;color:#17263d}
     .etq-tam button b{font-size:15px}
     .etq-tam button small{font-size:12px;color:#6b7a8f}
@@ -4154,7 +4159,7 @@ export class ElegirComponent {
     .etq-pieza.doble{padding:0;gap:0}
     .etq-mitad{flex:1;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
     .etq-mitad+.etq-mitad{border-left:1.5px dashed #000}
-    .etq-mitad .etq-pieza-qr{width:60px;height:60px;border-width:4px}
+    .etq-mitad .etq-pieza-qr{width:54px;height:54px;border-width:4px}
     .etq-mitad small{font-size:6px;font-weight:700;line-height:1.15;text-align:center;padding:0 5px}
     .etq-mitad .etq-pieza-qr ico{width:28px;height:28px;padding:3px}
     .etq-mitad em{font-style:normal;font-family:"Courier New",monospace;font-weight:900;font-size:11.5px}
@@ -9099,8 +9104,8 @@ export class AppComponent {
         for (const cod of codigos.slice(i, i + por)) {
           const svg = await QRCode.toString(this.urlEtiqueta(cod), { type: 'svg', errorCorrectionLevel: 'M', margin: 0, color: { dark: '#000000', light: '#ffffff' } });
           h += por === 4
-            ? '<div class="cuarto"><div class="qr">' + svg + '</div><div class="ctx"><div class="cod">' + e(cod) + '</div><div class="pie">DOZZER</div></div></div>'
-            : '<div class="mitad"><div class="qr">' + svg + '</div><div class="cod">' + e(cod) + '</div><div class="pie">Propiedad de DOZZER Construcción y Asesoría S.A. de C.V.</div></div>';
+            ? '<div class="cuarto"><div class="qr">' + svg + '</div><div class="ctx"><div class="mk">DOZZER</div><div class="cod">' + e(cod) + '</div><div class="pie">Propiedad de DOZZER Construcción y Asesoría S.A. de C.V.</div></div></div>'
+            : '<div class="mitad"><div class="qr">' + svg + '</div><div class="mk">DOZZER</div><div class="cod">' + e(cod) + '</div><div class="pie">Propiedad de DOZZER Construcción y Asesoría S.A. de C.V.</div></div>';
         }
         piezas.push(h + '</div>');
       }
@@ -9123,15 +9128,18 @@ export class AppComponent {
       '.cod{font-family:"Courier New",monospace;font-size:13.5pt;font-weight:900;letter-spacing:.2pt;white-space:nowrap}' +
       '.pie{font-size:5.4pt;line-height:1.2;font-weight:700}' +
       '.et.doble{padding:0;gap:0}' +
-      '.mitad{width:31mm;height:29mm;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.5mm;padding:1mm 1.3mm}' +
+      '.mitad{width:31mm;height:29mm;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.35mm;padding:1mm 1.3mm}' +
       '.mitad+.mitad{border-left:.25mm dashed #000}' +
-      '.mitad .qr{width:16.5mm;height:16.5mm}.mitad .cod{font-size:9pt;letter-spacing:0}' +
-      '.mitad .pie{font-size:4.4pt;line-height:1.15;font-weight:700;text-align:center}' +
+      '.mitad .qr{width:15mm;height:15mm;margin-bottom:.3mm}.mitad .mk{font-size:5.5pt;letter-spacing:1.6pt;line-height:1}' +
+      '.mitad .cod{font-size:8.5pt;letter-spacing:0;line-height:1.05}' +
+      '.mitad .pie{font-size:4.2pt;line-height:1.15;font-weight:700;text-align:center}' +
       '.et.cuatro{padding:0;gap:0;display:grid;grid-template-columns:31mm 31mm;grid-template-rows:14.5mm 14.5mm;align-items:stretch}' +
       '.cuarto{display:flex;align-items:center;gap:1.2mm;padding:1.1mm 1.2mm;overflow:hidden}' +
       '.cuarto:nth-child(2n){border-left:.25mm dashed #000}.cuarto:nth-child(n+3){border-top:.25mm dashed #000}' +
-      '.cuarto .qr{width:12.2mm;height:12.2mm}.ctx{display:flex;flex-direction:column;gap:.4mm;min-width:0}' +
-      '.cuarto .cod{font-size:6.2pt;letter-spacing:0}.cuarto .pie{font-size:4.2pt;letter-spacing:1pt;font-weight:900}' +
+      '.cuarto .qr{width:11.8mm;height:11.8mm}.ctx{display:flex;flex-direction:column;gap:.3mm;min-width:0}' +
+      '.cuarto .mk{font-size:4.3pt;letter-spacing:1.1pt;line-height:1}' +
+      '.cuarto .cod{font-size:6.2pt;letter-spacing:0;line-height:1.05}' +
+      '.cuarto .pie{font-size:3.3pt;line-height:1.15;font-weight:700}' +
       '.barra{position:sticky;top:0;z-index:2;background:#17263d;color:#fff;padding:10px 16px;font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:12px}' +
       '.barra button{background:#fff;color:#17263d;border:0;border-radius:6px;padding:7px 14px;font-weight:700;cursor:pointer}' +
       '.lista{display:flex;flex-wrap:wrap;gap:4mm;padding:6mm}.lista .et{box-shadow:0 1px 4px #0003;border-radius:1.5mm}' +
