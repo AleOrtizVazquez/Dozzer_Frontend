@@ -9128,15 +9128,17 @@ export class AppComponent {
       '.cod{font-family:"Courier New",monospace;font-size:13.5pt;font-weight:900;letter-spacing:.2pt;white-space:nowrap}' +
       '.pie{font-size:5.4pt;line-height:1.2;font-weight:700}' +
       '.et.doble{padding:0;gap:0}' +
-      '.mitad{width:31mm;height:29mm;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.35mm;padding:1mm 1.3mm}' +
-      '.mitad+.mitad{border-left:.25mm dashed #000}' +
-      '.mitad .qr{width:15mm;height:15mm;margin-bottom:.3mm}.mitad .mk{font-size:5.5pt;letter-spacing:1.6pt;line-height:1}' +
+      // La Brother no imprime en ~1.5 mm de cada orilla: todo queda a 2 mm o más del borde de la etiqueta
+      '.mitad{width:31mm;height:29mm;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.35mm;padding:2mm 1.2mm 2mm 2mm;overflow:hidden}' +
+      '.mitad+.mitad{border-left:.25mm dashed #000;padding:2mm 2mm 2mm 1.2mm}' +
+      '.mitad .qr{width:14mm;height:14mm;margin-bottom:.3mm}.mitad .mk{font-size:5.5pt;letter-spacing:1.6pt;line-height:1}' +
       '.mitad .cod{font-size:8.5pt;letter-spacing:0;line-height:1.05}' +
       '.mitad .pie{font-size:4.2pt;line-height:1.15;font-weight:700;text-align:center}' +
       '.et.cuatro{padding:0;gap:0;display:grid;grid-template-columns:31mm 31mm;grid-template-rows:14.5mm 14.5mm;align-items:stretch}' +
-      '.cuarto{display:flex;align-items:center;gap:1.2mm;padding:1.1mm 1.2mm;overflow:hidden}' +
-      '.cuarto:nth-child(2n){border-left:.25mm dashed #000}.cuarto:nth-child(n+3){border-top:.25mm dashed #000}' +
-      '.cuarto .qr{width:11.8mm;height:11.8mm}.ctx{display:flex;flex-direction:column;gap:.3mm;min-width:0}' +
+      '.cuarto{display:flex;align-items:center;gap:1mm;overflow:hidden;padding-top:2mm;padding-bottom:.8mm;padding-left:2mm;padding-right:.8mm}' +
+      '.cuarto:nth-child(2n){border-left:.25mm dashed #000;padding-left:.8mm;padding-right:2mm}' +
+      '.cuarto:nth-child(n+3){border-top:.25mm dashed #000;padding-top:.8mm;padding-bottom:2mm}' +
+      '.cuarto .qr{width:10.5mm;height:10.5mm;flex-shrink:0}.ctx{display:flex;flex-direction:column;gap:.3mm;min-width:0}' +
       '.cuarto .mk{font-size:4.3pt;letter-spacing:1.1pt;line-height:1}' +
       '.cuarto .cod{font-size:6.2pt;letter-spacing:0;line-height:1.05}' +
       '.cuarto .pie{font-size:3.3pt;line-height:1.15;font-weight:700}' +
