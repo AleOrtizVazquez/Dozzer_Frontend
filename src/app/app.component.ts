@@ -3485,10 +3485,14 @@ export class ElegirComponent {
                 <button class="ax-video-x" (click)="actDetenerCamara(true)" aria-label="Cerrar cámara">×</button>
               </div>
 
-              <button class="ax-escanear" *ngIf="!act.escaneando" (click)="actIniciarCamara()">
-                <ico n="qr"></ico><span>Escanear etiqueta</span>
+              <button class="ax-escanear" *ngIf="!hayLectorPosible && !act.escaneando" (click)="actIniciarCamara()">
+                <ico n="camera"></ico><span>Escanear etiqueta</span>
               </button>
-              <p class="ax-pista" *ngIf="hayLectorPosible && !act.escaneando">o dispara con la pistola lectora</p>
+              <div class="ax-lector" *ngIf="hayLectorPosible">
+                <span class="ax-lector-ico"><ico n="qr"></ico></span>
+                <span class="ax-op-txt"><b>Listo para leer</b><small>Dispara la pistola a la etiqueta</small></span>
+                <i class="ax-lector-luz"></i>
+              </div>
 
               <div class="ax-links">
                 <button (click)="actNuevo('')"><ico n="plus"></ico>Bien sin etiqueta</button>
@@ -3624,9 +3628,6 @@ export class ElegirComponent {
 
                   <input id="ac-nombre" class="ax-input ax-input-grande" [(ngModel)]="n.articulo" list="ac-nombres" placeholder="¿Qué es? Ej. Silla" maxlength="200" autocomplete="off">
                   <datalist id="ac-nombres"><option *ngFor="let x of actNombres" [value]="x"></option></datalist>
-                  <div class="ax-recientes" *ngIf="act.recientes.length && !(n.articulo || '').trim()">
-                    <button *ngFor="let r of act.recientes" (click)="actUsarReciente(n, r)">{{ r.articulo }}</button>
-                  </div>
 
                   <div class="ax-seg">
                     <button *ngFor="let e of ['BUENO','REGULAR','MALO']" [class.on]="n.estado===e" (click)="n.estado=e">{{ textoEstadoCorto(e) }}</button>
@@ -4471,7 +4472,6 @@ export class ElegirComponent {
     .ax-escanear{width:100%;height:68px;border:0;border-radius:20px;background:linear-gradient(135deg,#f28c1e,#e2731a);color:#fff;font-family:inherit;font-size:19px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:12px;cursor:pointer;box-shadow:0 10px 26px #f28c1e55;transition:transform .12s}
     .ax-escanear:active{transform:scale(.98)}
     .ax-escanear ico{width:28px;height:28px}
-    .ax-pista{text-align:center;color:#8a97a8;font-size:13.5px;margin:8px 0 0}
     .ax-links{display:flex;justify-content:center;gap:8px;margin:14px 0 4px;flex-wrap:wrap}
     .ax-links button{display:inline-flex;align-items:center;gap:6px;border:0;background:#fff;color:#244c78;font-family:inherit;font-size:14px;font-weight:700;border-radius:999px;padding:10px 16px;cursor:pointer;box-shadow:0 1px 2px #17263d0f,0 3px 10px #17263d0a}
     .ax-links ico{width:16px;height:16px}
@@ -4543,8 +4543,11 @@ export class ElegirComponent {
     .ax-persona select{flex:1;min-width:0;border:0;background:transparent;height:50px;font-size:15.5px;font-family:inherit;color:#14243a;outline:0}
     .ax-etq{display:inline-block;font-family:"SFMono-Regular",Consolas,monospace;font-weight:700;font-size:13px;background:#eaf1fa;color:#244c78;border-radius:8px;padding:5px 10px;margin-bottom:10px}
     .ax-lista-hoja{max-height:44vh;overflow:auto;padding:2px 2px 6px}
-    .ax-recientes{display:flex;flex-wrap:wrap;gap:8px;margin:-2px 0 6px}
-    .ax-recientes button{border:0;background:#fff;color:#244c78;border-radius:999px;padding:9px 14px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 1px 2px #17263d14,0 3px 10px #17263d0d}
+    .ax-lector{display:flex;align-items:center;gap:14px;background:#fff;border-radius:20px;padding:16px 18px;box-shadow:0 1px 2px #17263d0f,0 6px 18px #17263d0d}
+    .ax-lector-ico{width:52px;height:52px;border-radius:16px;background:linear-gradient(135deg,#f28c1e,#e2731a);color:#fff;display:grid;place-items:center;flex-shrink:0;box-shadow:0 8px 20px #f28c1e44}
+    .ax-lector-ico ico{width:26px;height:26px}
+    .ax-lector .ax-op-txt b{font-size:18px}
+    .ax-lector-luz{width:12px;height:12px;border-radius:50%;background:#3aa876;box-shadow:0 0 0 5px #3aa87626;animation:axLatido 1.6s ease-in-out infinite;flex-shrink:0}
     .ax-mas-datos{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px}
     .ax-mas-datos input,.ax-mas-datos select{height:48px;border:1.5px solid #e3e9f1;border-radius:12px;padding:0 12px;font-size:15px;background:#fff;min-width:0;font-family:inherit}
     .modal-backdrop.cal-fondo,.modal-backdrop.etq-sel-fondo{z-index:190}
@@ -10124,7 +10127,7 @@ export class AppComponent {
 
   actInicial(): any {
     return { cargado: false, paso: 'sede', idSede: null, idUbicacion: null, q: '', manual: '', escribir: false, error: '',
-             escaneando: false, seguirCamara: false, verMas: 50, ficha: null, libre: null, nuevo: null, cierre: null, log: [], recientes: [], ver: 0 };
+             escaneando: false, seguirCamara: false, verMas: 50, ficha: null, libre: null, nuevo: null, cierre: null, log: [], ver: 0 };
   }
 
   private actLlave(): string { return 'dozzer_act_' + this.email; }
@@ -10133,7 +10136,7 @@ export class AppComponent {
     const a = this.act;
     try {
       localStorage.setItem(this.actLlave(), JSON.stringify({
-        idSede: a.idSede, idUbicacion: a.idUbicacion, recientes: a.recientes,
+        idSede: a.idSede, idUbicacion: a.idUbicacion,
         log: a.log.slice(0, 3000).map((x: any) => ({ ...x, foto: String(x.foto || '').startsWith('blob:') ? '' : x.foto }))
       }));
     } catch { /* sin espacio: se pierde solo el historial de la sesión */ }
@@ -10149,7 +10152,6 @@ export class AppComponent {
       const g = JSON.parse(localStorage.getItem(this.actLlave()) || 'null');
       if (g) {
         a.idSede = g.idSede ?? null; a.idUbicacion = g.idUbicacion ?? null;
-        a.recientes = Array.isArray(g.recientes) ? g.recientes.slice(0, 4) : [];
         a.log = Array.isArray(g.log) ? g.log : [];
       }
     } catch { /* estado dañado: se empieza de cero */ }
@@ -10567,21 +10569,8 @@ export class AppComponent {
         this.actGuardarEstado();
       });
 
-    // Se recuerda para dar de alta otro igual con un toque (ej. varias sillas)
-    const r = { articulo: this.titulo(nombre), estado: n.estado, persona: n.persona, idMarca: n.idMarca, modelo: n.modelo || '',
-                idClasificacion: n.idClasificacion, caracteristicas: n.caracteristicas || '' };
-    a.recientes = [r, ...a.recientes.filter((x: any) => this.norm(x.articulo) !== this.norm(r.articulo))].slice(0, 4);
-    this.actGuardarEstado();
     this.notificar('exito', 'Guardado', this.titulo(nombre) + (n.etiqueta ? ' · ' + n.etiqueta : ''), 1500);
     a.nuevo = null;
-  }
-
-  // Toca un nombre reciente: se llenan los mismos datos que la vez anterior
-  actUsarReciente(n: any, r: any): void {
-    n.articulo = r.articulo; n.estado = r.estado || 'BUENO'; n.persona = r.persona ?? null;
-    n.idMarca = r.idMarca ?? null; n.modelo = r.modelo || ''; n.idClasificacion = r.idClasificacion ?? null;
-    n.caracteristicas = r.caracteristicas || '';
-    if (n.idMarca != null || n.modelo || n.idClasificacion != null) n.mas = true;
   }
 
   actAtras(): void {
