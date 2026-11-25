@@ -59,6 +59,7 @@ interface FormatoDoc {
   imports: [CommonModule],
   template: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
     <ng-container [ngSwitch]="n">
+      <ng-container *ngSwitchCase="'car'"><path d="M5 17h-.5A1.5 1.5 0 0 1 3 15.5V12l2-5.2A1.5 1.5 0 0 1 6.4 6h11.2a1.5 1.5 0 0 1 1.4.8L21 12v3.5a1.5 1.5 0 0 1-1.5 1.5H19"/><path d="M3.5 12h17"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M9 17h6"/></ng-container>
       <ng-container *ngSwitchCase="'box'"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></ng-container>
       <ng-container *ngSwitchCase="'clipboard'"><rect x="5" y="4" width="14" height="17" rx="2.5"/><path d="M9 4V3h6v1"/><path d="M9 12.5l2 2 4-4.5"/></ng-container>
       <ng-container *ngSwitchCase="'shield'"><path d="M12 3l7 3v6c0 4.5-3 7.6-7 9-4-1.4-7-4.5-7-9V6l7-3z"/><path d="M9 12l2 2 4-4"/></ng-container>
@@ -572,32 +573,54 @@ export class ElegirComponent {
       </div>
 
       <nav class="side-nav">
-        <button class="nav-item" [class.active]="section==='bienes'" (click)="irA('bienes')">
+        <!-- BIENES -->
+        <button class="nav-grupo" [class.abierto]="grupoMenu==='bienes'" [class.actual]="grupoDeSeccion(section)==='bienes'" (click)="alternarGrupoMenu('bienes')">
           <span class="nav-icon"><ico n="box"></ico></span><span>Bienes</span>
+          <span class="nav-badge" *ngIf="grupoMenu!=='bienes' && avisosBienes > 0">{{ avisosBienes }}</span>
+          <ico class="nav-flecha" n="chev"></ico>
         </button>
-        <button class="nav-item" *ngIf="verInventarioAnual" [class.active]="section==='anual'" (click)="irA('anual')">
-          <span class="nav-icon"><ico n="clipboard"></ico></span><span>Inventario</span>
+        <div class="nav-sub" *ngIf="grupoMenu==='bienes'">
+          <button class="nav-item" [class.active]="section==='bienes'" (click)="irA('bienes')">
+            <span class="nav-icon"><ico n="grid"></ico></span><span>Inventario de bienes</span>
+          </button>
+          <button class="nav-item" *ngIf="isAdmin" [class.active]="section==='actualizar'" (click)="irA('actualizar')">
+            <span class="nav-icon"><ico n="qr"></ico></span><span>Actualizar</span>
+            <span class="nav-badge" *ngIf="actEnviando > 0">{{ actEnviando }}</span>
+          </button>
+          <button class="nav-item" *ngIf="verInventarioAnual" [class.active]="section==='anual'" (click)="irA('anual')">
+            <span class="nav-icon"><ico n="clipboard"></ico></span><span>Inventario físico</span>
+          </button>
+          <button class="nav-item" *ngIf="isAdmin || canAuthorize" [class.active]="section==='calibracion'" (click)="irA('calibracion')">
+            <span class="nav-icon"><ico n="gauge"></ico></span><span>Calibración y mantenimiento</span>
+            <span class="nav-badge" *ngIf="alertasCM.vencidas + alertasCM.proximas > 0">{{ alertasCM.vencidas + alertasCM.proximas }}</span>
+          </button>
+          <button class="nav-item" [class.active]="section==='solicitudes'" (click)="irA('solicitudes')">
+            <span class="nav-icon"><ico n="shield"></ico></span><span>{{ isAdmin ? 'Autorizaciones' : 'Solicitudes' }}</span>
+            <span class="nav-badge" *ngIf="pendientesBadge - rqPorAtender > 0">{{ pendientesBadge - rqPorAtender }}</span>
+          </button>
+          <button class="nav-item" [class.active]="section==='requisiciones'" (click)="irA('requisiciones')">
+            <span class="nav-icon"><ico n="lista"></ico></span><span>Requisiciones</span>
+            <span class="nav-badge" *ngIf="rqPorAtender > 0">{{ rqPorAtender }}</span>
+          </button>
+          <button class="nav-item" [class.active]="section==='documentos'" (click)="irA('documentos')">
+            <span class="nav-icon"><ico n="file"></ico></span><span>Documentos</span>
+          </button>
+        </div>
+
+        <!-- VEHÍCULOS -->
+        <button class="nav-grupo" [class.abierto]="grupoMenu==='vehiculos'" [class.actual]="grupoDeSeccion(section)==='vehiculos'" (click)="alternarGrupoMenu('vehiculos')">
+          <span class="nav-icon"><ico n="car"></ico></span><span>Vehículos</span>
+          <ico class="nav-flecha" n="chev"></ico>
         </button>
-        <button class="nav-item" *ngIf="isAdmin" [class.active]="section==='actualizar'" (click)="irA('actualizar')">
-          <span class="nav-icon"><ico n="qr"></ico></span><span>Actualizar</span>
-          <span class="nav-badge" *ngIf="actEnviando > 0">{{ actEnviando }}</span>
-        </button>
-        <button class="nav-item" *ngIf="isAdmin || canAuthorize" [class.active]="section==='calibracion'" (click)="irA('calibracion')">
-          <span class="nav-icon"><ico n="gauge"></ico></span><span>Calibración</span>
-          <span class="nav-badge" *ngIf="alertasCM.vencidas + alertasCM.proximas > 0">{{ alertasCM.vencidas + alertasCM.proximas }}</span>
-        </button>
-        <button class="nav-item" [class.active]="section==='solicitudes'" (click)="irA('solicitudes')">
-          <span class="nav-icon"><ico n="shield"></ico></span><span>{{ isAdmin ? 'Autorizaciones' : 'Solicitudes' }}</span>
-          <span class="nav-badge" *ngIf="pendientesBadge - rqPorAtender > 0">{{ pendientesBadge - rqPorAtender }}</span>
-        </button>
-        <button class="nav-item" [class.active]="section==='requisiciones'" (click)="irA('requisiciones')">
-          <span class="nav-icon"><ico n="lista"></ico></span><span>Requisiciones</span>
-          <span class="nav-badge" *ngIf="rqPorAtender > 0">{{ rqPorAtender }}</span>
-        </button>
-        <button class="nav-item" [class.active]="section==='documentos'" (click)="irA('documentos')">
-          <span class="nav-icon"><ico n="file"></ico></span><span>Documentos</span>
-        </button>
-        <button class="nav-item" *ngIf="isAdmin" [class.active]="section==='catalogos'" (click)="irA('catalogos')">
+        <div class="nav-sub" *ngIf="grupoMenu==='vehiculos'">
+          <button class="nav-item" [class.active]="section==='vehiculos'" (click)="irA('vehiculos')">
+            <span class="nav-icon"><ico n="car"></ico></span><span>Parque vehicular</span>
+            <span class="nav-pronto">Pronto</span>
+          </button>
+        </div>
+
+        <!-- CATÁLOGOS -->
+        <button class="nav-grupo nav-solo" *ngIf="isAdmin" [class.actual]="section==='catalogos'" (click)="irA('catalogos')">
           <span class="nav-icon"><ico n="sliders"></ico></span><span>Catálogos</span>
         </button>
       </nav>
@@ -3435,6 +3458,16 @@ export class ElegirComponent {
             </div>
 
           </section>
+        <!-- VEHÍCULOS: en construcción -->
+          <section *ngIf="section==='vehiculos'" class="vh-pronto">
+            <div class="vh-card">
+              <span class="vh-ico"><ico n="car"></ico></span>
+              <span class="vh-tag">En construcción</span>
+              <h1>Control vehicular</h1>
+              <p>Aquí vas a llevar el parque vehicular: quién trae cada vehículo, pólizas de seguro, verificaciones, tenencias y sus documentos, con avisos antes de que algo venza.</p>
+            </div>
+          </section>
+
         <!-- ACTUALIZAR: el administrador coteja área por área (sin formatos). Pocas decisiones a la vista; lo demás lo resuelve el sistema -->
           <section *ngIf="section==='actualizar' && isAdmin" class="ax">
 
@@ -4249,7 +4282,25 @@ export class ElegirComponent {
     .user-menu button strong{display:block;font-size:14px;color:#25364c}
     .user-menu button small{display:block;font-size:12px;color:#8d99a9;margin-top:2px}
     .user-menu-exit strong{color:#bd4b52!important}
-    .side-nav{display:flex;flex-direction:column}
+    .side-nav{display:flex;flex-direction:column;gap:4px}
+    .nav-grupo{width:100%;border:0;background:transparent;color:#e6ecf4;display:flex;align-items:center;gap:14px;padding:13px 14px;border-radius:10px;text-align:left;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;transition:background .15s}
+    .nav-grupo:hover{background:#22344f}
+    .nav-grupo.actual{background:#22344f;color:#fff}
+    .nav-grupo.nav-solo.actual{box-shadow:inset 3px 0 #5e9be9}
+    .nav-flecha{width:17px;height:17px;margin-left:auto;color:#8fa0b6;transition:transform .2s}
+    .nav-grupo .nav-badge+.nav-flecha{margin-left:8px}
+    .nav-grupo.abierto .nav-flecha{transform:rotate(180deg)}
+    .nav-sub{display:flex;flex-direction:column;margin:2px 0 8px 18px;padding-left:10px;border-left:1px solid #33465f;animation:fadeIn .18s ease both}
+    .nav-sub .nav-item{padding:10px 12px;margin-bottom:2px;font-size:14.5px;gap:12px}
+    .nav-sub .nav-icon ico{width:18px;height:18px}
+    .nav-pronto{margin-left:auto;font-size:10.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#f2b35c;background:#f28c1e26;border-radius:999px;padding:3px 8px}
+    .vh-pronto{display:grid;place-items:center;min-height:60vh;padding:20px}
+    .vh-card{max-width:520px;text-align:center;background:#fff;border-radius:28px;padding:42px 32px;box-shadow:0 1px 2px #17263d0f,0 18px 50px #17263d14;display:flex;flex-direction:column;align-items:center;gap:10px}
+    .vh-ico{width:84px;height:84px;border-radius:26px;background:linear-gradient(135deg,#17263d,#244c78);color:#fff;display:grid;place-items:center;box-shadow:0 14px 32px #17263d40;margin-bottom:6px}
+    .vh-ico ico{width:42px;height:42px}
+    .vh-tag{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#c4670f;background:#fff1df;border-radius:999px;padding:6px 12px}
+    .vh-card h1{margin:4px 0 0;font-size:30px;letter-spacing:-.025em;color:#14243a}
+    .vh-card p{margin:0;color:#6b7a8d;font-size:15.5px;line-height:1.55}
     .side-cuenta{margin-top:auto;border-top:1px solid #35455d;padding-top:14px;display:flex;flex-direction:column;gap:2px}
     .side-user{display:flex;align-items:center;gap:10px;padding:0 6px 10px}
     .side-op{display:flex;align-items:center;gap:12px;width:100%;border:0;background:transparent;color:#c1ccdb;padding:9px 10px;border-radius:9px;font-size:14px;text-align:left;cursor:pointer}
@@ -7618,8 +7669,28 @@ export class AppComponent {
 
   // ----- Navegación y "seguir donde ibas" al recargar -----
 
+  // Menú por bloques: se abre el bloque de la sección en la que estás
+  grupoMenu = 'bienes';
+
+  grupoDeSeccion(s: string): string {
+    if (s === 'vehiculos') return 'vehiculos';
+    if (s === 'catalogos') return 'catalogos';
+    return 'bienes';
+  }
+
+  alternarGrupoMenu(g: string): void {
+    this.grupoMenu = this.grupoMenu === g ? '' : g;
+  }
+
+  // Avisos del bloque Bienes (se muestran en el encabezado cuando está cerrado)
+  get avisosBienes(): number {
+    const cal = this.isAdmin || this.canAuthorize ? this.alertasCM.vencidas + this.alertasCM.proximas : 0;
+    return Math.max(0, cal) + Math.max(0, this.pendientesBadge - this.rqPorAtender) + Math.max(0, this.rqPorAtender);
+  }
+
   irA(s: string): void {
     this.menuCollapsed = true;
+    if (s !== 'inicio' && this.grupoDeSeccion(s) !== 'catalogos') this.grupoMenu = this.grupoDeSeccion(s);
     if (this.section === 'actualizar' && s !== 'actualizar') this.actDetenerCamara(true);
     this.editing = false;
     if (s === 'inicio') { this.section = 'inicio'; return; }
