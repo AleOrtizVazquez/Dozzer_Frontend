@@ -578,6 +578,10 @@ export class ElegirComponent {
         <button class="nav-item" *ngIf="verInventarioAnual" [class.active]="section==='anual'" (click)="irA('anual')">
           <span class="nav-icon"><ico n="clipboard"></ico></span><span>Inventario</span>
         </button>
+        <button class="nav-item" *ngIf="isAdmin" [class.active]="section==='actualizar'" (click)="irA('actualizar')">
+          <span class="nav-icon"><ico n="qr"></ico></span><span>Actualizar</span>
+          <span class="nav-badge" *ngIf="actEnviando > 0">{{ actEnviando }}</span>
+        </button>
         <button class="nav-item" *ngIf="isAdmin || canAuthorize" [class.active]="section==='calibracion'" (click)="irA('calibracion')">
           <span class="nav-icon"><ico n="gauge"></ico></span><span>Calibración</span>
           <span class="nav-badge" *ngIf="alertasCM.vencidas + alertasCM.proximas > 0">{{ alertasCM.vencidas + alertasCM.proximas }}</span>
@@ -3427,6 +3431,272 @@ export class ElegirComponent {
             </div>
 
           </section>
+        <!-- ACTUALIZAR: el administrador coteja área por área (sin formatos) -->
+          <section *ngIf="section==='actualizar' && isAdmin" class="ac">
+            <div class="cal-head">
+              <div>
+                <h1>Actualizar inventario</h1>
+                <p>Párate en un área, escanea lo que hay y da de alta o de baja ahí mismo. No se generan formatos.</p>
+              </div>
+              <div class="ac-sync" [ngClass]="'ac-sync-' + estadoSync">
+                <ng-container [ngSwitch]="estadoSync">
+                  <span *ngSwitchCase="'ok'">{{ actEnviando ? '⏳ Guardando ' + actEnviando + '…' : '☁ Todo guardado' }}</span>
+                  <span *ngSwitchCase="'pendiente'">⏳ {{ cola.total }} por subir</span>
+                  <span *ngSwitchCase="'offline'">📴 Sin señal · {{ cola.total }} por subir</span>
+                  <span *ngSwitchCase="'error'">⚠ {{ cola.errores }} con problema</span>
+                </ng-container>
+              </div>
+            </div>
+
+            <div class="cal-cargando" *ngIf="bienesCargando && !bienes.length"><div class="loader-ring"></div></div>
+
+            <!-- 1. Sede -->
+            <ng-container *ngIf="act.paso==='sede' && bienes.length">
+              <div class="ac-titulo">¿En qué sede estás?</div>
+              <div class="cal-list">
+                <button class="cr" *ngFor="let s of actSedes" (click)="actElegirSede(s.id)">
+                  <span class="ce-foto ac-ico"><ico n="building"></ico></span>
+                  <span class="ce-main"><b>{{ s.nombre | titlecase }}</b><small>{{ s.total | number }} bienes</small></span>
+                  <ico class="ce-chev" n="chevright"></ico>
+                </button>
+              </div>
+            </ng-container>
+
+            <!-- 2. Área -->
+            <ng-container *ngIf="act.paso==='area'">
+              <button class="cap-area-chip" (click)="act.paso='sede'"><ico class="cap-atras" n="chev"></ico>{{ actNombreSede | titlecase }}</button>
+              <div class="ac-titulo">¿En qué área estás?</div>
+              <div class="cal-buscar">
+                <ico n="search"></ico>
+                <input [(ngModel)]="act.q" placeholder="Buscar área (oficina, almacén…)">
+              </div>
+              <div class="cal-list">
+                <button class="cr" *ngFor="let a of actAreas" (click)="actElegirArea(a.id)">
+                  <span class="ce-foto ac-ico" [class.ac-ico-ok]="a.total && a.hechos >= a.total"><ico [n]="a.total && a.hechos >= a.total ? 'check' : 'pin'"></ico></span>
+                  <span class="ce-main"><b>{{ a.nombre | titlecase }}</b>
+                    <small>{{ a.total | number }} registrados<ng-container *ngIf="a.hechos"> · {{ a.hechos | number }} revisados</ng-container></small></span>
+                  <ico class="ce-chev" n="chevright"></ico>
+                </button>
+                <p class="cal-hint" *ngIf="!actAreas.length">No hay áreas{{ act.q ? ' que coincidan' : ' en esta sede' }}. Agrégalas en Catálogos › Ubicaciones.</p>
+              </div>
+            </ng-container>
+
+            <!-- 3. Trabajo en el área -->
+            <ng-container *ngIf="act.paso==='trabajo'">
+              <div class="ac-lugar">
+                <button class="cap-area-chip" (click)="actCambiarArea()"><ico class="cap-atras" n="chev"></ico>{{ actNombreSede | titlecase }} › {{ actNombreArea | titlecase }}</button>
+                <label class="ac-rapido" title="Si el bien ya tiene foto, se confirma solo al escanearlo">
+                  <span class="sw" [class.on]="act.rapido" (click)="act.rapido=!act.rapido; actGuardarEstado()"><i></i></span>
+                  <span (click)="act.rapido=!act.rapido; actGuardarEstado()">Confirmar al escanear</span>
+                </label>
+              </div>
+
+              <div class="cal-stats ac-stats">
+                <div class="cs"><b>{{ actPendientes.length | number }}</b><small>Por revisar</small></div>
+                <div class="cs ok"><b>{{ actCuenta('ok') + actCuenta('movido') | number }}</b><small>Confirmados</small></div>
+                <div class="cs proxima"><b>{{ actCuenta('nuevo') | number }}</b><small>Nuevos</small></div>
+                <div class="cs vencida"><b>{{ actCuenta('baja') | number }}</b><small>Bajas</small></div>
+              </div>
+
+              <div class="ac-escanear">
+                <button class="btn-primary ac-btn-cam" (click)="act.escaneando ? actDetenerCamara(true) : actIniciarCamara()">
+                  <ico n="camera"></ico>{{ act.escaneando ? 'Cerrar cámara' : 'Escanear con la cámara' }}
+                </button>
+                <button class="btn-outline ac-btn-nuevo" (click)="actNuevo('')"><ico n="plus"></ico>Bien nuevo</button>
+              </div>
+              <div class="ac-video" [hidden]="!act.escaneando" [class.ac-video-flot]="act.ficha || act.nuevo || act.libre"><video #camAct playsinline muted></video><span class="ac-mira"></span></div>
+              <div class="pistola-tip" *ngIf="hayLectorPosible"><ico n="qr"></ico><span><b>Con la pistola lectora:</b> solo dispara a la etiqueta, no hay que tocar nada.</span></div>
+              <div class="ac-manual">
+                <input [(ngModel)]="act.manual" (keydown.enter)="actBuscarManual()" placeholder="O escribe la etiqueta o la clave (DZ-000123, CE1839…)">
+                <button class="btn-outline btn-small" [disabled]="!(act.manual || '').trim()" (click)="actBuscarManual()">Buscar</button>
+              </div>
+              <p class="ac-error" *ngIf="act.error">{{ act.error }}</p>
+
+              <div class="ac-sub">
+                <span>Por revisar en esta área <small>{{ actPendientes.length | number }}</small></span>
+                <button class="btn-outline btn-small" *ngIf="actPendientes.length" (click)="actAbrirCierre()">Terminar área</button>
+              </div>
+              <div class="cal-list">
+                <button class="cr" *ngFor="let b of actPendientes | slice:0:act.verMas; trackBy: trackBien" (click)="actAbrir(b, true)">
+                  <span class="ce-foto"><img *ngIf="b.foto_mini" [src]="b.foto_mini" alt="" loading="lazy"><img *ngIf="!b.foto_mini" class="bc-logo" src="logo-dozzer.png" alt=""></span>
+                  <span class="ce-main"><b>{{ (b.articulo | titlecase) || 'Bien sin nombre' }}</b>
+                    <small>{{ b.clave }}<ng-container *ngIf="b.etiqueta"> · {{ b.etiqueta }}</ng-container><ng-container *ngIf="b.usuario_directo || b.responsable"> · {{ (b.usuario_directo || b.responsable) | titlecase }}</ng-container></small>
+                    <span class="ce-chips"><span class="ce-chip cm-proxima" *ngIf="!b.etiqueta">Sin etiqueta</span><span class="ce-chip cm-proxima" *ngIf="!b.foto_mini">Sin foto</span></span>
+                  </span>
+                  <ico class="ce-chev" n="chevright"></ico>
+                </button>
+                <button class="btn-outline btn-small ac-mas" *ngIf="actPendientes.length > act.verMas" (click)="act.verMas = act.verMas + 50">Ver más ({{ actPendientes.length - act.verMas | number }})</button>
+                <p class="cal-hint" *ngIf="!actPendientes.length">✓ Ya no queda nada por revisar en esta área.</p>
+              </div>
+
+              <ng-container *ngIf="actHechos.length">
+                <div class="ac-sub"><span>Revisados aquí <small>{{ actHechos.length | number }}</small></span></div>
+                <div class="cal-list">
+                  <div class="cr ac-hecho" *ngFor="let h of actHechos | slice:0:30" [ngClass]="'ac-h-' + h.tipo">
+                    <span class="ce-foto"><img *ngIf="h.foto" [src]="h.foto" alt="" loading="lazy"><img *ngIf="!h.foto" class="bc-logo" src="logo-dozzer.png" alt=""></span>
+                    <span class="ce-main"><b>{{ (h.articulo | titlecase) || 'Bien sin nombre' }}</b><small>{{ h.clave || 'Clave al guardar' }} · {{ actTextoTipo(h.tipo) }}</small></span>
+                  </div>
+                </div>
+              </ng-container>
+            </ng-container>
+
+            <!-- 4. Terminar área: los faltantes se dan de baja ahí mismo -->
+            <ng-container *ngIf="act.paso==='cierre' && act.cierre as ci">
+              <button class="cap-area-chip" (click)="act.paso='trabajo'"><ico class="cap-atras" n="chev"></ico>Seguir revisando</button>
+              <div class="ac-titulo">No se encontraron en {{ actNombreArea | titlecase }}</div>
+              <p class="ac-nota">Los marcados se dan de baja al confirmar. Desmarca los que siguen buscando o que están en otra área.</p>
+              <div class="ac-motivos">
+                <button *ngFor="let m of actMotivos" [class.on]="ci.motivo===m" (click)="ci.motivo=m">{{ m }}</button>
+              </div>
+              <input class="ac-otro" *ngIf="ci.motivo==='Otro'" [(ngModel)]="ci.otro" placeholder="Escribe el motivo">
+              <div class="cal-list">
+                <button class="cr" *ngFor="let b of actPendientes; trackBy: trackBien" [class.ac-off]="!ci.ids[b.id_bien]" (click)="ci.ids[b.id_bien] = !ci.ids[b.id_bien]">
+                  <span class="ac-check" [class.on]="ci.ids[b.id_bien]"><ico *ngIf="ci.ids[b.id_bien]" n="check"></ico></span>
+                  <span class="ce-foto"><img *ngIf="b.foto_mini" [src]="b.foto_mini" alt="" loading="lazy"><img *ngIf="!b.foto_mini" class="bc-logo" src="logo-dozzer.png" alt=""></span>
+                  <span class="ce-main"><b>{{ (b.articulo | titlecase) || 'Bien sin nombre' }}</b><small>{{ b.clave }}<ng-container *ngIf="b.usuario_directo || b.responsable"> · {{ (b.usuario_directo || b.responsable) | titlecase }}</ng-container></small></span>
+                </button>
+              </div>
+              <div class="ac-pie">
+                <button class="btn-outline" (click)="actTerminarSinBajas()">Dejarlos pendientes</button>
+                <button class="btn-primary ac-btn-baja" [disabled]="!actMarcadosBaja" (click)="actConfirmarBajas()">Dar de baja {{ actMarcadosBaja | number }}</button>
+              </div>
+            </ng-container>
+
+            <!-- Ficha rápida de un bien -->
+            <div class="modal-backdrop cal-fondo" *ngIf="act.ficha as f">
+              <div class="modal-card cal-sheet ac-hoja">
+                <div class="modal-header">
+                  <div>
+                    <h2>{{ (f.b.articulo | titlecase) || 'Bien sin nombre' }}</h2>
+                    <p>{{ f.b.clave }}<ng-container *ngIf="f.b.etiqueta || f.etiqueta"> · {{ f.b.etiqueta || f.etiqueta }}</ng-container></p>
+                  </div>
+                  <button class="close-button" (click)="actCerrarFicha()">×</button>
+                </div>
+                <div class="form-section">
+                  <label class="ac-foto">
+                    <img *ngIf="f.fotoUrl || f.b.foto_url || f.b.foto_mini" [src]="f.fotoUrl || f.b.foto_url || f.b.foto_mini" alt="">
+                    <span *ngIf="!(f.fotoUrl || f.b.foto_url || f.b.foto_mini)" class="ac-foto-vacia"><ico n="camera"></ico><b>Tomar foto</b><small>Este bien todavía no tiene foto</small></span>
+                    <span class="ac-foto-btn" *ngIf="f.fotoUrl || f.b.foto_url || f.b.foto_mini"><ico n="camera"></ico>{{ f.fotoUrl ? 'Otra foto' : 'Cambiar foto' }}</span>
+                    <input type="file" accept="image/*" capture="environment" hidden (change)="actFoto($event, f)">
+                  </label>
+
+                  <div class="ac-aviso" *ngIf="f.b.id_ubicacion !== act.idUbicacion">
+                    <ico n="move"></ico><span>Registrado en <b>{{ textoLugar(f.b.ubicacion, f.b.sede) }}</b>. Al confirmar se mueve a <b>{{ actNombreArea | titlecase }}</b>.</span>
+                  </div>
+                  <div class="ac-aviso ac-aviso-etq" *ngIf="!f.b.etiqueta && !f.etiqueta">
+                    <ico n="qr"></ico><span>Sin etiqueta: pégale una en blanco y escanéala ahora.</span>
+                  </div>
+                  <div class="ac-aviso ac-aviso-ok" *ngIf="f.etiqueta"><ico n="check"></ico><span>Se le pondrá la etiqueta <b>{{ f.etiqueta }}</b>.</span></div>
+
+                  <div class="ac-campo">
+                    <span>Estado</span>
+                    <div class="ac-motivos">
+                      <button *ngFor="let e of ['BUENO','REGULAR','MALO']" [class.on]="f.estado===e" (click)="f.estado=e">{{ textoEstadoCorto(e) }}</button>
+                    </div>
+                  </div>
+                  <div class="ac-campo">
+                    <span>¿Quién lo usa?</span>
+                    <select [(ngModel)]="f.persona">
+                      <option [ngValue]="null">Nadie / sin asignar</option>
+                      <option *ngFor="let p of actPersonas(f.b.id_usuario_directo)" [ngValue]="p.id">{{ p.nombre | titlecase }}</option>
+                    </select>
+                  </div>
+
+                  <div class="ac-baja" *ngIf="f.baja">
+                    <span>¿Por qué se da de baja?</span>
+                    <div class="ac-motivos"><button *ngFor="let m of actMotivos" [class.on]="f.motivo===m" (click)="f.motivo=m">{{ m }}</button></div>
+                    <input class="ac-otro" *ngIf="f.motivo==='Otro'" [(ngModel)]="f.otro" placeholder="Escribe el motivo">
+                  </div>
+                </div>
+                <div class="ac-pie ac-pie-hoja">
+                  <ng-container *ngIf="!f.baja">
+                    <button class="btn-outline ac-btn-baja-o" (click)="f.baja=true">Dar de baja</button>
+                    <button class="btn-primary ac-btn-ok" (click)="actConfirmar(f)"><ico n="check"></ico>Está aquí</button>
+                  </ng-container>
+                  <ng-container *ngIf="f.baja">
+                    <button class="btn-outline" (click)="f.baja=false">Cancelar</button>
+                    <button class="btn-primary ac-btn-baja" (click)="actBajaFicha(f)">Dar de baja</button>
+                  </ng-container>
+                </div>
+              </div>
+            </div>
+
+            <!-- Etiqueta en blanco: ¿a qué bien se la pegaste? -->
+            <div class="modal-backdrop cal-fondo" *ngIf="act.libre as L">
+              <div class="modal-card cal-sheet ac-hoja">
+                <div class="modal-header">
+                  <div><h2>Etiqueta {{ L.codigo }}</h2><p>Está en blanco. ¿En qué bien la pegaste?</p></div>
+                  <button class="close-button" (click)="act.libre=null">×</button>
+                </div>
+                <div class="form-section">
+                  <button class="btn-primary ac-btn-full" (click)="actNuevo(L.codigo)"><ico n="plus"></ico>Es un bien nuevo</button>
+                  <div class="cal-buscar en-hoja ac-libre-buscar">
+                    <ico n="search"></ico>
+                    <input [(ngModel)]="L.q" placeholder="Buscar en toda la sede (nombre, clave, serie)">
+                  </div>
+                  <div class="cal-res">
+                    <button class="cr" *ngFor="let b of actSinEtiqueta(L.q); trackBy: trackBien" (click)="actLigarLibre(b)">
+                      <span class="ce-foto"><img *ngIf="b.foto_mini" [src]="b.foto_mini" alt="" loading="lazy"><img *ngIf="!b.foto_mini" class="bc-logo" src="logo-dozzer.png" alt=""></span>
+                      <span class="ce-main"><b>{{ (b.articulo | titlecase) || 'Bien sin nombre' }}</b><small>{{ b.clave }} · {{ (b.ubicacion || 'Sin área') | titlecase }}</small></span>
+                      <ico class="ce-chev" n="chevright"></ico>
+                    </button>
+                    <p class="cal-hint">{{ (L.q || '').trim() ? 'Bienes sin etiqueta de la sede que coinciden.' : 'Bienes sin etiqueta registrados en esta área.' }}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Alta exprés -->
+            <div class="modal-backdrop cal-fondo" *ngIf="act.nuevo as n">
+              <div class="modal-card cal-sheet ac-hoja">
+                <div class="modal-header">
+                  <div><h2>Bien nuevo</h2><p>{{ actNombreArea | titlecase }}<ng-container *ngIf="n.etiqueta"> · {{ n.etiqueta }}</ng-container> · la clave se pone sola</p></div>
+                  <button class="close-button" (click)="actCerrarNuevo()">×</button>
+                </div>
+                <div class="form-section">
+                  <label class="ac-foto">
+                    <img *ngIf="n.fotoUrl" [src]="n.fotoUrl" alt="">
+                    <span *ngIf="!n.fotoUrl" class="ac-foto-vacia"><ico n="camera"></ico><b>Tomar foto</b></span>
+                    <span class="ac-foto-btn" *ngIf="n.fotoUrl"><ico n="camera"></ico>Otra foto</span>
+                    <input type="file" accept="image/*" capture="environment" hidden (change)="actFoto($event, n)">
+                  </label>
+                  <div class="ac-aviso ac-aviso-etq" *ngIf="!n.etiqueta"><ico n="qr"></ico><span>Pégale una etiqueta en blanco y escanéala (o guárdalo sin etiqueta).</span></div>
+                  <div class="ac-campo">
+                    <span>¿Qué es? *</span>
+                    <input id="ac-nombre" [(ngModel)]="n.articulo" list="ac-nombres" placeholder="Ej. Silla, Laptop, Escritorio" maxlength="200">
+                    <datalist id="ac-nombres"><option *ngFor="let x of actNombres" [value]="x"></option></datalist>
+                  </div>
+                  <div class="ac-campo">
+                    <span>Estado</span>
+                    <div class="ac-motivos"><button *ngFor="let e of ['BUENO','REGULAR','MALO']" [class.on]="n.estado===e" (click)="n.estado=e">{{ textoEstadoCorto(e) }}</button></div>
+                  </div>
+                  <div class="ac-campo">
+                    <span>¿Quién lo usa?</span>
+                    <select [(ngModel)]="n.persona">
+                      <option [ngValue]="null">Nadie / sin asignar</option>
+                      <option *ngFor="let p of actPersonas(null)" [ngValue]="p.id">{{ p.nombre | titlecase }}</option>
+                    </select>
+                  </div>
+                  <button class="ac-mas-datos" (click)="n.mas=!n.mas">{{ n.mas ? '▴ Menos datos' : '▾ Marca, modelo, serie, clasificación' }}</button>
+                  <ng-container *ngIf="n.mas">
+                    <div class="ac-campo"><span>Clasificación</span>
+                      <select [(ngModel)]="n.idClasificacion"><option [ngValue]="null">—</option><option *ngFor="let c of catalogs.clasificaciones" [ngValue]="c.id_clasificacion">{{ c.nombre }}</option></select></div>
+                    <div class="ac-campo"><span>Marca</span>
+                      <select [(ngModel)]="n.idMarca"><option [ngValue]="null">—</option><option *ngFor="let m of catalogs.marcas" [ngValue]="m.id_marca">{{ m.nombre_marca }}</option></select></div>
+                    <div class="ac-campo"><span>Modelo</span><input [(ngModel)]="n.modelo" maxlength="150"></div>
+                    <div class="ac-campo"><span>Número de serie</span><input [(ngModel)]="n.numeroSerie" maxlength="150"></div>
+                    <div class="ac-campo"><span>Características</span><input [(ngModel)]="n.caracteristicas" maxlength="500"></div>
+                  </ng-container>
+                  <p class="ac-error" *ngIf="n.error">{{ n.error }}</p>
+                </div>
+                <div class="ac-pie ac-pie-hoja">
+                  <button class="btn-outline" (click)="actGuardarNuevo(true)">Guardar y otro igual</button>
+                  <button class="btn-primary ac-btn-ok" (click)="actGuardarNuevo(false)"><ico n="check"></ico>Guardar</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
         <!-- Fechas de un equipo (se abre desde Calibración o desde Bienes) -->
           <div class="modal-backdrop cal-fondo" *ngIf="calForm as f">
             <div class="modal-card cal-sheet">
@@ -4207,6 +4477,70 @@ export class ElegirComponent {
     .ce-chip.cm-vencida{background:#fdecee;color:#bd4b52}.ce-chip.cm-proxima{background:#fff4dc;color:#a8650f}.ce-chip.cm-ok{background:#e8f6ee;color:#21835a}
     .ce-chev{width:18px;height:18px;color:#9aa7b7;flex-shrink:0}
     .cal-hint{color:#7b889a;font-size:13.5px;margin:6px 2px;text-align:center}
+    .ac-sync{font-size:13px;font-weight:700;border-radius:999px;padding:7px 12px;background:#e8f6ee;color:#21835a;white-space:nowrap}
+    .ac-sync-pendiente{background:#fff4dc;color:#a8650f}.ac-sync-offline{background:#eef1f5;color:#41546b}.ac-sync-error{background:#fdecee;color:#bd4b52}
+    .ac-titulo{font-size:17px;font-weight:800;color:#14243a;margin:14px 2px 10px}
+    .ac-nota{color:#6b7a8d;font-size:14px;margin:-4px 2px 12px;line-height:1.45}
+    .ac-ico{color:#2d5d93;background:#eef4fb}.ac-ico ico{width:22px;height:22px}
+    .ac-ico-ok{color:#21835a;background:#e8f6ee}
+    .ac-lugar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+    .ac-rapido{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;color:#41546b;cursor:pointer;user-select:none}
+    .ac-stats .cs{cursor:default}
+    .ac-escanear{display:flex;gap:8px;margin-bottom:10px}
+    .ac-escanear button{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:52px;font-size:15.5px;font-weight:700;border-radius:14px}
+    .ac-escanear ico{width:20px;height:20px}
+    .ac-btn-cam{flex:1}
+    .ac-btn-nuevo{flex:0 0 auto;padding:0 16px}
+    .ac-video{position:relative;border-radius:16px;overflow:hidden;background:#000;margin-bottom:10px;aspect-ratio:4/3;max-height:46vh}
+    .ac-video[hidden]{display:none}
+    .ac-video video{width:100%;height:100%;object-fit:cover;display:block}
+    .ac-mira{position:absolute;left:50%;top:50%;width:56%;aspect-ratio:1;transform:translate(-50%,-50%);border:3px solid #ffffffcc;border-radius:18px;box-shadow:0 0 0 999px #0000003a;pointer-events:none}
+    .ac-video.ac-video-flot{position:fixed;z-index:400;top:max(10px,env(safe-area-inset-top));right:10px;width:118px;height:118px;aspect-ratio:auto;margin:0;border:3px solid #fff;box-shadow:0 8px 24px #15243b55}
+    .ac-video.ac-video-flot .ac-mira{display:none}
+    .ac-manual{display:flex;gap:8px;margin:6px 0 4px}
+    .ac-manual input{flex:1;height:44px;border:1.5px solid #e3e9f1;border-radius:12px;padding:0 12px;font-size:15px;min-width:0}
+    .ac-error{background:#fdecee;color:#9c3a40;border-radius:12px;padding:10px 12px;font-size:14px;margin:8px 0}
+    .ac-sub{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:18px 2px 8px;font-weight:800;color:#14243a;font-size:15px}
+    .ac-sub small{color:#7b889a;font-weight:700;margin-left:4px}
+    .ac-mas{align-self:center;margin-top:4px}
+    .ac-hecho{cursor:default;border-left-width:5px}
+    .ac-h-ok,.ac-h-movido{border-left-color:#3aa876}.ac-h-nuevo{border-left-color:#e2a03c}.ac-h-baja{border-left-color:#d4646b;opacity:.75}
+    .ac-motivos{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+    .ac-motivos button{border:1.5px solid #dce3ec;background:#fff;border-radius:999px;padding:9px 14px;font-family:inherit;font-size:14px;font-weight:600;color:#41546b;cursor:pointer}
+    .ac-motivos button.on{border-color:#244c78;background:#244c78;color:#fff}
+    .ac-otro{width:100%;height:44px;border:1.5px solid #e3e9f1;border-radius:12px;padding:0 12px;font-size:15px;margin-bottom:10px;box-sizing:border-box}
+    .ac-check{width:24px;height:24px;border-radius:7px;border:2px solid #c3ccd8;display:grid;place-items:center;flex-shrink:0;color:#fff}
+    .ac-check.on{background:#bd4b52;border-color:#bd4b52}.ac-check ico{width:16px;height:16px}
+    .cr.ac-off{opacity:.55}
+    .ac-pie{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;position:sticky;bottom:0;background:linear-gradient(transparent,#f4f6fa 30%);padding:12px 0 4px}
+    .ac-pie button{height:48px;display:inline-flex;align-items:center;gap:8px;font-weight:700;border-radius:12px;padding:0 18px}
+    .ac-pie-hoja{position:static;background:none;margin:0;padding:12px 24px 20px;border-top:1px solid #edf0f4}
+    .ac-pie-hoja button{flex:1;justify-content:center}
+    .ac-pie ico{width:18px;height:18px}
+    .ac-btn-baja{background:#bd4b52!important;border-color:#bd4b52!important;color:#fff}
+    .ac-btn-baja-o{color:#bd4b52!important}
+    .ac-btn-ok{background:#21835a!important;border-color:#21835a!important}
+    .ac-btn-full{width:100%;height:50px;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:700;border-radius:12px;margin-bottom:12px}
+    .ac-btn-full ico{width:18px;height:18px}
+    .ac-libre-buscar{margin-top:4px}
+    .ac-hoja .form-section{padding-top:16px}
+    .ac-foto{display:block;position:relative;border-radius:16px;overflow:hidden;background:#f1f4f8;margin-bottom:12px;cursor:pointer;aspect-ratio:4/3;max-height:34vh;width:100%}
+    .ac-foto img{width:100%;height:100%;object-fit:cover;display:block}
+    .ac-foto-vacia{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:#2d5d93;border:2px dashed #bcd0e6;border-radius:16px}
+    .ac-foto-vacia ico{width:34px;height:34px}.ac-foto-vacia b{font-size:16px}.ac-foto-vacia small{color:#7b889a;font-size:13px}
+    .ac-foto-btn{position:absolute;right:10px;bottom:10px;display:inline-flex;align-items:center;gap:6px;background:#14243acc;color:#fff;border-radius:999px;padding:7px 12px;font-size:13px;font-weight:700}
+    .ac-foto-btn ico{width:15px;height:15px}
+    .ac-aviso{display:flex;align-items:flex-start;gap:10px;background:#fff4dc;color:#7a4c0b;border-radius:12px;padding:10px 12px;font-size:14px;margin-bottom:10px;line-height:1.4}
+    .ac-aviso ico{width:18px;height:18px;flex-shrink:0;margin-top:1px}
+    .ac-aviso-etq{background:#eef4fb;color:#244c78}.ac-aviso-ok{background:#e8f6ee;color:#1d6b4a}
+    .ac-campo{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+    .ac-campo>span{font-size:13px;font-weight:700;color:#41546b}
+    .ac-campo input,.ac-campo select{height:46px;border:1.5px solid #e3e9f1;border-radius:12px;padding:0 12px;font-size:15px;background:#fff;width:100%;box-sizing:border-box}
+    .ac-campo .ac-motivos{margin-bottom:0}
+    .ac-mas-datos{background:none;border:0;color:#244c78;font-weight:700;font-size:14px;cursor:pointer;padding:4px 0 12px;font-family:inherit}
+    .ac-baja{border-top:1px solid #edf0f4;padding-top:12px;margin-top:4px}
+    .ac-baja>span{display:block;font-size:13px;font-weight:700;color:#9c3a40;margin-bottom:8px}
+    @media(max-width:600px){.ac .cal-head{flex-direction:column}.ac-stats{grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}.ac-stats .cs{padding:10px 8px}.ac-stats .cs b{font-size:20px}.ac-stats .cs small{font-size:11px}}
     .modal-backdrop.cal-fondo,.modal-backdrop.etq-sel-fondo{z-index:190}
     .cal-sheet{max-width:520px!important}
     .cal-res{max-height:52vh;overflow:auto;padding:2px}
@@ -7195,6 +7529,8 @@ export class AppComponent {
   logout(forzado = false): void {
     if (!forzado && this.cola.total && !confirm('Hay ' + this.cola.total + ' cambios guardados en este celular que aún no se suben. Si cierras sesión se subirán la próxima vez que entres con tu cuenta. ¿Cerrar sesión?')) return;
     this.quitarPushAlSalir();
+    this.actDetenerCamara(true);
+    this.act = this.actInicial();
     clearInterval(this.novedadesTimer); this.novedadesTimer = null; this.vigilando = ''; this.avisoApp = null;
     try { localStorage.removeItem('dozzer_ui_' + this.email); } catch { /* */ }
     this.uiGuardado = '';
@@ -7251,6 +7587,7 @@ export class AppComponent {
 
   irA(s: string): void {
     this.menuCollapsed = true;
+    if (this.section === 'actualizar' && s !== 'actualizar') this.actDetenerCamara(true);
     this.editing = false;
     if (s === 'inicio') { this.section = 'inicio'; return; }
     if (s === 'bienes') { this.section = 'bienes'; this.abrirVistaInv('bienes'); this.loadBienes(); return; }
@@ -7270,6 +7607,7 @@ export class AppComponent {
     if (s === 'requisiciones') this.loadRequisiciones();
     if (s === 'documentos') { this.docsVista = 'menu'; this.loadDocumentos(); }
     if (s === 'catalogos') this.loadCatalog();
+    if (s === 'actualizar') this.actEntrar();
   }
 
   get pushCambiable(): boolean {
@@ -8086,14 +8424,19 @@ export class AppComponent {
     });
   }
 
-  private ponerBienes(v: any[]): void {
-    this.bienes = v.map(b => ({
+  // Datos calculados de un bien (tipo y texto de búsqueda)
+  private prepararBien(b: any): any {
+    return {
       ...b,
       ...this.tipoDe(b.articulo),
       _busqueda: this.norm([b.clave, b.etiqueta, b.articulo, b.modelo, b.marca, b.numero_serie, b.responsable, b.usuario_directo,
                   b.ubicacion, b.sede, b.clasificacion, b.subcategoria, b.color, b.caracteristicas]
         .filter(x => x !== null && x !== undefined).join(' '))
-    }));
+    };
+  }
+
+  private ponerBienes(v: any[]): void {
+    this.bienes = v.map(b => this.prepararBien(b));
     this.calcularTipos();
     this.calcularResumenBienes();
     this.aplicarFiltrosBienes(false);
@@ -9756,6 +10099,562 @@ export class AppComponent {
     this.quitarFotoAlta();
     this.formMas = false;
     this.editing = true;
+  }
+
+  // =========================
+  // ACTUALIZAR INVENTARIO (solo administrador, sin formatos)
+  // El administrador se para en un área, escanea lo que hay, da de alta lo nuevo y de baja lo que falta.
+  // Todo se aplica al momento en la pantalla y se sube en segundo plano (o se guarda si no hay señal).
+  // =========================
+  @ViewChild('camAct') camAct?: ElementRef<HTMLVideoElement>;
+  act: any = this.actInicial();
+  actEnviando = 0;
+  private actCadena: Promise<any> = Promise.resolve();
+  private actStream: MediaStream | null = null;
+  private actTimer: any = null;
+  private actUltima = { txt: '', t: 0 };
+  private actCache: { [k: string]: { deps: any[]; v: any } } = {};
+  readonly actMotivos = ['No localizado', 'Dañado / inservible', 'Obsoleto', 'Otro'];
+
+  actInicial(): any {
+    return { cargado: false, paso: 'sede', idSede: null, idUbicacion: null, q: '', rapido: false, manual: '', error: '',
+             escaneando: false, seguirCamara: false, verMas: 50, ficha: null, libre: null, nuevo: null, cierre: null, log: [], ver: 0 };
+  }
+
+  private actLlave(): string { return 'dozzer_act_' + this.email; }
+
+  actGuardarEstado(): void {
+    const a = this.act;
+    try {
+      localStorage.setItem(this.actLlave(), JSON.stringify({
+        idSede: a.idSede, idUbicacion: a.idUbicacion, rapido: a.rapido,
+        log: a.log.slice(0, 3000).map((x: any) => ({ ...x, foto: String(x.foto || '').startsWith('blob:') ? '' : x.foto }))
+      }));
+    } catch { /* sin espacio: se pierde solo el historial de la sesión */ }
+  }
+
+  actEntrar(): void {
+    if (!this.bienes.length && !this.bienesCargando) this.loadBienes();
+    ['sedes', 'ubicaciones', 'personas', 'clasificaciones', 'marcas'].forEach(k => { if (!(this.catalogs[k] || []).length) this.loadCatalog(k); });
+    const a = this.act;
+    if (a.cargado) return;
+    a.cargado = true;
+    try {
+      const g = JSON.parse(localStorage.getItem(this.actLlave()) || 'null');
+      if (g) {
+        a.idSede = g.idSede ?? null; a.idUbicacion = g.idUbicacion ?? null; a.rapido = !!g.rapido;
+        a.log = Array.isArray(g.log) ? g.log : [];
+      }
+    } catch { /* estado dañado: se empieza de cero */ }
+    a.paso = a.idSede && a.idUbicacion ? 'trabajo' : a.idSede ? 'area' : 'sede';
+  }
+
+  // Cálculo que solo se repite cuando cambia algo de lo que depende (la lista de bienes puede ser grande)
+  private actMemo<T>(k: string, deps: any[], fn: () => T): T {
+    const c = this.actCache[k];
+    if (c && c.deps.length === deps.length && c.deps.every((d, i) => d === deps[i])) return c.v;
+    const v = fn();
+    this.actCache[k] = { deps, v };
+    return v;
+  }
+
+  get actSedes(): { id: number; nombre: string; total: number }[] {
+    return this.actMemo('sedes', [this.bienes, this.catalogs.sedes, this.act.ver], () => {
+      const cuenta = new Map<any, number>();
+      for (const b of this.bienes) if (b.id_sede != null) cuenta.set(b.id_sede, (cuenta.get(b.id_sede) || 0) + 1);
+      return (this.catalogs.sedes || []).filter((s: any) => s.estatus !== false)
+        .map((s: any) => ({ id: s.id_sede, nombre: s.nombre_sede || '', total: cuenta.get(s.id_sede) || 0 }))
+        .sort((x: any, y: any) => x.nombre.localeCompare(y.nombre, 'es'));
+    });
+  }
+
+  // Ids revisados en cada área durante la actualización
+  private get actRevisados(): Map<any, Set<any>> {
+    return this.actMemo('rev', [this.act.ver, this.act.log], () => {
+      const m = new Map<any, Set<any>>();
+      for (const h of this.act.log) {
+        if (!m.has(h.idUbicacion)) m.set(h.idUbicacion, new Set());
+        m.get(h.idUbicacion)!.add(h.id);
+      }
+      return m;
+    });
+  }
+
+  get actAreas(): { id: number; nombre: string; total: number; hechos: number }[] {
+    const a = this.act;
+    return this.actMemo('areas', [this.bienes, this.catalogs.ubicaciones, a.idSede, a.q, a.ver], () => {
+      const cuenta = new Map<any, number>(), hechos = new Map<any, number>();
+      const rev = this.actRevisados;
+      for (const b of this.bienes) {
+        if (b.id_ubicacion == null) continue;
+        cuenta.set(b.id_ubicacion, (cuenta.get(b.id_ubicacion) || 0) + 1);
+        if (rev.get(b.id_ubicacion)?.has(b.id_bien)) hechos.set(b.id_ubicacion, (hechos.get(b.id_ubicacion) || 0) + 1);
+      }
+      const q = this.norm(a.q || '');
+      return (this.catalogs.ubicaciones || [])
+        .filter((u: any) => u.id_sede === a.idSede && u.estatus !== false && (!q || this.norm(u.nombre_area).includes(q)))
+        .map((u: any) => ({ id: u.id_ubicacion, nombre: u.nombre_area || '', total: cuenta.get(u.id_ubicacion) || 0, hechos: hechos.get(u.id_ubicacion) || 0 }))
+        .sort((x: any, y: any) => x.nombre.localeCompare(y.nombre, 'es', { numeric: true }));
+    });
+  }
+
+  get actNombreSede(): string {
+    return (this.catalogs.sedes || []).find((s: any) => s.id_sede === this.act.idSede)?.nombre_sede || 'Sede';
+  }
+
+  get actNombreArea(): string {
+    return (this.catalogs.ubicaciones || []).find((u: any) => u.id_ubicacion === this.act.idUbicacion)?.nombre_area || 'Área';
+  }
+
+  // Bienes registrados en el área que todavía no se revisan (por nombre, para encontrarlos fácil)
+  get actPendientes(): any[] {
+    const a = this.act;
+    return this.actMemo('pend', [this.bienes, a.idUbicacion, a.ver], () => {
+      const rev = this.actRevisados.get(a.idUbicacion) || new Set();
+      return this.bienes.filter(b => b.id_ubicacion === a.idUbicacion && !rev.has(b.id_bien))
+        .sort((x, y) => String(x.articulo || '').localeCompare(String(y.articulo || ''), 'es')
+          || String(x.clave || '').localeCompare(String(y.clave || ''), 'es', { numeric: true }));
+    });
+  }
+
+  get actHechos(): any[] {
+    const a = this.act;
+    return this.actMemo('hechos', [a.idUbicacion, a.ver, a.log], () => a.log.filter((h: any) => h.idUbicacion === a.idUbicacion));
+  }
+
+  actCuenta(tipo: string): number {
+    return this.actHechos.filter(h => h.tipo === tipo).length;
+  }
+
+  actTextoTipo(t: string): string {
+    return ({ ok: '✓ Confirmado', movido: '↔ Se movió a esta área', nuevo: '＋ Alta nueva', baja: '✗ Dado de baja' } as any)[t] || t;
+  }
+
+  // Personas de la sede (y la que ya tiene el bien, aunque sea de otra)
+  actPersonas(actual: any): { id: any; nombre: string }[] {
+    return this.actMemo('per-' + actual, [this.catalogs.personas, this.act.idSede], () => {
+      const lista = (this.catalogs.personas || [])
+        .filter((p: any) => p.estatus !== false && (p.id_sede === this.act.idSede || p.id_persona === actual))
+        .map((p: any) => ({ id: p.id_persona, nombre: p.nombre_completo || '' }))
+        .sort((x: any, y: any) => x.nombre.localeCompare(y.nombre, 'es'));
+      return lista;
+    });
+  }
+
+  // Nombres que ya existen, para escribir rápido y parejo
+  get actNombres(): string[] {
+    return this.actMemo('nombres', [this.bienes], () => {
+      const c = new Map<string, number>();
+      for (const b of this.bienes) {
+        const n = String(b.articulo || '').trim();
+        if (n) { const t = this.titulo(n); c.set(t, (c.get(t) || 0) + 1); }
+      }
+      return Array.from(c.entries()).sort((x, y) => y[1] - x[1]).slice(0, 300).map(x => x[0]);
+    });
+  }
+
+  // Bienes sin etiqueta: los del área (o los de la sede que coinciden con la búsqueda)
+  actSinEtiqueta(q: string): any[] {
+    const a = this.act;
+    return this.actMemo('sinetq', [this.bienes, a.idUbicacion, a.idSede, q, a.ver], () => {
+      const t = this.norm(q || '');
+      if (!t) return this.actPendientes.filter(b => !b.etiqueta && b.id_bien > 0);
+      const palabras = t.split(/\s+/).filter(Boolean);
+      return this.bienes.filter(b => b.id_sede === a.idSede && !b.etiqueta && b.id_bien > 0 && palabras.every(p => b._busqueda.includes(p))).slice(0, 40);
+    });
+  }
+
+  actElegirSede(id: any): void {
+    const a = this.act;
+    a.idSede = id; a.q = ''; a.paso = 'area'; a.error = '';
+    this.actGuardarEstado();
+  }
+
+  actElegirArea(id: any): void {
+    const a = this.act;
+    a.idUbicacion = id; a.paso = 'trabajo'; a.verMas = 50; a.error = ''; a.manual = '';
+    this.actGuardarEstado();
+  }
+
+  actCambiarArea(): void {
+    this.actDetenerCamara(true);
+    const a = this.act;
+    a.paso = 'area'; a.q = ''; a.ficha = null; a.nuevo = null; a.libre = null;
+  }
+
+  // ----- Lectura (pistola, cámara o escrito) -----
+
+  actBuscarManual(): void {
+    const t = String(this.act.manual || '').trim();
+    if (!t) return;
+    this.act.manual = '';
+    this.actUltima = { txt: '', t: 0 };
+    this.actLeer(t);
+  }
+
+  actLeer(txt: string): void {
+    const ahora = Date.now(), U = this.actUltima;
+    if (txt === U.txt && ahora - U.t < 2500) return;   // la cámara lee el mismo QR varias veces seguidas
+    U.txt = txt; U.t = ahora;
+    const a = this.act;
+    if (a.paso !== 'trabajo') {
+      if (a.paso !== 'cierre') this.notificar('info', 'Primero elige el área', 'Toca la sede y el área donde estás.', 2500);
+      return;
+    }
+    const cod = this.codigoDeTexto(txt);
+    const n = a.nuevo, f = a.ficha;
+    if (n) {
+      if (cod && !n.etiqueta) { this.avisarEscaneo(txt); this.actValidarLibre(cod, () => n.etiqueta = cod); }
+      return;
+    }
+    if (f) {
+      if (cod && (cod === f.b.etiqueta || cod === f.etiqueta)) return;
+      if (cod && !f.b.etiqueta && !f.etiqueta) { this.avisarEscaneo(txt); this.actValidarLibre(cod, () => f.etiqueta = cod); return; }
+      if (f.baja) { this.notificar('info', 'Termina la baja', 'Confirma o cancela la baja de este bien antes de escanear otro.', 2500); return; }
+      // Escanear el siguiente bien confirma el que estaba abierto
+      this.avisarEscaneo(txt);
+      this.actConfirmar(f, true);
+      this.actProcesar(txt, cod);
+      return;
+    }
+    if (a.libre) { if (cod === a.libre.codigo) return; a.libre = null; }
+    this.avisarEscaneo(txt);
+    this.actProcesar(txt, cod);
+  }
+
+  private actProcesar(txt: string, cod: string): void {
+    const a = this.act;
+    a.error = '';
+    if (cod) {
+      const b = this.bienes.find(x => x.etiqueta === cod);
+      if (b) { this.actAbrir(b); return; }
+      this.http.get<any>(this.api + '/etiquetas/' + encodeURIComponent(cod)).subscribe({
+        next: r => {
+          if (r?.estado === 'LIBRE') { a.libre = { codigo: cod, q: '' }; return; }
+          if (r?.estado === 'NO_EXISTE') { a.error = 'La etiqueta ' + cod + ' no existe en DOZZER. Imprímela desde Inventario › Etiquetas.'; return; }
+          if (r?.estado === 'ANULADA') { a.error = 'La etiqueta ' + cod + ' está anulada; usa otra.'; return; }
+          const enLista = r?.idBien != null ? this.bienes.find(x => x.id_bien === r.idBien) : null;
+          if (enLista) { enLista.etiqueta = cod; this.actAbrir(enLista); return; }
+          a.error = 'La etiqueta ' + cod + ' es de ' + (r?.clave ? r.clave + ' ' + (r.articulo || '') : 'un bien dado de baja') + '.';
+        },
+        // Sin señal: se supone que es una etiqueta en blanco (se valida al subir)
+        error: e => { if (e?.status === 0) a.libre = { codigo: cod, q: '' }; else a.error = this.mensajeError(e, 'No se pudo consultar la etiqueta.'); }
+      });
+      return;
+    }
+    const clave = String(txt || '').trim().toUpperCase();
+    const b = this.bienes.find(x => String(x.clave || '').toUpperCase() === clave);
+    if (b) this.actAbrir(b);
+    else a.error = 'Ningún bien tiene la etiqueta o clave "' + String(txt).slice(0, 40) + '".';
+  }
+
+  // Etiqueta que se quiere pegar: debe estar en blanco
+  private actValidarLibre(cod: string, ok: () => void): void {
+    const otro = this.bienes.find(x => x.etiqueta === cod);
+    if (otro) { this.notificar('info', 'Esa etiqueta ya se usó', cod + ' está pegada en ' + (otro.clave || 'otro bien') + '. Usa otra.', 3500); return; }
+    this.http.get<any>(this.api + '/etiquetas/' + encodeURIComponent(cod)).subscribe({
+      next: r => {
+        if (r?.estado === 'LIBRE') { ok(); return; }
+        this.notificar('info', 'Esa etiqueta no está en blanco', r?.estado === 'NO_EXISTE' ? cod + ' no existe en DOZZER.'
+          : r?.estado === 'ANULADA' ? cod + ' está anulada.' : cod + ' ya está pegada en ' + (r?.clave || 'otro bien') + '.', 3500);
+      },
+      error: e => { if (e?.status === 0) ok(); else this.notificar('error', 'No se pudo revisar la etiqueta', this.mensajeError(e, 'Inténtalo de nuevo.'), 3500); }
+    });
+  }
+
+  private actFichaDe(b: any): any {
+    const e = String(b.estado_fisico || '').toUpperCase();
+    return { b, estado: ['BUENO', 'REGULAR', 'MALO'].includes(e) ? e : 'BUENO', persona: b.id_usuario_directo ?? null,
+             personaOriginal: b.id_usuario_directo ?? null, etiqueta: '', foto: null, fotoUrl: '', baja: false, motivo: 'No localizado', otro: '' };
+  }
+
+  actAbrir(b: any, desdeLista = false): void {
+    if (b.id_bien < 0) { this.notificar('info', 'Se está guardando', 'Este bien nuevo todavía se está subiendo. Espera un momento.', 2500); return; }
+    const a = this.act;
+    a.error = ''; a.libre = null;
+    // Modo rápido: si ya tiene foto y etiqueta, se confirma solo
+    if (a.rapido && !desdeLista && b.foto_mini && b.etiqueta) { this.actConfirmar(this.actFichaDe(b), true); return; }
+    a.ficha = this.actFichaDe(b);
+  }
+
+  actCerrarFicha(): void {
+    this.act.ficha = null;
+  }
+
+  // Etiqueta en blanco pegada en un bien que ya existía
+  actLigarLibre(b: any): void {
+    const cod = this.act.libre?.codigo;
+    this.act.libre = null;
+    const f = this.actFichaDe(b);
+    f.etiqueta = cod || '';
+    this.act.ficha = f;
+  }
+
+  async actFoto(ev: Event, obj: any): Promise<void> {
+    const input = ev.target as HTMLInputElement;
+    const archivo = input.files?.[0];
+    input.value = '';
+    if (!archivo || !obj) return;
+    try {
+      obj.foto = await this.comprimirFoto(archivo);
+      obj.fotoUrl = URL.createObjectURL(obj.foto);
+    } catch {
+      this.notificar('error', 'No se pudo usar la foto', 'Inténtalo de nuevo.', 3000);
+    }
+  }
+
+  private actRegistrar(b: any, tipo: string): any {
+    const a = this.act;
+    a.log = a.log.filter((h: any) => !(h.id === b.id_bien && h.idUbicacion === a.idUbicacion));
+    const h = { id: b.id_bien, tipo, articulo: b.articulo || '', clave: b.clave || '', foto: b.foto_mini || '', idUbicacion: a.idUbicacion, t: Date.now() };
+    a.log = [h, ...a.log].slice(0, 3000);
+    a.ver++;
+    this.actGuardarEstado();
+    return h;
+  }
+
+  private actNombrePersona(id: any): string | null {
+    if (id == null) return null;
+    return (this.catalogs.personas || []).find((p: any) => p.id_persona === id)?.nombre_completo || null;
+  }
+
+  // "Está aquí": se mueve al área si estaba en otra y se guardan estado, persona, etiqueta y foto
+  actConfirmar(f: any, avisar = false): void {
+    const a = this.act, b = f.b;
+    const movido = b.id_ubicacion !== a.idUbicacion;
+    const body: any = { idBien: b.id_bien, idUbicacion: a.idUbicacion, estadoFisico: f.estado };
+    if (f.persona !== f.personaOriginal) body.idUsuarioDirecto = f.persona;
+    if (f.etiqueta) body.etiqueta = f.etiqueta;
+
+    b.id_ubicacion = a.idUbicacion; b.ubicacion = this.actNombreArea;
+    b.id_sede = a.idSede; b.sede = this.actNombreSede;
+    b.estado_fisico = f.estado;
+    if ('idUsuarioDirecto' in body) {
+      b.id_usuario_directo = f.persona; b.usuario_directo = this.actNombrePersona(f.persona);
+      b.estatus_asignacion = f.persona != null || b.id_responsable_area != null ? 'ASIGNADO' : 'SIN_ASIGNAR';
+    }
+    if (f.etiqueta) b.etiqueta = f.etiqueta;
+    const desc = ((b.clave || '') + ' ' + (b.articulo || '')).trim();
+    this.actEnviar({ url: '/actualizacion/confirmar', body, descripcion: 'Actualizar ' + desc });
+    if (f.foto) {
+      b.foto_mini = f.fotoUrl; b.foto_url = f.fotoUrl; b.tiene_foto = true;
+    }
+    const h = this.actRegistrar(b, movido ? 'movido' : 'ok');
+    if (f.foto) {
+      this.actEnviar({ url: '/bienes/' + b.id_bien + '/foto', campos: {}, foto: f.foto, descripcion: 'Foto de ' + desc })
+        .then(r => { if (r?.foto_mini) { b.foto_mini = r.foto_mini; b.foto_url = r.foto_url; h.foto = r.foto_mini; this.actGuardarEstado(); } })
+        .catch(() => { /* ya se avisó */ });
+    }
+    if (a.ficha === f) a.ficha = null;
+    if (avisar) this.notificar('exito', movido ? 'Movido a esta área' : 'Confirmado', desc, 1500);
+  }
+
+  actBajaFicha(f: any): void {
+    const motivo = f.motivo === 'Otro' ? String(f.otro || '').trim() : f.motivo;
+    if (!motivo) { this.notificar('info', 'Falta el motivo', 'Escribe por qué se da de baja.', 2500); return; }
+    this.actBaja([f.b], motivo);
+    this.act.ficha = null;
+    this.notificar('baja', 'Dado de baja', ((f.b.clave || '') + ' ' + (f.b.articulo || '')).trim(), 2000);
+  }
+
+  private actBaja(lista: any[], motivo: string): void {
+    const ids = new Set(lista.map(b => b.id_bien));
+    for (const b of lista) {
+      this.actRegistrar(b, 'baja');
+      this.actEnviar({ url: '/actualizacion/baja', body: { idBien: b.id_bien, motivo }, descripcion: 'Baja de ' + ((b.clave || '') + ' ' + (b.articulo || '')).trim() })
+        .catch(() => { /* ya se avisó */ });
+    }
+    this.bienes = this.bienes.filter(b => !ids.has(b.id_bien));
+    this.act.ver++;
+  }
+
+  // ----- Terminar área -----
+
+  actAbrirCierre(): void {
+    this.actDetenerCamara(true);
+    const ids: any = {};
+    for (const b of this.actPendientes) ids[b.id_bien] = true;
+    this.act.cierre = { ids, motivo: 'No localizado', otro: '' };
+    this.act.paso = 'cierre';
+  }
+
+  get actMarcadosBaja(): number {
+    const ci = this.act.cierre;
+    return ci ? this.actPendientes.filter(b => ci.ids[b.id_bien]).length : 0;
+  }
+
+  actConfirmarBajas(): void {
+    const ci = this.act.cierre;
+    if (!ci) return;
+    const motivo = ci.motivo === 'Otro' ? String(ci.otro || '').trim() : ci.motivo;
+    if (!motivo) { this.notificar('info', 'Falta el motivo', 'Escribe por qué se dan de baja.', 2500); return; }
+    const lista = this.actPendientes.filter(b => ci.ids[b.id_bien]);
+    if (!lista.length) return;
+    this.abrirDialogo({
+      tipo: 'peligro', icono: '✗',
+      titulo: '¿Dar de baja ' + lista.length + (lista.length === 1 ? ' bien?' : ' bienes?'),
+      mensaje: 'Se quitan del inventario ahora mismo. No se genera formato; el motivo ("' + motivo + '") queda en el historial de cada bien.',
+      textoConfirmar: 'Dar de baja', textoCancelar: 'Revisar otra vez',
+      accion: terminar => { this.actBaja(lista, motivo); terminar(); this.actFinArea(); }
+    });
+  }
+
+  actTerminarSinBajas(): void {
+    this.actFinArea();
+  }
+
+  private actFinArea(): void {
+    const a = this.act;
+    const n = (t: string) => this.actCuenta(t);
+    this.notificar('exito', 'Área terminada: ' + this.titulo(this.actNombreArea),
+      (n('ok') + n('movido')) + ' confirmados · ' + n('nuevo') + ' nuevos · ' + n('baja') + ' bajas', 4000);
+    a.cierre = null;
+    a.paso = 'area';
+    a.q = '';
+  }
+
+  // ----- Alta exprés -----
+
+  actNuevo(cod: string): void {
+    const a = this.act;
+    a.libre = null; a.ficha = null;
+    a.nuevo = { etiqueta: cod || '', articulo: '', estado: 'BUENO', persona: null, foto: null, fotoUrl: '', mas: false,
+                idClasificacion: null, idMarca: null, modelo: '', numeroSerie: '', caracteristicas: '', error: '' };
+    if (this.hayLectorPosible) setTimeout(() => (document.getElementById('ac-nombre') as HTMLInputElement | null)?.focus(), 80);
+  }
+
+  actCerrarNuevo(): void {
+    this.act.nuevo = null;
+  }
+
+  actGuardarNuevo(otroIgual: boolean): void {
+    const a = this.act, n = a.nuevo;
+    if (!n) return;
+    const nombre = String(n.articulo || '').trim();
+    if (!nombre) { n.error = 'Escribe qué es el bien.'; return; }
+    const campos: any = { articulo: nombre, idUbicacion: a.idUbicacion, estadoFisico: n.estado };
+    if (n.persona != null) campos.idUsuarioDirecto = n.persona;
+    if (n.etiqueta) campos.etiqueta = n.etiqueta;
+    if (n.idClasificacion != null) campos.idClasificacion = n.idClasificacion;
+    if (n.idMarca != null) campos.idMarca = n.idMarca;
+    for (const k of ['modelo', 'numeroSerie', 'caracteristicas']) { const v = String(n[k] || '').trim(); if (v) campos[k] = v; }
+
+    const temp = this.prepararBien({
+      id_bien: -Date.now(), clave: '', articulo: nombre, etiqueta: n.etiqueta || null, activo: true,
+      id_ubicacion: a.idUbicacion, ubicacion: this.actNombreArea, id_sede: a.idSede, sede: this.actNombreSede,
+      estado_fisico: n.estado, id_usuario_directo: n.persona, usuario_directo: this.actNombrePersona(n.persona),
+      estatus_asignacion: n.persona != null ? 'ASIGNADO' : 'SIN_ASIGNAR',
+      foto_mini: n.fotoUrl || null, foto_url: n.fotoUrl || null, tiene_foto: !!n.foto,
+      modelo: campos.modelo || null, numero_serie: campos.numeroSerie || null, caracteristicas: campos.caracteristicas || null
+    });
+    this.bienes = [temp, ...this.bienes];
+    const h = this.actRegistrar(temp, 'nuevo');
+    this.actEnviar({ url: '/actualizacion/alta', campos, foto: n.foto || undefined, descripcion: 'Alta de ' + nombre })
+      .then(r => {
+        if (!r) return;   // se guardó en el celular: se sube después
+        Object.assign(temp, this.prepararBien(r));
+        h.id = r.id_bien; h.clave = r.clave || ''; if (r.foto_mini) h.foto = r.foto_mini;
+        a.ver++;
+        this.actGuardarEstado();
+      })
+      .catch(() => {
+        this.bienes = this.bienes.filter(x => x !== temp);
+        a.log = a.log.filter((x: any) => x !== h);
+        a.ver++;
+        this.actGuardarEstado();
+      });
+
+    this.notificar('exito', 'Bien guardado', nombre + (n.etiqueta ? ' · ' + n.etiqueta : ''), 1500);
+    if (otroIgual) {
+      a.nuevo = { ...n, etiqueta: '', foto: null, fotoUrl: '', numeroSerie: '', error: '' };
+    } else {
+      a.nuevo = null;
+    }
+  }
+
+  // ----- Envío en segundo plano, en orden. Sin señal se guarda en el celular y se sube solo después -----
+
+  private actEnviar(op: any): Promise<any> {
+    this.actEnviando++;
+    const p = this.actCadena.then(async () => {
+      if (!navigator.onLine || (this.cola.total - this.cola.errores) > 0) {
+        await this.encolar(op);
+        if (navigator.onLine) this.procesarCola();
+        return null;
+      }
+      try {
+        return await this.ejecutarOp(op);
+      } catch (e: any) {
+        if (e?.status === 0) { await this.encolar(op); return null; }
+        this.notificar('error', 'No se guardó un cambio', (op.descripcion ? op.descripcion + ': ' : '') + this.mensajeError(e, 'Rechazado por el servidor.'), 0);
+        throw e;
+      }
+    }).finally(() => this.actEnviando--);
+    this.actCadena = p.catch(() => null);
+    return p;
+  }
+
+  // ----- Cámara: se queda abierta mientras recorres el área -----
+
+  async actIniciarCamara(): Promise<void> {
+    const a = this.act;
+    a.error = '';
+    if (this.actStream) return;
+    try {
+      this.actStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false
+      });
+    } catch (e: any) {
+      a.error = e?.name === 'NotAllowedError'
+        ? 'DOZZER no tiene permiso para usar la cámara. Actívalo en los ajustes del celular o escribe el código.'
+        : 'No se pudo abrir la cámara. Escribe el código o usa la pistola lectora.';
+      return;
+    }
+    a.escaneando = true;
+    a.seguirCamara = true;
+    let video: HTMLVideoElement | undefined;
+    for (let i = 0; i < 30 && !video; i++) {
+      await new Promise(r => setTimeout(r, 50));
+      video = this.camAct?.nativeElement;
+    }
+    if (!video || !this.actStream) { this.actDetenerCamara(true); a.error = 'No se pudo mostrar la cámara.'; return; }
+    video.muted = true;
+    video.setAttribute('muted', '');
+    video.setAttribute('playsinline', '');
+    video.setAttribute('autoplay', '');
+    video.srcObject = this.actStream;
+    try { await video.play(); } catch { /* algunos iPhone arrancan con el autoplay */ }
+    const inicio = Date.now();
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true } as any) as CanvasRenderingContext2D;
+    const v = video;
+    const leer = () => {
+      if (!this.actStream || !a.escaneando || this.act !== a) return;
+      if (v.readyState >= v.HAVE_CURRENT_DATA && v.videoWidth) {
+        const escala = Math.min(1, 640 / v.videoWidth);
+        canvas.width = Math.round(v.videoWidth * escala);
+        canvas.height = Math.round(v.videoHeight * escala);
+        ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
+        const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const qr = jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' });
+        if (qr?.data) this.actLeer(qr.data);
+      } else if (Date.now() - inicio > 6000) {
+        this.actDetenerCamara(true);
+        a.error = 'La cámara no respondió. Ciérrala y vuelve a intentar, o escribe el código.';
+        return;
+      } else if (v.paused) {
+        v.play().catch(() => {});
+      }
+      this.actTimer = setTimeout(leer, 200);
+    };
+    leer();
+  }
+
+  actDetenerCamara(manual = false): void {
+    clearTimeout(this.actTimer);
+    if (this.actStream) this.actStream.getTracks().forEach(t => t.stop());
+    this.actStream = null;
+    if (this.act) { this.act.escaneando = false; if (manual) this.act.seguirCamara = false; }
   }
 
   // ----- Seccion Calibración y mantenimiento -----
@@ -11511,6 +12410,8 @@ export class AppComponent {
   }
 
   private lecturaPistola(txt: string): void {
+    // Actualizar inventario: la lectura se interpreta según lo que esté abierto
+    if (this.section === 'actualizar' && this.isAdmin) { this.actLeer(txt); return; }
     // Bien nuevo en el inventario: la etiqueta en blanco
     if (this.capNuevo && !this.capNuevo.etiqueta) { this.avisarEscaneo(txt); this.usarEtiquetaNuevo(txt); return; }
     // Asignar etiqueta desde la ficha del bien
