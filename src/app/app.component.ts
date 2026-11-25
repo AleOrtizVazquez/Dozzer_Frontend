@@ -3431,267 +3431,223 @@ export class ElegirComponent {
             </div>
 
           </section>
-        <!-- ACTUALIZAR: el administrador coteja área por área (sin formatos) -->
-          <section *ngIf="section==='actualizar' && isAdmin" class="ac">
-            <div class="cal-head">
-              <div>
-                <h1>Actualizar inventario</h1>
-                <p>Párate en un área, escanea lo que hay y da de alta o de baja ahí mismo. No se generan formatos.</p>
-              </div>
-              <div class="ac-sync" [ngClass]="'ac-sync-' + estadoSync">
-                <ng-container [ngSwitch]="estadoSync">
-                  <span *ngSwitchCase="'ok'">{{ actEnviando ? '⏳ Guardando ' + actEnviando + '…' : '☁ Todo guardado' }}</span>
-                  <span *ngSwitchCase="'pendiente'">⏳ {{ cola.total }} por subir</span>
-                  <span *ngSwitchCase="'offline'">📴 Sin señal · {{ cola.total }} por subir</span>
-                  <span *ngSwitchCase="'error'">⚠ {{ cola.errores }} con problema</span>
-                </ng-container>
-              </div>
+        <!-- ACTUALIZAR: el administrador coteja área por área (sin formatos). Pocas decisiones a la vista; lo demás lo resuelve el sistema -->
+          <section *ngIf="section==='actualizar' && isAdmin" class="ax">
+
+            <div class="ax-top">
+              <button class="ax-volver" *ngIf="act.paso!=='sede'" (click)="actAtras()"><ico n="chev"></ico><span>{{ act.paso==='area' ? 'Sedes' : act.paso==='cierre' ? 'Seguir revisando' : (actNombreSede | titlecase) }}</span></button>
+              <span class="ax-sync" [ngClass]="'ax-sync-' + actSync.k" [title]="actSync.t"><i></i>{{ actSync.t }}</span>
             </div>
 
             <div class="cal-cargando" *ngIf="bienesCargando && !bienes.length"><div class="loader-ring"></div></div>
 
             <!-- 1. Sede -->
             <ng-container *ngIf="act.paso==='sede' && bienes.length">
-              <div class="ac-titulo">¿En qué sede estás?</div>
-              <div class="cal-list">
-                <button class="cr" *ngFor="let s of actSedes" (click)="actElegirSede(s.id)">
-                  <span class="ce-foto ac-ico"><ico n="building"></ico></span>
-                  <span class="ce-main"><b>{{ s.nombre | titlecase }}</b><small>{{ s.total | number }} bienes</small></span>
-                  <ico class="ce-chev" n="chevright"></ico>
+              <h1 class="ax-h1">¿En qué sede estás?</h1>
+              <div class="ax-lista">
+                <button class="ax-op" *ngFor="let s of actSedes" (click)="actElegirSede(s.id)">
+                  <span class="ax-op-ico"><ico n="building"></ico></span>
+                  <span class="ax-op-txt"><b>{{ s.nombre | titlecase }}</b><small>{{ s.total | number }} bienes</small></span>
+                  <ico class="ax-op-chev" n="chevright"></ico>
                 </button>
               </div>
             </ng-container>
 
             <!-- 2. Área -->
             <ng-container *ngIf="act.paso==='area'">
-              <button class="cap-area-chip" (click)="act.paso='sede'"><ico class="cap-atras" n="chev"></ico>{{ actNombreSede | titlecase }}</button>
-              <div class="ac-titulo">¿En qué área estás?</div>
-              <div class="cal-buscar">
+              <h1 class="ax-h1">¿En qué área estás?</h1>
+              <div class="ax-buscar" *ngIf="actAreasTodas > 8">
                 <ico n="search"></ico>
-                <input [(ngModel)]="act.q" placeholder="Buscar área (oficina, almacén…)">
+                <input [(ngModel)]="act.q" placeholder="Buscar área">
               </div>
-              <div class="cal-list">
-                <button class="cr" *ngFor="let a of actAreas" (click)="actElegirArea(a.id)">
-                  <span class="ce-foto ac-ico" [class.ac-ico-ok]="a.total && a.hechos >= a.total"><ico [n]="a.total && a.hechos >= a.total ? 'check' : 'pin'"></ico></span>
-                  <span class="ce-main"><b>{{ a.nombre | titlecase }}</b>
-                    <small>{{ a.total | number }} registrados<ng-container *ngIf="a.hechos"> · {{ a.hechos | number }} revisados</ng-container></small></span>
-                  <ico class="ce-chev" n="chevright"></ico>
+              <div class="ax-lista">
+                <button class="ax-op" *ngFor="let a of actAreas" (click)="actElegirArea(a.id)" [class.ax-op-lista]="a.total && a.hechos >= a.total">
+                  <span class="ax-op-ico"><ico [n]="a.total && a.hechos >= a.total ? 'check' : 'pin'"></ico></span>
+                  <span class="ax-op-txt"><b>{{ a.nombre | titlecase }}</b>
+                    <small>{{ a.total && a.hechos >= a.total ? 'Revisada' : (a.hechos ? a.hechos + ' de ' + a.total + ' revisados' : a.total + ' bienes') }}</small></span>
+                  <ico class="ax-op-chev" n="chevright"></ico>
                 </button>
-                <p class="cal-hint" *ngIf="!actAreas.length">No hay áreas{{ act.q ? ' que coincidan' : ' en esta sede' }}. Agrégalas en Catálogos › Ubicaciones.</p>
+                <p class="ax-vacio" *ngIf="!actAreas.length">No hay áreas{{ act.q ? ' con ese nombre' : ' en esta sede' }}.</p>
               </div>
             </ng-container>
 
-            <!-- 3. Trabajo en el área -->
+            <!-- 3. Revisando el área -->
             <ng-container *ngIf="act.paso==='trabajo'">
-              <div class="ac-lugar">
-                <button class="cap-area-chip" (click)="actCambiarArea()"><ico class="cap-atras" n="chev"></ico>{{ actNombreSede | titlecase }} › {{ actNombreArea | titlecase }}</button>
-                <label class="ac-rapido" title="Si el bien ya tiene foto, se confirma solo al escanearlo">
-                  <span class="sw" [class.on]="act.rapido" (click)="act.rapido=!act.rapido; actGuardarEstado()"><i></i></span>
-                  <span (click)="act.rapido=!act.rapido; actGuardarEstado()">Confirmar al escanear</span>
-                </label>
+              <div class="ax-hero">
+                <small>Estás en</small>
+                <h1>{{ actNombreArea | titlecase }}</h1>
+                <div class="ax-barra"><i [style.width.%]="actAvance"></i></div>
+                <span>{{ actRevisadosArea | number }} de {{ (actRevisadosArea + actPendientes.length) | number }} revisados</span>
               </div>
 
-              <div class="cal-stats ac-stats">
-                <div class="cs"><b>{{ actPendientes.length | number }}</b><small>Por revisar</small></div>
-                <div class="cs ok"><b>{{ actCuenta('ok') + actCuenta('movido') | number }}</b><small>Confirmados</small></div>
-                <div class="cs proxima"><b>{{ actCuenta('nuevo') | number }}</b><small>Nuevos</small></div>
-                <div class="cs vencida"><b>{{ actCuenta('baja') | number }}</b><small>Bajas</small></div>
+              <div class="ax-video" [hidden]="!act.escaneando" [class.ax-video-flot]="act.ficha || act.nuevo || act.libre">
+                <video #camAct playsinline muted></video><span class="ax-mira"></span>
+                <button class="ax-video-x" (click)="actDetenerCamara(true)" aria-label="Cerrar cámara">×</button>
               </div>
 
-              <div class="ac-escanear">
-                <button class="btn-primary ac-btn-cam" (click)="act.escaneando ? actDetenerCamara(true) : actIniciarCamara()">
-                  <ico n="camera"></ico>{{ act.escaneando ? 'Cerrar cámara' : 'Escanear con la cámara' }}
+              <button class="ax-escanear" *ngIf="!act.escaneando" (click)="actIniciarCamara()">
+                <ico n="qr"></ico><span>Escanear etiqueta</span>
+              </button>
+              <p class="ax-pista" *ngIf="hayLectorPosible && !act.escaneando">o dispara con la pistola lectora</p>
+
+              <div class="ax-links">
+                <button (click)="actNuevo('')"><ico n="plus"></ico>Bien sin etiqueta</button>
+                <button (click)="act.escribir = !act.escribir"><ico n="edit"></ico>Escribir código</button>
+              </div>
+              <div class="ax-escribir" *ngIf="act.escribir">
+                <input id="ax-codigo" [(ngModel)]="act.manual" (keydown.enter)="actBuscarManual()" placeholder="DZ-000123 o la clave" autocomplete="off">
+                <button [disabled]="!(act.manual || '').trim()" (click)="actBuscarManual()">Buscar</button>
+              </div>
+              <p class="ax-error" *ngIf="act.error">{{ act.error }}</p>
+
+              <div class="ax-sub" *ngIf="actPendientes.length">Faltan por revisar</div>
+              <div class="ax-lista">
+                <button class="ax-bien" *ngFor="let b of actPendientes | slice:0:act.verMas; trackBy: trackBien" (click)="actAbrir(b)">
+                  <span class="ax-bien-foto"><img *ngIf="b.foto_mini" [src]="b.foto_mini" alt="" loading="lazy"><ico *ngIf="!b.foto_mini" n="image"></ico></span>
+                  <span class="ax-op-txt"><b>{{ (b.articulo | titlecase) || 'Bien sin nombre' }}</b>
+                    <small>{{ b.clave }}<ng-container *ngIf="b.usuario_directo || b.responsable"> · {{ (b.usuario_directo || b.responsable) | titlecase }}</ng-container></small></span>
+                  <span class="ax-falta" *ngIf="!b.etiqueta || !b.foto_mini" [title]="!b.etiqueta ? 'Sin etiqueta' : 'Sin foto'"></span>
                 </button>
-                <button class="btn-outline ac-btn-nuevo" (click)="actNuevo('')"><ico n="plus"></ico>Bien nuevo</button>
+                <button class="ax-mas" *ngIf="actPendientes.length > act.verMas" (click)="act.verMas = act.verMas + 50">Ver {{ actPendientes.length - act.verMas | number }} más</button>
               </div>
-              <div class="ac-video" [hidden]="!act.escaneando" [class.ac-video-flot]="act.ficha || act.nuevo || act.libre"><video #camAct playsinline muted></video><span class="ac-mira"></span></div>
-              <div class="pistola-tip" *ngIf="hayLectorPosible"><ico n="qr"></ico><span><b>Con la pistola lectora:</b> solo dispara a la etiqueta, no hay que tocar nada.</span></div>
-              <div class="ac-manual">
-                <input [(ngModel)]="act.manual" (keydown.enter)="actBuscarManual()" placeholder="O escribe la etiqueta o la clave (DZ-000123, CE1839…)">
-                <button class="btn-outline btn-small" [disabled]="!(act.manual || '').trim()" (click)="actBuscarManual()">Buscar</button>
-              </div>
-              <p class="ac-error" *ngIf="act.error">{{ act.error }}</p>
-
-              <div class="ac-sub">
-                <span>Por revisar en esta área <small>{{ actPendientes.length | number }}</small></span>
-                <button class="btn-outline btn-small" *ngIf="actPendientes.length" (click)="actAbrirCierre()">Terminar área</button>
-              </div>
-              <div class="cal-list">
-                <button class="cr" *ngFor="let b of actPendientes | slice:0:act.verMas; trackBy: trackBien" (click)="actAbrir(b, true)">
-                  <span class="ce-foto"><img *ngIf="b.foto_mini" [src]="b.foto_mini" alt="" loading="lazy"><img *ngIf="!b.foto_mini" class="bc-logo" src="logo-dozzer.png" alt=""></span>
-                  <span class="ce-main"><b>{{ (b.articulo | titlecase) || 'Bien sin nombre' }}</b>
-                    <small>{{ b.clave }}<ng-container *ngIf="b.etiqueta"> · {{ b.etiqueta }}</ng-container><ng-container *ngIf="b.usuario_directo || b.responsable"> · {{ (b.usuario_directo || b.responsable) | titlecase }}</ng-container></small>
-                    <span class="ce-chips"><span class="ce-chip cm-proxima" *ngIf="!b.etiqueta">Sin etiqueta</span><span class="ce-chip cm-proxima" *ngIf="!b.foto_mini">Sin foto</span></span>
-                  </span>
-                  <ico class="ce-chev" n="chevright"></ico>
-                </button>
-                <button class="btn-outline btn-small ac-mas" *ngIf="actPendientes.length > act.verMas" (click)="act.verMas = act.verMas + 50">Ver más ({{ actPendientes.length - act.verMas | number }})</button>
-                <p class="cal-hint" *ngIf="!actPendientes.length">✓ Ya no queda nada por revisar en esta área.</p>
+              <div class="ax-listo" *ngIf="!actPendientes.length">
+                <span><ico n="check"></ico></span><b>Todo revisado</b><small>Ya puedes pasar a otra área.</small>
               </div>
 
-              <ng-container *ngIf="actHechos.length">
-                <div class="ac-sub"><span>Revisados aquí <small>{{ actHechos.length | number }}</small></span></div>
-                <div class="cal-list">
-                  <div class="cr ac-hecho" *ngFor="let h of actHechos | slice:0:30" [ngClass]="'ac-h-' + h.tipo">
-                    <span class="ce-foto"><img *ngIf="h.foto" [src]="h.foto" alt="" loading="lazy"><img *ngIf="!h.foto" class="bc-logo" src="logo-dozzer.png" alt=""></span>
-                    <span class="ce-main"><b>{{ (h.articulo | titlecase) || 'Bien sin nombre' }}</b><small>{{ h.clave || 'Clave al guardar' }} · {{ actTextoTipo(h.tipo) }}</small></span>
-                  </div>
-                </div>
-              </ng-container>
+              <button class="ax-terminar" (click)="actPendientes.length ? actAbrirCierre() : actFinArea()">{{ actPendientes.length ? 'Terminar esta área' : 'Ir a otra área' }}</button>
             </ng-container>
 
-            <!-- 4. Terminar área: los faltantes se dan de baja ahí mismo -->
+            <!-- 4. Lo que no apareció -->
             <ng-container *ngIf="act.paso==='cierre' && act.cierre as ci">
-              <button class="cap-area-chip" (click)="act.paso='trabajo'"><ico class="cap-atras" n="chev"></ico>Seguir revisando</button>
-              <div class="ac-titulo">No se encontraron en {{ actNombreArea | titlecase }}</div>
-              <p class="ac-nota">Los marcados se dan de baja al confirmar. Desmarca los que siguen buscando o que están en otra área.</p>
-              <div class="ac-motivos">
-                <button *ngFor="let m of actMotivos" [class.on]="ci.motivo===m" (click)="ci.motivo=m">{{ m }}</button>
-              </div>
-              <input class="ac-otro" *ngIf="ci.motivo==='Otro'" [(ngModel)]="ci.otro" placeholder="Escribe el motivo">
-              <div class="cal-list">
-                <button class="cr" *ngFor="let b of actPendientes; trackBy: trackBien" [class.ac-off]="!ci.ids[b.id_bien]" (click)="ci.ids[b.id_bien] = !ci.ids[b.id_bien]">
-                  <span class="ac-check" [class.on]="ci.ids[b.id_bien]"><ico *ngIf="ci.ids[b.id_bien]" n="check"></ico></span>
-                  <span class="ce-foto"><img *ngIf="b.foto_mini" [src]="b.foto_mini" alt="" loading="lazy"><img *ngIf="!b.foto_mini" class="bc-logo" src="logo-dozzer.png" alt=""></span>
-                  <span class="ce-main"><b>{{ (b.articulo | titlecase) || 'Bien sin nombre' }}</b><small>{{ b.clave }}<ng-container *ngIf="b.usuario_directo || b.responsable"> · {{ (b.usuario_directo || b.responsable) | titlecase }}</ng-container></small></span>
+              <h1 class="ax-h1">No aparecieron {{ actMarcadosBaja | number }}</h1>
+              <p class="ax-texto">Se darán de baja. Toca uno para quitarlo si todavía lo buscas.</p>
+              <div class="ax-lista">
+                <button class="ax-bien" *ngFor="let b of actPendientes; trackBy: trackBien" [class.ax-quitado]="!ci.ids[b.id_bien]" (click)="ci.ids[b.id_bien] = !ci.ids[b.id_bien]">
+                  <span class="ax-bien-foto"><img *ngIf="b.foto_mini" [src]="b.foto_mini" alt="" loading="lazy"><ico *ngIf="!b.foto_mini" n="image"></ico></span>
+                  <span class="ax-op-txt"><b>{{ (b.articulo | titlecase) || 'Bien sin nombre' }}</b><small>{{ ci.ids[b.id_bien] ? b.clave : 'Se queda: lo sigues buscando' }}</small></span>
+                  <span class="ax-marca" [class.on]="ci.ids[b.id_bien]"><ico *ngIf="ci.ids[b.id_bien]" n="x"></ico></span>
                 </button>
               </div>
-              <div class="ac-pie">
-                <button class="btn-outline" (click)="actTerminarSinBajas()">Dejarlos pendientes</button>
-                <button class="btn-primary ac-btn-baja" [disabled]="!actMarcadosBaja" (click)="actConfirmarBajas()">Dar de baja {{ actMarcadosBaja | number }}</button>
+              <div class="ax-motivo">
+                <span>Motivo</span>
+                <select [(ngModel)]="ci.motivo"><option *ngFor="let m of actMotivos" [value]="m">{{ m }}</option></select>
               </div>
+              <input class="ax-input" *ngIf="ci.motivo==='Otro'" [(ngModel)]="ci.otro" placeholder="Escribe el motivo">
+              <button class="ax-grande ax-rojo" [disabled]="!actMarcadosBaja" (click)="actConfirmarBajas()">Dar de baja {{ actMarcadosBaja | number }}</button>
+              <button class="ax-terminar" (click)="actFinArea()">Dejarlos y salir del área</button>
             </ng-container>
 
-            <!-- Ficha rápida de un bien -->
-            <div class="modal-backdrop cal-fondo" *ngIf="act.ficha as f">
-              <div class="modal-card cal-sheet ac-hoja">
-                <div class="modal-header">
-                  <div>
-                    <h2>{{ (f.b.articulo | titlecase) || 'Bien sin nombre' }}</h2>
-                    <p>{{ f.b.clave }}<ng-container *ngIf="f.b.etiqueta || f.etiqueta"> · {{ f.b.etiqueta || f.etiqueta }}</ng-container></p>
-                  </div>
-                  <button class="close-button" (click)="actCerrarFicha()">×</button>
-                </div>
-                <div class="form-section">
-                  <label class="ac-foto">
-                    <img *ngIf="f.fotoUrl || f.b.foto_url || f.b.foto_mini" [src]="f.fotoUrl || f.b.foto_url || f.b.foto_mini" alt="">
-                    <span *ngIf="!(f.fotoUrl || f.b.foto_url || f.b.foto_mini)" class="ac-foto-vacia"><ico n="camera"></ico><b>Tomar foto</b><small>Este bien todavía no tiene foto</small></span>
-                    <span class="ac-foto-btn" *ngIf="f.fotoUrl || f.b.foto_url || f.b.foto_mini"><ico n="camera"></ico>{{ f.fotoUrl ? 'Otra foto' : 'Cambiar foto' }}</span>
-                    <input type="file" accept="image/*" capture="environment" hidden (change)="actFoto($event, f)">
-                  </label>
+            <!-- Ficha de un bien -->
+            <div class="ax-fondo" *ngIf="act.ficha as f" (click)="actCerrarFicha()">
+              <div class="ax-hoja" (click)="$event.stopPropagation()">
+                <button class="ax-cerrar" (click)="actCerrarFicha()" aria-label="Cerrar">×</button>
+                <label class="ax-foto">
+                  <img *ngIf="f.fotoUrl || f.b.foto_url || f.b.foto_mini" [src]="f.fotoUrl || f.b.foto_url || f.b.foto_mini" alt="">
+                  <span *ngIf="!(f.fotoUrl || f.b.foto_url || f.b.foto_mini)" class="ax-foto-vacia"><ico n="camera"></ico><b>Tomar foto</b></span>
+                  <span class="ax-foto-cam" *ngIf="f.fotoUrl || f.b.foto_url || f.b.foto_mini"><ico n="camera"></ico></span>
+                  <input type="file" accept="image/*" capture="environment" hidden (change)="actFoto($event, f)">
+                </label>
+                <div class="ax-hoja-cuerpo">
+                  <h2>{{ (f.b.articulo | titlecase) || 'Bien sin nombre' }}</h2>
+                  <p class="ax-clave">{{ f.b.clave }}<ng-container *ngIf="f.b.etiqueta || f.etiqueta"> · {{ f.b.etiqueta || f.etiqueta }}</ng-container></p>
 
-                  <div class="ac-aviso" *ngIf="f.b.id_ubicacion !== act.idUbicacion">
-                    <ico n="move"></ico><span>Registrado en <b>{{ textoLugar(f.b.ubicacion, f.b.sede) }}</b>. Al confirmar se mueve a <b>{{ actNombreArea | titlecase }}</b>.</span>
-                  </div>
-                  <div class="ac-aviso ac-aviso-etq" *ngIf="!f.b.etiqueta && !f.etiqueta">
-                    <ico n="qr"></ico><span>Sin etiqueta: pégale una en blanco y escanéala ahora.</span>
-                  </div>
-                  <div class="ac-aviso ac-aviso-ok" *ngIf="f.etiqueta"><ico n="check"></ico><span>Se le pondrá la etiqueta <b>{{ f.etiqueta }}</b>.</span></div>
+                  <p class="ax-nota" *ngIf="f.b.id_ubicacion !== act.idUbicacion"><ico n="move"></ico>Estaba en {{ textoLugar(f.b.ubicacion, f.b.sede) }}. Se cambia a esta área.</p>
+                  <p class="ax-nota ax-nota-azul" *ngIf="!f.b.etiqueta && !f.etiqueta"><ico n="qr"></ico>Pégale una etiqueta y escanéala.</p>
+                  <p class="ax-nota ax-nota-verde" *ngIf="f.etiqueta"><ico n="check"></ico>Etiqueta {{ f.etiqueta }} lista.</p>
 
-                  <div class="ac-campo">
-                    <span>Estado</span>
-                    <div class="ac-motivos">
+                  <ng-container *ngIf="!f.baja">
+                    <div class="ax-seg">
                       <button *ngFor="let e of ['BUENO','REGULAR','MALO']" [class.on]="f.estado===e" (click)="f.estado=e">{{ textoEstadoCorto(e) }}</button>
                     </div>
-                  </div>
-                  <div class="ac-campo">
-                    <span>¿Quién lo usa?</span>
-                    <select [(ngModel)]="f.persona">
-                      <option [ngValue]="null">Nadie / sin asignar</option>
-                      <option *ngFor="let p of actPersonas(f.b.id_usuario_directo)" [ngValue]="p.id">{{ p.nombre | titlecase }}</option>
-                    </select>
-                  </div>
-
-                  <div class="ac-baja" *ngIf="f.baja">
-                    <span>¿Por qué se da de baja?</span>
-                    <div class="ac-motivos"><button *ngFor="let m of actMotivos" [class.on]="f.motivo===m" (click)="f.motivo=m">{{ m }}</button></div>
-                    <input class="ac-otro" *ngIf="f.motivo==='Otro'" [(ngModel)]="f.otro" placeholder="Escribe el motivo">
-                  </div>
-                </div>
-                <div class="ac-pie ac-pie-hoja">
-                  <ng-container *ngIf="!f.baja">
-                    <button class="btn-outline ac-btn-baja-o" (click)="f.baja=true">Dar de baja</button>
-                    <button class="btn-primary ac-btn-ok" (click)="actConfirmar(f)"><ico n="check"></ico>Está aquí</button>
+                    <label class="ax-persona">
+                      <ico n="user"></ico>
+                      <select [(ngModel)]="f.persona">
+                        <option [ngValue]="null">Sin persona asignada</option>
+                        <option *ngFor="let p of actPersonas(f.b.id_usuario_directo)" [ngValue]="p.id">{{ p.nombre | titlecase }}</option>
+                      </select>
+                    </label>
+                    <button class="ax-grande ax-verde" (click)="actConfirmar(f)"><ico n="check"></ico>Está aquí</button>
+                    <button class="ax-texto-btn" (click)="f.baja=true">Ya no existe · dar de baja</button>
                   </ng-container>
+
                   <ng-container *ngIf="f.baja">
-                    <button class="btn-outline" (click)="f.baja=false">Cancelar</button>
-                    <button class="btn-primary ac-btn-baja" (click)="actBajaFicha(f)">Dar de baja</button>
+                    <div class="ax-motivo">
+                      <span>Motivo de la baja</span>
+                      <select [(ngModel)]="f.motivo"><option *ngFor="let m of actMotivos" [value]="m">{{ m }}</option></select>
+                    </div>
+                    <input class="ax-input" *ngIf="f.motivo==='Otro'" [(ngModel)]="f.otro" placeholder="Escribe el motivo">
+                    <button class="ax-grande ax-rojo" (click)="actBajaFicha(f)">Dar de baja</button>
+                    <button class="ax-texto-btn" (click)="f.baja=false">Cancelar</button>
                   </ng-container>
                 </div>
               </div>
             </div>
 
-            <!-- Etiqueta en blanco: ¿a qué bien se la pegaste? -->
-            <div class="modal-backdrop cal-fondo" *ngIf="act.libre as L">
-              <div class="modal-card cal-sheet ac-hoja">
-                <div class="modal-header">
-                  <div><h2>Etiqueta {{ L.codigo }}</h2><p>Está en blanco. ¿En qué bien la pegaste?</p></div>
-                  <button class="close-button" (click)="act.libre=null">×</button>
-                </div>
-                <div class="form-section">
-                  <button class="btn-primary ac-btn-full" (click)="actNuevo(L.codigo)"><ico n="plus"></ico>Es un bien nuevo</button>
-                  <div class="cal-buscar en-hoja ac-libre-buscar">
+            <!-- Etiqueta en blanco: ¿en qué bien se pegó? -->
+            <div class="ax-fondo" *ngIf="act.libre as L" (click)="act.libre=null">
+              <div class="ax-hoja" (click)="$event.stopPropagation()">
+                <button class="ax-cerrar" (click)="act.libre=null" aria-label="Cerrar">×</button>
+                <div class="ax-hoja-cuerpo ax-hoja-sola">
+                  <span class="ax-etq">{{ L.codigo }}</span>
+                  <h2>¿En qué bien la pegaste?</h2>
+                  <button class="ax-grande" (click)="actNuevo(L.codigo)"><ico n="plus"></ico>Es un bien nuevo</button>
+                  <div class="ax-sub">O es uno que ya existe</div>
+                  <div class="ax-buscar">
                     <ico n="search"></ico>
-                    <input [(ngModel)]="L.q" placeholder="Buscar en toda la sede (nombre, clave, serie)">
+                    <input [(ngModel)]="L.q" placeholder="Buscar por nombre o clave">
                   </div>
-                  <div class="cal-res">
-                    <button class="cr" *ngFor="let b of actSinEtiqueta(L.q); trackBy: trackBien" (click)="actLigarLibre(b)">
-                      <span class="ce-foto"><img *ngIf="b.foto_mini" [src]="b.foto_mini" alt="" loading="lazy"><img *ngIf="!b.foto_mini" class="bc-logo" src="logo-dozzer.png" alt=""></span>
-                      <span class="ce-main"><b>{{ (b.articulo | titlecase) || 'Bien sin nombre' }}</b><small>{{ b.clave }} · {{ (b.ubicacion || 'Sin área') | titlecase }}</small></span>
-                      <ico class="ce-chev" n="chevright"></ico>
+                  <div class="ax-lista ax-lista-hoja">
+                    <button class="ax-bien" *ngFor="let b of actSinEtiqueta(L.q); trackBy: trackBien" (click)="actLigarLibre(b)">
+                      <span class="ax-bien-foto"><img *ngIf="b.foto_mini" [src]="b.foto_mini" alt="" loading="lazy"><ico *ngIf="!b.foto_mini" n="image"></ico></span>
+                      <span class="ax-op-txt"><b>{{ (b.articulo | titlecase) || 'Bien sin nombre' }}</b><small>{{ b.clave }} · {{ (b.ubicacion || 'Sin área') | titlecase }}</small></span>
                     </button>
-                    <p class="cal-hint">{{ (L.q || '').trim() ? 'Bienes sin etiqueta de la sede que coinciden.' : 'Bienes sin etiqueta registrados en esta área.' }}</p>
+                    <p class="ax-vacio" *ngIf="!actSinEtiqueta(L.q).length">{{ (L.q || '').trim() ? 'No hay bienes sin etiqueta con ese nombre.' : 'En esta área no quedan bienes sin etiqueta.' }}</p>
                   </div>
                 </div>
               </div>
             </div>
 
-            <!-- Alta exprés -->
-            <div class="modal-backdrop cal-fondo" *ngIf="act.nuevo as n">
-              <div class="modal-card cal-sheet ac-hoja">
-                <div class="modal-header">
-                  <div><h2>Bien nuevo</h2><p>{{ actNombreArea | titlecase }}<ng-container *ngIf="n.etiqueta"> · {{ n.etiqueta }}</ng-container> · la clave se pone sola</p></div>
-                  <button class="close-button" (click)="actCerrarNuevo()">×</button>
-                </div>
-                <div class="form-section">
-                  <label class="ac-foto">
-                    <img *ngIf="n.fotoUrl" [src]="n.fotoUrl" alt="">
-                    <span *ngIf="!n.fotoUrl" class="ac-foto-vacia"><ico n="camera"></ico><b>Tomar foto</b></span>
-                    <span class="ac-foto-btn" *ngIf="n.fotoUrl"><ico n="camera"></ico>Otra foto</span>
-                    <input type="file" accept="image/*" capture="environment" hidden (change)="actFoto($event, n)">
-                  </label>
-                  <div class="ac-aviso ac-aviso-etq" *ngIf="!n.etiqueta"><ico n="qr"></ico><span>Pégale una etiqueta en blanco y escanéala (o guárdalo sin etiqueta).</span></div>
-                  <div class="ac-campo">
-                    <span>¿Qué es? *</span>
-                    <input id="ac-nombre" [(ngModel)]="n.articulo" list="ac-nombres" placeholder="Ej. Silla, Laptop, Escritorio" maxlength="200">
-                    <datalist id="ac-nombres"><option *ngFor="let x of actNombres" [value]="x"></option></datalist>
+            <!-- Bien nuevo -->
+            <div class="ax-fondo" *ngIf="act.nuevo as n" (click)="actCerrarNuevo()">
+              <div class="ax-hoja" (click)="$event.stopPropagation()">
+                <button class="ax-cerrar" (click)="actCerrarNuevo()" aria-label="Cerrar">×</button>
+                <label class="ax-foto">
+                  <img *ngIf="n.fotoUrl" [src]="n.fotoUrl" alt="">
+                  <span *ngIf="!n.fotoUrl" class="ax-foto-vacia"><ico n="camera"></ico><b>Tomar foto</b></span>
+                  <span class="ax-foto-cam" *ngIf="n.fotoUrl"><ico n="camera"></ico></span>
+                  <input type="file" accept="image/*" capture="environment" hidden (change)="actFoto($event, n)">
+                </label>
+                <div class="ax-hoja-cuerpo">
+                  <h2>Bien nuevo</h2>
+                  <p class="ax-clave">{{ actNombreArea | titlecase }}<ng-container *ngIf="n.etiqueta"> · {{ n.etiqueta }}</ng-container></p>
+                  <p class="ax-nota ax-nota-azul" *ngIf="!n.etiqueta"><ico n="qr"></ico>Si le pegas etiqueta, escanéala ahora.</p>
+
+                  <input id="ac-nombre" class="ax-input ax-input-grande" [(ngModel)]="n.articulo" list="ac-nombres" placeholder="¿Qué es? Ej. Silla" maxlength="200" autocomplete="off">
+                  <datalist id="ac-nombres"><option *ngFor="let x of actNombres" [value]="x"></option></datalist>
+                  <div class="ax-recientes" *ngIf="act.recientes.length && !(n.articulo || '').trim()">
+                    <button *ngFor="let r of act.recientes" (click)="actUsarReciente(n, r)">{{ r.articulo }}</button>
                   </div>
-                  <div class="ac-campo">
-                    <span>Estado</span>
-                    <div class="ac-motivos"><button *ngFor="let e of ['BUENO','REGULAR','MALO']" [class.on]="n.estado===e" (click)="n.estado=e">{{ textoEstadoCorto(e) }}</button></div>
+
+                  <div class="ax-seg">
+                    <button *ngFor="let e of ['BUENO','REGULAR','MALO']" [class.on]="n.estado===e" (click)="n.estado=e">{{ textoEstadoCorto(e) }}</button>
                   </div>
-                  <div class="ac-campo">
-                    <span>¿Quién lo usa?</span>
+                  <label class="ax-persona">
+                    <ico n="user"></ico>
                     <select [(ngModel)]="n.persona">
-                      <option [ngValue]="null">Nadie / sin asignar</option>
+                      <option [ngValue]="null">Sin persona asignada</option>
                       <option *ngFor="let p of actPersonas(null)" [ngValue]="p.id">{{ p.nombre | titlecase }}</option>
                     </select>
+                  </label>
+
+                  <button class="ax-texto-btn ax-izq" *ngIf="!n.mas" (click)="n.mas=true">+ Marca, modelo o serie</button>
+                  <div class="ax-mas-datos" *ngIf="n.mas">
+                    <select [(ngModel)]="n.idMarca"><option [ngValue]="null">Marca</option><option *ngFor="let m of catalogs.marcas" [ngValue]="m.id_marca">{{ m.nombre_marca }}</option></select>
+                    <input [(ngModel)]="n.modelo" placeholder="Modelo" maxlength="150">
+                    <input [(ngModel)]="n.numeroSerie" placeholder="Número de serie" maxlength="150">
+                    <select [(ngModel)]="n.idClasificacion"><option [ngValue]="null">Clasificación</option><option *ngFor="let c of catalogs.clasificaciones" [ngValue]="c.id_clasificacion">{{ c.nombre }}</option></select>
                   </div>
-                  <button class="ac-mas-datos" (click)="n.mas=!n.mas">{{ n.mas ? '▴ Menos datos' : '▾ Marca, modelo, serie, clasificación' }}</button>
-                  <ng-container *ngIf="n.mas">
-                    <div class="ac-campo"><span>Clasificación</span>
-                      <select [(ngModel)]="n.idClasificacion"><option [ngValue]="null">—</option><option *ngFor="let c of catalogs.clasificaciones" [ngValue]="c.id_clasificacion">{{ c.nombre }}</option></select></div>
-                    <div class="ac-campo"><span>Marca</span>
-                      <select [(ngModel)]="n.idMarca"><option [ngValue]="null">—</option><option *ngFor="let m of catalogs.marcas" [ngValue]="m.id_marca">{{ m.nombre_marca }}</option></select></div>
-                    <div class="ac-campo"><span>Modelo</span><input [(ngModel)]="n.modelo" maxlength="150"></div>
-                    <div class="ac-campo"><span>Número de serie</span><input [(ngModel)]="n.numeroSerie" maxlength="150"></div>
-                    <div class="ac-campo"><span>Características</span><input [(ngModel)]="n.caracteristicas" maxlength="500"></div>
-                  </ng-container>
-                  <p class="ac-error" *ngIf="n.error">{{ n.error }}</p>
-                </div>
-                <div class="ac-pie ac-pie-hoja">
-                  <button class="btn-outline" (click)="actGuardarNuevo(true)">Guardar y otro igual</button>
-                  <button class="btn-primary ac-btn-ok" (click)="actGuardarNuevo(false)"><ico n="check"></ico>Guardar</button>
+                  <p class="ax-error" *ngIf="n.error">{{ n.error }}</p>
+                  <button class="ax-grande ax-verde" (click)="actGuardarNuevo()"><ico n="check"></ico>Guardar</button>
                 </div>
               </div>
             </div>
@@ -4477,70 +4433,120 @@ export class ElegirComponent {
     .ce-chip.cm-vencida{background:#fdecee;color:#bd4b52}.ce-chip.cm-proxima{background:#fff4dc;color:#a8650f}.ce-chip.cm-ok{background:#e8f6ee;color:#21835a}
     .ce-chev{width:18px;height:18px;color:#9aa7b7;flex-shrink:0}
     .cal-hint{color:#7b889a;font-size:13.5px;margin:6px 2px;text-align:center}
-    .ac-sync{font-size:13px;font-weight:700;border-radius:999px;padding:7px 12px;background:#e8f6ee;color:#21835a;white-space:nowrap}
-    .ac-sync-pendiente{background:#fff4dc;color:#a8650f}.ac-sync-offline{background:#eef1f5;color:#41546b}.ac-sync-error{background:#fdecee;color:#bd4b52}
-    .ac-titulo{font-size:17px;font-weight:800;color:#14243a;margin:14px 2px 10px}
-    .ac-nota{color:#6b7a8d;font-size:14px;margin:-4px 2px 12px;line-height:1.45}
-    .ac-ico{color:#2d5d93;background:#eef4fb}.ac-ico ico{width:22px;height:22px}
-    .ac-ico-ok{color:#21835a;background:#e8f6ee}
-    .ac-lugar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px}
-    .ac-rapido{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;color:#41546b;cursor:pointer;user-select:none}
-    .ac-stats .cs{cursor:default}
-    .ac-escanear{display:flex;gap:8px;margin-bottom:10px}
-    .ac-escanear button{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:52px;font-size:15.5px;font-weight:700;border-radius:14px}
-    .ac-escanear ico{width:20px;height:20px}
-    .ac-btn-cam{flex:1}
-    .ac-btn-nuevo{flex:0 0 auto;padding:0 16px}
-    .ac-video{position:relative;border-radius:16px;overflow:hidden;background:#000;margin-bottom:10px;aspect-ratio:4/3;max-height:46vh}
-    .ac-video[hidden]{display:none}
-    .ac-video video{width:100%;height:100%;object-fit:cover;display:block}
-    .ac-mira{position:absolute;left:50%;top:50%;width:56%;aspect-ratio:1;transform:translate(-50%,-50%);border:3px solid #ffffffcc;border-radius:18px;box-shadow:0 0 0 999px #0000003a;pointer-events:none}
-    .ac-video.ac-video-flot{position:fixed;z-index:400;top:max(10px,env(safe-area-inset-top));right:10px;width:118px;height:118px;aspect-ratio:auto;margin:0;border:3px solid #fff;box-shadow:0 8px 24px #15243b55}
-    .ac-video.ac-video-flot .ac-mira{display:none}
-    .ac-manual{display:flex;gap:8px;margin:6px 0 4px}
-    .ac-manual input{flex:1;height:44px;border:1.5px solid #e3e9f1;border-radius:12px;padding:0 12px;font-size:15px;min-width:0}
-    .ac-error{background:#fdecee;color:#9c3a40;border-radius:12px;padding:10px 12px;font-size:14px;margin:8px 0}
-    .ac-sub{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:18px 2px 8px;font-weight:800;color:#14243a;font-size:15px}
-    .ac-sub small{color:#7b889a;font-weight:700;margin-left:4px}
-    .ac-mas{align-self:center;margin-top:4px}
-    .ac-hecho{cursor:default;border-left-width:5px}
-    .ac-h-ok,.ac-h-movido{border-left-color:#3aa876}.ac-h-nuevo{border-left-color:#e2a03c}.ac-h-baja{border-left-color:#d4646b;opacity:.75}
-    .ac-motivos{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
-    .ac-motivos button{border:1.5px solid #dce3ec;background:#fff;border-radius:999px;padding:9px 14px;font-family:inherit;font-size:14px;font-weight:600;color:#41546b;cursor:pointer}
-    .ac-motivos button.on{border-color:#244c78;background:#244c78;color:#fff}
-    .ac-otro{width:100%;height:44px;border:1.5px solid #e3e9f1;border-radius:12px;padding:0 12px;font-size:15px;margin-bottom:10px;box-sizing:border-box}
-    .ac-check{width:24px;height:24px;border-radius:7px;border:2px solid #c3ccd8;display:grid;place-items:center;flex-shrink:0;color:#fff}
-    .ac-check.on{background:#bd4b52;border-color:#bd4b52}.ac-check ico{width:16px;height:16px}
-    .cr.ac-off{opacity:.55}
-    .ac-pie{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;position:sticky;bottom:0;background:linear-gradient(transparent,#f4f6fa 30%);padding:12px 0 4px}
-    .ac-pie button{height:48px;display:inline-flex;align-items:center;gap:8px;font-weight:700;border-radius:12px;padding:0 18px}
-    .ac-pie-hoja{position:static;background:none;margin:0;padding:12px 24px 20px;border-top:1px solid #edf0f4}
-    .ac-pie-hoja button{flex:1;justify-content:center}
-    .ac-pie ico{width:18px;height:18px}
-    .ac-btn-baja{background:#bd4b52!important;border-color:#bd4b52!important;color:#fff}
-    .ac-btn-baja-o{color:#bd4b52!important}
-    .ac-btn-ok{background:#21835a!important;border-color:#21835a!important}
-    .ac-btn-full{width:100%;height:50px;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:700;border-radius:12px;margin-bottom:12px}
-    .ac-btn-full ico{width:18px;height:18px}
-    .ac-libre-buscar{margin-top:4px}
-    .ac-hoja .form-section{padding-top:16px}
-    .ac-foto{display:block;position:relative;border-radius:16px;overflow:hidden;background:#f1f4f8;margin-bottom:12px;cursor:pointer;aspect-ratio:4/3;max-height:34vh;width:100%}
-    .ac-foto img{width:100%;height:100%;object-fit:cover;display:block}
-    .ac-foto-vacia{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:#2d5d93;border:2px dashed #bcd0e6;border-radius:16px}
-    .ac-foto-vacia ico{width:34px;height:34px}.ac-foto-vacia b{font-size:16px}.ac-foto-vacia small{color:#7b889a;font-size:13px}
-    .ac-foto-btn{position:absolute;right:10px;bottom:10px;display:inline-flex;align-items:center;gap:6px;background:#14243acc;color:#fff;border-radius:999px;padding:7px 12px;font-size:13px;font-weight:700}
-    .ac-foto-btn ico{width:15px;height:15px}
-    .ac-aviso{display:flex;align-items:flex-start;gap:10px;background:#fff4dc;color:#7a4c0b;border-radius:12px;padding:10px 12px;font-size:14px;margin-bottom:10px;line-height:1.4}
-    .ac-aviso ico{width:18px;height:18px;flex-shrink:0;margin-top:1px}
-    .ac-aviso-etq{background:#eef4fb;color:#244c78}.ac-aviso-ok{background:#e8f6ee;color:#1d6b4a}
-    .ac-campo{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
-    .ac-campo>span{font-size:13px;font-weight:700;color:#41546b}
-    .ac-campo input,.ac-campo select{height:46px;border:1.5px solid #e3e9f1;border-radius:12px;padding:0 12px;font-size:15px;background:#fff;width:100%;box-sizing:border-box}
-    .ac-campo .ac-motivos{margin-bottom:0}
-    .ac-mas-datos{background:none;border:0;color:#244c78;font-weight:700;font-size:14px;cursor:pointer;padding:4px 0 12px;font-family:inherit}
-    .ac-baja{border-top:1px solid #edf0f4;padding-top:12px;margin-top:4px}
-    .ac-baja>span{display:block;font-size:13px;font-weight:700;color:#9c3a40;margin-bottom:8px}
-    @media(max-width:600px){.ac .cal-head{flex-direction:column}.ac-stats{grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}.ac-stats .cs{padding:10px 8px}.ac-stats .cs b{font-size:20px}.ac-stats .cs small{font-size:11px}}
+    .ax{max-width:640px;margin:0 auto;padding-bottom:30px}
+    .ax-top{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:40px;margin-bottom:6px}
+    .ax-volver{display:inline-flex;align-items:center;gap:4px;border:0;background:transparent;color:#244c78;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;padding:8px 6px 8px 0}
+    .ax-volver ico{width:18px;height:18px;transform:rotate(90deg)}
+    .ax-sync{margin-left:auto;display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:#6b7a8d}
+    .ax-sync i{width:8px;height:8px;border-radius:50%;background:#3aa876;box-shadow:0 0 0 3px #3aa87622}
+    .ax-sync-pendiente i{background:#e2a03c;box-shadow:0 0 0 3px #e2a03c22;animation:axLatido 1.2s ease-in-out infinite}
+    .ax-sync-offline i{background:#8a97a8;box-shadow:0 0 0 3px #8a97a822}
+    .ax-sync-error{color:#bd4b52}.ax-sync-error i{background:#d4646b;box-shadow:0 0 0 3px #d4646b22}
+    @keyframes axLatido{50%{opacity:.35}}
+    .ax-h1{font-size:28px;letter-spacing:-.025em;color:#14243a;margin:8px 2px 18px;font-weight:800;line-height:1.15}
+    .ax-texto{color:#6b7a8d;font-size:15px;margin:-8px 2px 16px;line-height:1.45}
+    .ax-lista{display:flex;flex-direction:column;gap:10px}
+    .ax-op,.ax-bien{display:flex;align-items:center;gap:14px;width:100%;background:#fff;border:0;border-radius:18px;padding:14px 16px;text-align:left;cursor:pointer;font-family:inherit;box-shadow:0 1px 2px #17263d0f,0 4px 14px #17263d0a;transition:transform .12s,box-shadow .15s}
+    .ax-op:hover,.ax-bien:hover{box-shadow:0 1px 2px #17263d14,0 8px 22px #17263d14}
+    .ax-op:active,.ax-bien:active{transform:scale(.985)}
+    .ax-op-ico{width:46px;height:46px;border-radius:14px;background:linear-gradient(140deg,#eef4fb,#dfe9f5);color:#244c78;display:grid;place-items:center;flex-shrink:0}
+    .ax-op-ico ico{width:22px;height:22px}
+    .ax-op-lista .ax-op-ico{background:linear-gradient(140deg,#e8f6ee,#d3eedf);color:#21835a}
+    .ax-op-lista .ax-op-txt small{color:#21835a;font-weight:700}
+    .ax-op-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+    .ax-op-txt b{font-size:16px;color:#14243a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:700}
+    .ax-op-txt small{font-size:13px;color:#7b889a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .ax-op-chev{width:18px;height:18px;color:#b3bfcd;flex-shrink:0}
+    .ax-buscar{display:flex;align-items:center;gap:10px;background:#fff;border-radius:16px;padding:0 16px;margin-bottom:14px;box-shadow:0 1px 2px #17263d0f,0 4px 14px #17263d0a}
+    .ax-buscar ico{width:18px;height:18px;color:#8a97a8;flex-shrink:0}
+    .ax-buscar input{border:0!important;outline:0;background:transparent;height:50px;flex:1;font-size:16px;box-shadow:none!important;padding:0!important;margin:0!important;min-width:0}
+    .ax-vacio{text-align:center;color:#8a97a8;font-size:14px;padding:18px 8px;margin:0}
+    .ax-hero{background:linear-gradient(135deg,#17263d 0%,#244c78 100%);color:#fff;border-radius:24px;padding:22px 22px 20px;margin-bottom:16px;box-shadow:0 12px 30px #17263d33;position:relative;overflow:hidden}
+    .ax-hero::after{content:"";position:absolute;right:-40px;top:-40px;width:160px;height:160px;border-radius:50%;background:#ffffff0d}
+    .ax-hero small{font-size:12px;letter-spacing:.08em;text-transform:uppercase;opacity:.7;font-weight:700}
+    .ax-hero h1{margin:4px 0 16px;font-size:30px;letter-spacing:-.025em;line-height:1.1;font-weight:800;color:#fff}
+    .ax-hero>span{font-size:14px;opacity:.85;font-weight:600}
+    .ax-barra{height:8px;border-radius:99px;background:#ffffff26;overflow:hidden;margin-bottom:10px}
+    .ax-barra i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#f28c1e,#ffb45c);transition:width .4s ease}
+    .ax-escanear{width:100%;height:68px;border:0;border-radius:20px;background:linear-gradient(135deg,#f28c1e,#e2731a);color:#fff;font-family:inherit;font-size:19px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:12px;cursor:pointer;box-shadow:0 10px 26px #f28c1e55;transition:transform .12s}
+    .ax-escanear:active{transform:scale(.98)}
+    .ax-escanear ico{width:28px;height:28px}
+    .ax-pista{text-align:center;color:#8a97a8;font-size:13.5px;margin:8px 0 0}
+    .ax-links{display:flex;justify-content:center;gap:8px;margin:14px 0 4px;flex-wrap:wrap}
+    .ax-links button{display:inline-flex;align-items:center;gap:6px;border:0;background:#fff;color:#244c78;font-family:inherit;font-size:14px;font-weight:700;border-radius:999px;padding:10px 16px;cursor:pointer;box-shadow:0 1px 2px #17263d0f,0 3px 10px #17263d0a}
+    .ax-links ico{width:16px;height:16px}
+    .ax-escribir{display:flex;gap:8px;margin-top:10px}
+    .ax-escribir input{flex:1;min-width:0;height:50px;border:1.5px solid #dce3ec;border-radius:14px;padding:0 14px;font-size:16px;background:#fff}
+    .ax-escribir button{border:0;background:#244c78;color:#fff;border-radius:14px;padding:0 18px;font-family:inherit;font-weight:700;font-size:15px;cursor:pointer}
+    .ax-escribir button:disabled{opacity:.4}
+    .ax-error{background:#fdecee;color:#9c3a40;border-radius:14px;padding:12px 14px;font-size:14px;margin:12px 0 0;line-height:1.4}
+    .ax-video{position:relative;border-radius:22px;overflow:hidden;background:#000;aspect-ratio:1;max-height:58vh;margin:0 auto;box-shadow:0 12px 30px #17263d33}
+    .ax-video[hidden]{display:none}
+    .ax-video video{width:100%;height:100%;object-fit:cover;display:block}
+    .ax-mira{position:absolute;left:50%;top:50%;width:58%;aspect-ratio:1;transform:translate(-50%,-50%);border:3px solid #fff;border-radius:22px;box-shadow:0 0 0 999px #00000047;pointer-events:none}
+    .ax-video-x{position:absolute;top:10px;right:10px;width:38px;height:38px;border-radius:50%;border:0;background:#000000a0;color:#fff;font-size:24px;line-height:1;cursor:pointer}
+    .ax-video.ax-video-flot{position:fixed;z-index:400;top:max(12px,env(safe-area-inset-top));right:12px;width:104px;height:104px;aspect-ratio:auto;border:3px solid #fff;border-radius:20px}
+    .ax-video.ax-video-flot .ax-mira,.ax-video.ax-video-flot .ax-video-x{display:none}
+    .ax-sub{font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#8a97a8;margin:26px 4px 10px}
+    .ax-bien{padding:10px 14px 10px 10px}
+    .ax-bien-foto{width:54px;height:54px;border-radius:14px;background:#f1f4f8;overflow:hidden;display:grid;place-items:center;flex-shrink:0;color:#b3bfcd}
+    .ax-bien-foto img{width:100%;height:100%;object-fit:cover}
+    .ax-bien-foto ico{width:22px;height:22px}
+    .ax-falta{width:9px;height:9px;border-radius:50%;background:#f28c1e;flex-shrink:0;margin-right:4px}
+    .ax-mas{border:0;background:transparent;color:#244c78;font-family:inherit;font-weight:700;font-size:14.5px;padding:12px;cursor:pointer}
+    .ax-listo{display:flex;flex-direction:column;align-items:center;gap:4px;padding:30px 10px 10px;text-align:center}
+    .ax-listo span{width:60px;height:60px;border-radius:50%;background:linear-gradient(140deg,#e8f6ee,#cdebd9);color:#21835a;display:grid;place-items:center;margin-bottom:6px}
+    .ax-listo span ico{width:30px;height:30px}
+    .ax-listo b{font-size:18px;color:#14243a}.ax-listo small{color:#7b889a;font-size:14px}
+    .ax-terminar{display:block;width:100%;margin-top:22px;height:52px;border:1.5px solid #d5dfeb;background:transparent;color:#244c78;border-radius:16px;font-family:inherit;font-size:15.5px;font-weight:700;cursor:pointer}
+    .ax-quitado{opacity:.5}
+    .ax-quitado .ax-op-txt small{color:#21835a;font-weight:700}
+    .ax-marca{width:28px;height:28px;border-radius:50%;border:2px solid #d5dfeb;display:grid;place-items:center;flex-shrink:0;color:#fff}
+    .ax-marca.on{background:#d4646b;border-color:#d4646b}.ax-marca ico{width:15px;height:15px}
+    .ax-motivo{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#fff;border-radius:16px;padding:6px 6px 6px 16px;margin:18px 0 10px;box-shadow:0 1px 2px #17263d0f,0 4px 14px #17263d0a}
+    .ax-motivo span{font-size:14px;font-weight:700;color:#41546b}
+    .ax-motivo select{border:0;background:#f1f4f8;border-radius:12px;height:44px;padding:0 12px;font-size:15px;font-family:inherit;color:#14243a;font-weight:600;max-width:62%}
+    .ax-input{width:100%;box-sizing:border-box;height:50px;border:1.5px solid #dce3ec;border-radius:14px;padding:0 14px;font-size:16px;background:#fff;margin-bottom:10px;font-family:inherit}
+    .ax-input-grande{height:58px;font-size:18px;font-weight:600}
+    .ax-grande{width:100%;height:60px;border:0;border-radius:18px;background:#244c78;color:#fff;font-family:inherit;font-size:18px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:10px;cursor:pointer;margin-top:14px;transition:transform .12s}
+    .ax-grande:active{transform:scale(.98)}.ax-grande:disabled{opacity:.4}
+    .ax-grande ico{width:22px;height:22px}
+    .ax-verde{background:linear-gradient(135deg,#21835a,#2b9d6c);box-shadow:0 10px 24px #21835a44}
+    .ax-rojo{background:linear-gradient(135deg,#bd4b52,#d4646b);box-shadow:0 10px 24px #bd4b5244}
+    .ax-texto-btn{display:block;width:100%;border:0;background:transparent;color:#8a97a8;font-family:inherit;font-size:14.5px;font-weight:600;padding:14px;cursor:pointer;text-align:center}
+    .ax-texto-btn.ax-izq{text-align:left;padding:4px 2px 8px;color:#244c78;font-weight:700;width:auto}
+    .ax-fondo{position:fixed;inset:0;z-index:190;background:#0f1b2c99;backdrop-filter:blur(3px);display:flex;align-items:flex-end;justify-content:center;animation:axFondo .2s ease}
+    .ax-hoja{position:relative;width:100%;max-width:520px;max-height:94vh;overflow:auto;background:#f7f9fc;border-radius:28px 28px 0 0;box-shadow:0 -10px 40px #0f1b2c40;animation:axSube .28s cubic-bezier(.2,.9,.3,1);padding-bottom:env(safe-area-inset-bottom)}
+    @keyframes axFondo{from{opacity:0}}
+    @keyframes axSube{from{transform:translateY(40px);opacity:.4}}
+    @media(min-width:700px){.ax-fondo{align-items:center}.ax-hoja{border-radius:28px}}
+    .ax-cerrar{position:absolute;top:12px;right:12px;z-index:2;width:38px;height:38px;border-radius:50%;border:0;background:#ffffffd9;color:#41546b;font-size:24px;line-height:1;cursor:pointer;box-shadow:0 2px 8px #0002}
+    .ax-foto{display:block;position:relative;aspect-ratio:4/3;max-height:40vh;width:100%;background:linear-gradient(140deg,#e9eff6,#dde6f0);cursor:pointer;overflow:hidden}
+    .ax-foto img{width:100%;height:100%;object-fit:cover;display:block}
+    .ax-foto-vacia{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:#244c78}
+    .ax-foto-vacia ico{width:44px;height:44px;background:#fff;border-radius:50%;padding:14px;box-sizing:content-box;box-shadow:0 6px 18px #17263d1a}
+    .ax-foto-vacia b{font-size:16px}
+    .ax-foto-cam{position:absolute;right:14px;bottom:14px;width:46px;height:46px;border-radius:50%;background:#14243acc;color:#fff;display:grid;place-items:center;backdrop-filter:blur(4px)}
+    .ax-foto-cam ico{width:22px;height:22px}
+    .ax-hoja-cuerpo{padding:20px 22px 18px}
+    .ax-hoja-sola{padding-top:30px}
+    .ax-hoja-cuerpo h2{margin:0;font-size:24px;letter-spacing:-.02em;color:#14243a;line-height:1.2;font-weight:800}
+    .ax-clave{margin:4px 0 14px;color:#7b889a;font-size:14px;font-weight:600;font-family:"SFMono-Regular",Consolas,monospace}
+    .ax-nota{display:flex;align-items:center;gap:8px;margin:0 0 10px;padding:10px 12px;border-radius:12px;background:#fff4dc;color:#7a4c0b;font-size:14px;line-height:1.35}
+    .ax-nota ico{width:17px;height:17px;flex-shrink:0}
+    .ax-nota-azul{background:#eaf1fa;color:#244c78}.ax-nota-verde{background:#e8f6ee;color:#1d6b4a}
+    .ax-seg{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;background:#e9eef4;border-radius:14px;padding:4px;margin:14px 0 10px}
+    .ax-seg button{height:44px;border:0;border-radius:11px;background:transparent;color:#53657c;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;transition:background .15s,box-shadow .15s}
+    .ax-seg button.on{background:#fff;color:#14243a;box-shadow:0 1px 3px #17263d24}
+    .ax-persona{display:flex;align-items:center;gap:10px;background:#fff;border:1.5px solid #e3e9f1;border-radius:14px;padding:0 4px 0 14px;cursor:pointer}
+    .ax-persona ico{width:18px;height:18px;color:#8a97a8;flex-shrink:0}
+    .ax-persona select{flex:1;min-width:0;border:0;background:transparent;height:50px;font-size:15.5px;font-family:inherit;color:#14243a;outline:0}
+    .ax-etq{display:inline-block;font-family:"SFMono-Regular",Consolas,monospace;font-weight:700;font-size:13px;background:#eaf1fa;color:#244c78;border-radius:8px;padding:5px 10px;margin-bottom:10px}
+    .ax-lista-hoja{max-height:44vh;overflow:auto;padding:2px 2px 6px}
+    .ax-recientes{display:flex;flex-wrap:wrap;gap:8px;margin:-2px 0 6px}
+    .ax-recientes button{border:0;background:#fff;color:#244c78;border-radius:999px;padding:9px 14px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 1px 2px #17263d14,0 3px 10px #17263d0d}
+    .ax-mas-datos{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px}
+    .ax-mas-datos input,.ax-mas-datos select{height:48px;border:1.5px solid #e3e9f1;border-radius:12px;padding:0 12px;font-size:15px;background:#fff;min-width:0;font-family:inherit}
     .modal-backdrop.cal-fondo,.modal-backdrop.etq-sel-fondo{z-index:190}
     .cal-sheet{max-width:520px!important}
     .cal-res{max-height:52vh;overflow:auto;padding:2px}
@@ -10114,11 +10120,11 @@ export class AppComponent {
   private actTimer: any = null;
   private actUltima = { txt: '', t: 0 };
   private actCache: { [k: string]: { deps: any[]; v: any } } = {};
-  readonly actMotivos = ['No localizado', 'Dañado / inservible', 'Obsoleto', 'Otro'];
+  readonly actMotivos = ['No se encontró', 'Dañado / inservible', 'Obsoleto', 'Otro'];
 
   actInicial(): any {
-    return { cargado: false, paso: 'sede', idSede: null, idUbicacion: null, q: '', rapido: false, manual: '', error: '',
-             escaneando: false, seguirCamara: false, verMas: 50, ficha: null, libre: null, nuevo: null, cierre: null, log: [], ver: 0 };
+    return { cargado: false, paso: 'sede', idSede: null, idUbicacion: null, q: '', manual: '', escribir: false, error: '',
+             escaneando: false, seguirCamara: false, verMas: 50, ficha: null, libre: null, nuevo: null, cierre: null, log: [], recientes: [], ver: 0 };
   }
 
   private actLlave(): string { return 'dozzer_act_' + this.email; }
@@ -10127,7 +10133,7 @@ export class AppComponent {
     const a = this.act;
     try {
       localStorage.setItem(this.actLlave(), JSON.stringify({
-        idSede: a.idSede, idUbicacion: a.idUbicacion, rapido: a.rapido,
+        idSede: a.idSede, idUbicacion: a.idUbicacion, recientes: a.recientes,
         log: a.log.slice(0, 3000).map((x: any) => ({ ...x, foto: String(x.foto || '').startsWith('blob:') ? '' : x.foto }))
       }));
     } catch { /* sin espacio: se pierde solo el historial de la sesión */ }
@@ -10142,7 +10148,8 @@ export class AppComponent {
     try {
       const g = JSON.parse(localStorage.getItem(this.actLlave()) || 'null');
       if (g) {
-        a.idSede = g.idSede ?? null; a.idUbicacion = g.idUbicacion ?? null; a.rapido = !!g.rapido;
+        a.idSede = g.idSede ?? null; a.idUbicacion = g.idUbicacion ?? null;
+        a.recientes = Array.isArray(g.recientes) ? g.recientes.slice(0, 4) : [];
         a.log = Array.isArray(g.log) ? g.log : [];
       }
     } catch { /* estado dañado: se empieza de cero */ }
@@ -10226,10 +10233,6 @@ export class AppComponent {
     return this.actHechos.filter(h => h.tipo === tipo).length;
   }
 
-  actTextoTipo(t: string): string {
-    return ({ ok: '✓ Confirmado', movido: '↔ Se movió a esta área', nuevo: '＋ Alta nueva', baja: '✗ Dado de baja' } as any)[t] || t;
-  }
-
   // Personas de la sede (y la que ya tiene el bien, aunque sea de otra)
   actPersonas(actual: any): { id: any; nombre: string }[] {
     return this.actMemo('per-' + actual, [this.catalogs.personas, this.act.idSede], () => {
@@ -10288,6 +10291,7 @@ export class AppComponent {
     const t = String(this.act.manual || '').trim();
     if (!t) return;
     this.act.manual = '';
+    this.act.escribir = false;
     this.actUltima = { txt: '', t: 0 };
     this.actLeer(t);
   }
@@ -10365,15 +10369,13 @@ export class AppComponent {
   private actFichaDe(b: any): any {
     const e = String(b.estado_fisico || '').toUpperCase();
     return { b, estado: ['BUENO', 'REGULAR', 'MALO'].includes(e) ? e : 'BUENO', persona: b.id_usuario_directo ?? null,
-             personaOriginal: b.id_usuario_directo ?? null, etiqueta: '', foto: null, fotoUrl: '', baja: false, motivo: 'No localizado', otro: '' };
+             personaOriginal: b.id_usuario_directo ?? null, etiqueta: '', foto: null, fotoUrl: '', baja: false, motivo: 'No se encontró', otro: '' };
   }
 
-  actAbrir(b: any, desdeLista = false): void {
+  actAbrir(b: any): void {
     if (b.id_bien < 0) { this.notificar('info', 'Se está guardando', 'Este bien nuevo todavía se está subiendo. Espera un momento.', 2500); return; }
     const a = this.act;
     a.error = ''; a.libre = null;
-    // Modo rápido: si ya tiene foto y etiqueta, se confirma solo
-    if (a.rapido && !desdeLista && b.foto_mini && b.etiqueta) { this.actConfirmar(this.actFichaDe(b), true); return; }
     a.ficha = this.actFichaDe(b);
   }
 
@@ -10474,7 +10476,7 @@ export class AppComponent {
     this.actDetenerCamara(true);
     const ids: any = {};
     for (const b of this.actPendientes) ids[b.id_bien] = true;
-    this.act.cierre = { ids, motivo: 'No localizado', otro: '' };
+    this.act.cierre = { ids, motivo: 'No se encontró', otro: '' };
     this.act.paso = 'cierre';
   }
 
@@ -10503,12 +10505,13 @@ export class AppComponent {
     this.actFinArea();
   }
 
-  private actFinArea(): void {
+  actFinArea(): void {
     const a = this.act;
     const n = (t: string) => this.actCuenta(t);
     this.notificar('exito', 'Área terminada: ' + this.titulo(this.actNombreArea),
       (n('ok') + n('movido')) + ' confirmados · ' + n('nuevo') + ' nuevos · ' + n('baja') + ' bajas', 4000);
-    a.cierre = null;
+    this.actDetenerCamara(true);
+    a.cierre = null; a.ficha = null; a.nuevo = null; a.libre = null;
     a.paso = 'area';
     a.q = '';
   }
@@ -10527,7 +10530,7 @@ export class AppComponent {
     this.act.nuevo = null;
   }
 
-  actGuardarNuevo(otroIgual: boolean): void {
+  actGuardarNuevo(): void {
     const a = this.act, n = a.nuevo;
     if (!n) return;
     const nombre = String(n.articulo || '').trim();
@@ -10564,12 +10567,49 @@ export class AppComponent {
         this.actGuardarEstado();
       });
 
-    this.notificar('exito', 'Bien guardado', nombre + (n.etiqueta ? ' · ' + n.etiqueta : ''), 1500);
-    if (otroIgual) {
-      a.nuevo = { ...n, etiqueta: '', foto: null, fotoUrl: '', numeroSerie: '', error: '' };
-    } else {
-      a.nuevo = null;
-    }
+    // Se recuerda para dar de alta otro igual con un toque (ej. varias sillas)
+    const r = { articulo: this.titulo(nombre), estado: n.estado, persona: n.persona, idMarca: n.idMarca, modelo: n.modelo || '',
+                idClasificacion: n.idClasificacion, caracteristicas: n.caracteristicas || '' };
+    a.recientes = [r, ...a.recientes.filter((x: any) => this.norm(x.articulo) !== this.norm(r.articulo))].slice(0, 4);
+    this.actGuardarEstado();
+    this.notificar('exito', 'Guardado', this.titulo(nombre) + (n.etiqueta ? ' · ' + n.etiqueta : ''), 1500);
+    a.nuevo = null;
+  }
+
+  // Toca un nombre reciente: se llenan los mismos datos que la vez anterior
+  actUsarReciente(n: any, r: any): void {
+    n.articulo = r.articulo; n.estado = r.estado || 'BUENO'; n.persona = r.persona ?? null;
+    n.idMarca = r.idMarca ?? null; n.modelo = r.modelo || ''; n.idClasificacion = r.idClasificacion ?? null;
+    n.caracteristicas = r.caracteristicas || '';
+    if (n.idMarca != null || n.modelo || n.idClasificacion != null) n.mas = true;
+  }
+
+  actAtras(): void {
+    const a = this.act;
+    if (a.paso === 'area') { a.paso = 'sede'; a.q = ''; return; }
+    if (a.paso === 'cierre') { a.paso = 'trabajo'; a.cierre = null; return; }
+    if (a.paso === 'trabajo') this.actCambiarArea();
+  }
+
+  get actAreasTodas(): number {
+    return (this.catalogs.ubicaciones || []).filter((u: any) => u.id_sede === this.act.idSede && u.estatus !== false).length;
+  }
+
+  get actRevisadosArea(): number {
+    return this.actHechos.filter(h => h.tipo !== 'baja').length;
+  }
+
+  get actAvance(): number {
+    const hechos = this.actRevisadosArea, total = hechos + this.actPendientes.length;
+    return total ? Math.round(hechos * 100 / total) : 0;
+  }
+
+  get actSync(): { k: string; t: string } {
+    const e = this.estadoSync;
+    if (e === 'error') return { k: 'error', t: this.cola.errores + (this.cola.errores === 1 ? ' cambio no se pudo subir' : ' cambios no se pudieron subir') };
+    if (e === 'offline') return { k: 'offline', t: 'Sin señal · se guarda en el celular' };
+    if (this.actEnviando || e === 'pendiente') return { k: 'pendiente', t: 'Guardando…' };
+    return { k: 'ok', t: 'Todo guardado' };
   }
 
   // ----- Envío en segundo plano, en orden. Sin señal se guarda en el celular y se sube solo después -----
