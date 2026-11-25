@@ -778,8 +778,12 @@ export class ElegirComponent {
                       <div class="vx-rev" *ngFor="let r of F.revisiones" [class.sosp]="r.calificacion==='REVISAR'" [class.falsa]="r.calificacion==='FALSA'">
                         <span class="vx-rev-f">{{ r.fecha | date:'d MMM' }}</span>
                         <span class="vx-rev-t"><b>{{ r.km | number }} km<ng-container *ngIf="r.km_recorridos != null"> · +{{ r.km_recorridos | number }}</ng-container></b>
-                          <small>{{ r.quien | titlecase }} · {{ r.problemas ? (r.problemas + (r.problemas === 1 ? ' problema' : ' problemas')) : 'todo bien' }}<ng-container *ngIf="r.sospecha"> · ⚠ {{ r.sospecha }}</ng-container><ng-container *ngIf="r.calificacion==='FALSA'"> · marcado falso</ng-container></small></span>
+                          <small>{{ r.quien | titlecase }} · {{ r.problemas ? (r.problemas + (r.problemas === 1 ? ' problema' : ' problemas')) : 'todo bien' }}<ng-container *ngIf="r.sospecha"> · ⚠ {{ r.sospecha }}</ng-container><ng-container *ngIf="r.calificacion==='FALSA'"> · marcado falso</ng-container><ng-container *ngIf="r.calificacion==='BIEN'"> · 👍 bien hecho</ng-container></small></span>
                         <a *ngIf="r.foto_url" [href]="r.foto_url" target="_blank" rel="noopener" class="vx-rev-foto"><ico n="image"></ico></a>
+                        <span class="vx-calif">
+                          <button [class.on]="r.calificacion==='BIEN'" title="Bien hecho (+5 puntos)" (click)="app.vhCalificar(r, r.calificacion==='BIEN' ? 'OK' : 'BIEN')">👍</button>
+                          <button [class.on]="r.calificacion==='FALSA'" title="Es falso (−30 puntos)" (click)="app.vhCalificar(r, r.calificacion==='FALSA' ? 'OK' : 'FALSA')">✗</button>
+                        </span>
                       </div>
                     </ng-container>
 
@@ -790,6 +794,7 @@ export class ElegirComponent {
                       </div>
                     </ng-container>
 
+                    <button class="vx-pit vx-pit-ficha" (click)="app.vhFicha=null; app.psAbrir(F.id_vehiculo)"><span>🏁</span>Hacer Pit Stop</button>
                     <div class="vx-ficha-acc">
                       <button (click)="app.vhEditarVeh(F)"><ico n="edit"></ico>Editar datos</button>
                       <button (click)="app.vhImprimirQr([F])"><ico n="qr"></ico>QR del vehículo</button>
@@ -1393,6 +1398,11 @@ export class ElegirComponent {
     .vx-rev-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}.vx-rev-t b{font-size:14px;color:#14243a}.vx-rev-t small{font-size:12.5px;color:#7b889a}
     .vx-rev.sosp .vx-rev-t small{color:#a8650f}.vx-rev.falsa{opacity:.6}.vx-rev.falsa .vx-rev-t small{color:#bd4b52}
     .vx-rev-foto{color:#244c78}.vx-rev-foto ico{width:20px;height:20px}
+    .vx-calif{display:flex;gap:6px;flex-shrink:0}
+    .vx-calif button{width:38px;height:38px;border-radius:12px;border:1.5px solid #e3e9f1;background:#fff;font-size:16px;cursor:pointer;color:#8a97a8;font-weight:800;transition:all .15s}
+    .vx-calif button.on:first-child{background:#e8f6ee;border-color:#2bb673}
+    .vx-calif button.on:last-child{background:#fdecee;border-color:#e0555c;color:#bd4b52}
+    .vx-pit-ficha{height:60px;font-size:17px;margin-top:18px}
     .vx-hist{display:flex;flex-direction:column;gap:0;margin-top:6px}
     .vx-hist>div{display:flex;flex-direction:column;gap:2px;padding:9px 4px;border-bottom:1px solid #edf0f4}
     .vx-hist small{font-size:12px;color:#8a97a8;font-weight:700}.vx-hist span{font-size:14px;color:#25364c}.vx-hist em{font-style:normal;font-size:12px;color:#7b889a}
@@ -1596,7 +1606,7 @@ export class VehiculosComponent {
             <button class="nav-item" *ngIf="esAdminFlotaUi" [class.active]="section==='vehiculos' && vh==='flota'" (click)="irVeh('flota')">
               <span class="nav-icon"><ico n="car"></ico></span><span>Flota</span>
             </button>
-            <button class="nav-item" *ngIf="vhPerfil?.vehiculos?.length" [class.active]="section==='vehiculos' && vh==='mio'" (click)="irVeh('mio')">
+            <button class="nav-item" [class.active]="section==='vehiculos' && vh==='mio'" (click)="irVeh('mio')">
               <span class="nav-icon"><ico n="gauge"></ico></span><span>Mi vehículo</span>
               <span class="nav-badge" *ngIf="vhPitPendiente">Pit Stop</span>
             </button>
@@ -12170,6 +12180,19 @@ export class AppComponent {
     if (accion === 'taller') this.vhPost(null, this.api + '/vehiculos/' + F.id_vehiculo + '/taller', { idPendiente: p.id_pendiente }, 'Enviado al taller');
     if (accion === 'descartar') this.vhPost(null, this.api + '/vehiculos/pendientes/' + p.id_pendiente + '/cerrar', { estado: 'DESCARTADO' }, 'Descartado');
     if (accion === 'listo') this.vhHojaTrabajos('listo', F.id_vehiculo, F.placas, p.id_pendiente);
+  }
+
+  // Calificar un Pit Stop: 👍 bien hecho (+5) o falso (−30). Tocar de nuevo lo quita.
+  vhCalificar(r: any, calificacion: string): void {
+    const antes = r.calificacion;
+    r.calificacion = calificacion;
+    this.http.post(this.api + '/vehiculos/revisiones/' + r.id_revision + '/calificar', { calificacion }).subscribe({
+      next: () => {
+        this.notificar('exito', calificacion === 'BIEN' ? '👍 +5 puntos al responsable' : calificacion === 'FALSA' ? 'Marcado como falso (−30 puntos)' : 'Calificación quitada', '', 1800);
+        if (this.vhDec) this.cargarDecisiones();
+      },
+      error: e => { r.calificacion = antes; this.notificar('error', 'No se pudo calificar', this.mensajeError(e, 'Inténtalo de nuevo.'), 4000); }
+    });
   }
 
   vhCambiarResponsable(F: any, idPersona: any): void {
