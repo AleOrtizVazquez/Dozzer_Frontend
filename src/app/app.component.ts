@@ -1372,6 +1372,7 @@ export class ElegirComponent {
                       <div class="fx-opts">
                         <button [class.on]="filtroExtra==='sinetiqueta'" (click)="alternarFiltro('extra', 'sinetiqueta')">Sin QR<small>{{ conteosInv['sinetiqueta'] || 0 | number }}</small></button>
                         <button [class.on]="filtroExtra==='sinfoto'" (click)="alternarFiltro('extra', 'sinfoto')">Sin foto<small>{{ conteosInv['sinfoto'] || 0 | number }}</small></button>
+                        <button [class.on]="filtroExtra==='sinverificar'" (click)="alternarFiltro('extra', 'sinverificar')">Sin verificar<small>{{ conteosInv['sinverificar'] || 0 | number }}</small></button>
                         <button [class.on]="filtroAsignacion==='SIN_ASIGNAR'" (click)="alternarFiltro('asignacion', 'SIN_ASIGNAR')">Sin asignar<small>{{ conteosInv['sinasignar'] || 0 | number }}</small></button>
                         <button *ngIf="isAdmin || canAuthorize" [class.on]="filtroCM==='atencion'" (click)="alternarFiltro('cm', 'atencion')">Por calibrar<small>{{ conteosInv['cm'] || 0 | number }}</small></button>
                         <button [class.on]="statusFilter==='EN_REPARACION'" (click)="alternarFiltro('estatus', 'EN_REPARACION')">En reparación</button>
@@ -1507,6 +1508,7 @@ export class ElegirComponent {
                               <span *ngSwitchCase="'clave'" class="pt-clave">{{ b.clave }}</span>
                               <span *ngSwitchCase="'fecha_alta'">{{ b.fecha_alta ? (b.fecha_alta | date:'dd MMM yyyy') : '—' }}</span>
                               <span *ngSwitchCase="'cantidad_piezas'">{{ b.cantidad_piezas || 1 }}</span>
+                              <span *ngSwitchCase="'fecha_verificacion'" [class.pt-nada]="!b.fecha_verificacion">{{ b.fecha_verificacion ? (b.fecha_verificacion | date:'dd MMM yyyy') : 'Sin verificar' }}</span>
                               <span *ngSwitchDefault [class.pt-nada]="!b[c.key]">{{ esTexto(b[c.key]) ? (textoCampo(b[c.key]) | titlecase) : '—' }}</span>
                             </td>
                             <td class="pt-chev"><ico n="chev"></ico></td>
@@ -1573,6 +1575,7 @@ export class ElegirComponent {
                                       <dd>
                                         <strong class="fi-clave">{{ b.clave || '—' }}</strong>
                                         <span *ngIf="b.fecha_alta">Alta {{ b.fecha_alta | date:'d MMM yyyy' }}</span>
+                                        <span [class.fi-sinver]="!b.fecha_verificacion">{{ b.fecha_verificacion ? 'Verificado ' + (b.fecha_verificacion | date:'d MMM yyyy') + (b.verificado_por ? ' · ' + (b.verificado_por | titlecase) : '') : 'Sin verificar físicamente' }}</span>
                                         <span>{{ b.cantidad_piezas || 1 }} {{ (b.cantidad_piezas || 1) == 1 ? 'pieza' : 'piezas' }}<ng-container *ngIf="b.color"> · {{ b.color | titlecase }}</ng-container></span>
                                       </dd>
                                     </div>
@@ -1786,6 +1789,7 @@ export class ElegirComponent {
                 <li *ngIf="b.requiere_calibracion" [ngClass]="'cm-' + estadoFechaCM(b.fecha_calibracion)" title="Calibración"><ico n="gauge"></ico><span>{{ textoFechaCM(b.fecha_calibracion) }}<small>Calibración</small></span></li>
                 <li *ngIf="b.requiere_mantenimiento" [ngClass]="'cm-' + estadoFechaCM(b.fecha_mantenimiento)" title="Mantenimiento"><ico n="wrench"></ico><span>{{ textoFechaCM(b.fecha_mantenimiento) }}<small>Mantenimiento</small></span></li>
                 <li *ngIf="b.fecha_alta" title="Fecha de alta"><ico n="calendar"></ico><span>{{ b.fecha_alta | date:'dd/MM/yyyy' }}<small>Alta</small></span></li>
+                <li [title]="b.verificado_por ? 'Verificado por ' + b.verificado_por : 'Nadie lo ha verificado físicamente'"><ico n="check"></ico><span>{{ b.fecha_verificacion ? (b.fecha_verificacion | date:'dd/MM/yyyy') : 'Sin verificar' }}<small>Verificado</small></span></li>
               </ul>
               <p class="bi-carac" *ngIf="esTexto(b.caracteristicas) && b.caracteristicas.length > 40">{{ b.caracteristicas }}</p>
             </ng-template>
@@ -4493,6 +4497,7 @@ export class ElegirComponent {
     .ax-video-x{position:absolute;top:10px;right:10px;width:38px;height:38px;border-radius:50%;border:0;background:#000000a0;color:#fff;font-size:24px;line-height:1;cursor:pointer}
     .ax-video.ax-video-flot{position:fixed;z-index:400;top:max(12px,env(safe-area-inset-top));right:12px;width:104px;height:104px;aspect-ratio:auto;border:3px solid #fff;border-radius:20px}
     .ax-video.ax-video-flot .ax-mira,.ax-video.ax-video-flot .ax-video-x{display:none}
+    .fi-sinver{color:#a8650f;font-weight:600}
     .ax-pista{text-align:center;color:#7b889a;font-size:13.5px;margin:10px 0 0}
     .ax-links button{background:transparent!important;box-shadow:none!important;color:#8a97a8!important;font-weight:600!important;padding:6px 10px!important}
     .ax-bien-ver{cursor:default}.ax-bien-ver:active{transform:none}.ax-bien-ver:hover{box-shadow:0 1px 2px #17263d0f,0 4px 14px #17263d0a}
@@ -6810,7 +6815,8 @@ export class AppComponent {
     { key: 'estado_fisico', label: 'Estado físico', tipo: 'fisico' },
     { key: 'estatus_asignacion', label: 'Asignación' },
     { key: 'estatus_inventario', label: 'Estatus', tipo: 'estatus' },
-    { key: 'fecha_alta', label: 'Fecha de alta', tipo: 'fecha' }
+    { key: 'fecha_alta', label: 'Fecha de alta', tipo: 'fecha' },
+    { key: 'fecha_verificacion', label: 'Verificado', tipo: 'fecha' }
   ];
   columnasElegidas: string[] = this.cargarColumnas();
 
@@ -7453,7 +7459,7 @@ export class AppComponent {
     }
     if (this.filtroAsignacion) lista.push({ clave: 'asignacion', etiqueta: 'Asignación', valor: this.filtroAsignacion === 'ASIGNADO' ? 'Asignados' : 'Sin asignar' });
     if (this.filtroTipos.length) lista.push({ clave: 'tipo', etiqueta: 'Tipo', valor: this.filtroTipos.map(t => this.nombresTipo.get(t) || t).join(', ') });
-    if (this.filtroExtra) lista.push({ clave: 'extra', etiqueta: 'Falta', valor: this.filtroExtra === 'sinetiqueta' ? 'Etiqueta QR' : 'Foto' });
+    if (this.filtroExtra) lista.push({ clave: 'extra', etiqueta: 'Falta', valor: this.filtroExtra === 'sinetiqueta' ? 'Etiqueta QR' : this.filtroExtra === 'sinverificar' ? 'Verificar físicamente' : 'Foto' });
     if (this.filtroCM) lista.push({ clave: 'cm', etiqueta: 'Calibración/mant.', valor: ({ atencion: 'Vencidos o próximos', calibracion: 'Requieren calibración', mantenimiento: 'Requieren mantenimiento', sinfecha: 'Sin fecha' } as any)[this.filtroCM] });
     return lista;
   }
@@ -8663,7 +8669,7 @@ export class AppComponent {
       (!estado || String(b.estado_fisico || '').toUpperCase() === estado) &&
       (!asignacion || String(b.estatus_asignacion || '').toUpperCase() === asignacion) &&
       (!cm || this.coincideCM(b, cm)) &&
-      (!extra || (extra === 'sinetiqueta' ? !b.etiqueta : !b.foto_mini)) &&
+      (!extra || (extra === 'sinetiqueta' ? !b.etiqueta : extra === 'sinverificar' ? !b.fecha_verificacion : !b.foto_mini)) &&
       (!persona || b.id_responsable_area === persona || b.id_usuario_directo === persona) &&
       palabras.every(alternativas => alternativas.some(p => b._busqueda.includes(p)))
     );
@@ -8715,7 +8721,7 @@ export class AppComponent {
     { v: 'ninguno', l: 'No agrupar' }, { v: 'tipo', l: 'Tipo' }, { v: 'sede', l: 'Sede' }, { v: 'persona', l: 'Responsable' }, { v: 'ubicacion', l: 'Ubicación' }
   ];
   filtroTipos: string[] = [];
-  filtroExtra: '' | 'sinetiqueta' | 'sinfoto' = '';
+  filtroExtra: '' | 'sinetiqueta' | 'sinfoto' | 'sinverificar' = '';
   tipoInterpretado = false;
   interpretacion: { clave: string; etiqueta: string; valor: string; palabras: string[] }[] = [];
   tiposVista: { id: string; nombre: string; total: number; on: boolean }[] = [];
@@ -8823,6 +8829,7 @@ export class AppComponent {
       const a = w[i], b = this.raiz(w[i + 1]);
       if (a === 'sin' && ['etiqueta', 'qr', 'codigo'].includes(b)) { r.extra = 'sinetiqueta'; chip('extra', 'Falta', 'Sin QR', tomar(i, 2)); }
       else if (a === 'sin' && ['foto', 'imagen'].includes(b)) { r.extra = 'sinfoto'; chip('extra', 'Falta', 'Sin foto', tomar(i, 2)); }
+      else if (a === 'sin' && ['verificar', 'verificacion', 'revisar'].includes(b)) { r.extra = 'sinverificar'; chip('extra', 'Falta', 'Sin verificar', tomar(i, 2)); }
       else if (a === 'sin' && ['asignar', 'responsable', 'usuario', 'dueno', 'asignacion'].includes(b)) { r.asignacion = 'SIN_ASIGNAR'; chip('asignacion', 'Asignación', 'Sin asignar', tomar(i, 2)); }
       else if (['mal', 'malo'].includes(a) && b === 'estado') { r.estado = 'MALO'; chip('estado', 'Estado', 'Mal estado', tomar(i, 2)); }
       else if (['buen', 'bueno'].includes(a) && b === 'estado') { r.estado = 'BUENO'; chip('estado', 'Estado', 'Buen estado', tomar(i, 2)); }
@@ -8919,13 +8926,14 @@ export class AppComponent {
   ];
 
   private calcularSugerenciasIA(lista: any[], _activos?: any): void {
-    const c: Record<string, number> = { BUENO: 0, REGULAR: 0, MALO: 0, sinetiqueta: 0, sinfoto: 0, sinasignar: 0, cm: 0 };
+    const c: Record<string, number> = { BUENO: 0, REGULAR: 0, MALO: 0, sinetiqueta: 0, sinfoto: 0, sinverificar: 0, sinasignar: 0, cm: 0 };
     const verCM = this.isAdmin || this.canAuthorize;
     for (const b of lista) {
       const e = String(b.estado_fisico || '').toUpperCase();
       if (c[e] !== undefined) c[e]++;
       if (!b.etiqueta) c['sinetiqueta']++;
       if (!b.foto_mini) c['sinfoto']++;
+      if (!b.fecha_verificacion) c['sinverificar']++;
       if (String(b.estatus_asignacion || '').toUpperCase() === 'SIN_ASIGNAR') c['sinasignar']++;
       if (verCM && this.coincideCM(b, 'atencion')) c['cm']++;
     }
@@ -8953,7 +8961,7 @@ export class AppComponent {
     const add = (clave: string, valor: string) => out.push({ clave, valor, ia: false });
     if (this.filtroTipos.length) add('tipo', this.filtroTipos.map(t => this.nombresTipo.get(t) || t).join(', '));
     if (this.filtroEstadoFisico) add('fisico', this.textoEstado(this.filtroEstadoFisico));
-    if (this.filtroExtra) add('extra', this.filtroExtra === 'sinetiqueta' ? 'Sin QR' : 'Sin foto');
+    if (this.filtroExtra) add('extra', this.filtroExtra === 'sinetiqueta' ? 'Sin QR' : this.filtroExtra === 'sinverificar' ? 'Sin verificar' : 'Sin foto');
     if (this.filtroAsignacion) add('asignacion', this.filtroAsignacion === 'ASIGNADO' ? 'Asignados' : 'Sin asignar');
     if (this.filtroCM) add('cm', ({ atencion: 'Por calibrar', calibracion: 'Requiere calibración', mantenimiento: 'Requiere mantenimiento', sinfecha: 'Sin fecha de calibración' } as any)[this.filtroCM]);
     if (this.statusFilter) add('estatus', ({ BAJA: 'De baja', EN_REPARACION: 'En reparación', ACTIVO: 'Activos' } as any)[this.statusFilter] || this.statusFilter);
@@ -10197,6 +10205,12 @@ export class AppComponent {
     });
   }
 
+  // Verificado en los últimos 30 días (por cualquiera, en cualquier celular)
+  private actVerificadoReciente(b: any): boolean {
+    const f = b.fecha_verificacion ? Date.parse(b.fecha_verificacion) : NaN;
+    return !isNaN(f) && Date.now() - f < 30 * 24 * 3600 * 1000;
+  }
+
   // Ids revisados en cada área durante la actualización
   private get actRevisados(): Map<any, Set<any>> {
     return this.actMemo('rev', [this.act.ver, this.act.log], () => {
@@ -10217,7 +10231,7 @@ export class AppComponent {
       for (const b of this.bienes) {
         if (b.id_ubicacion == null) continue;
         cuenta.set(b.id_ubicacion, (cuenta.get(b.id_ubicacion) || 0) + 1);
-        if (rev.get(b.id_ubicacion)?.has(b.id_bien)) hechos.set(b.id_ubicacion, (hechos.get(b.id_ubicacion) || 0) + 1);
+        if (rev.get(b.id_ubicacion)?.has(b.id_bien) || this.actVerificadoReciente(b)) hechos.set(b.id_ubicacion, (hechos.get(b.id_ubicacion) || 0) + 1);
       }
       const q = this.norm(a.q || '');
       return (this.catalogs.ubicaciones || [])
@@ -10240,7 +10254,7 @@ export class AppComponent {
     const a = this.act;
     return this.actMemo('pend', [this.bienes, a.idUbicacion, a.ver], () => {
       const rev = this.actRevisados.get(a.idUbicacion) || new Set();
-      return this.bienes.filter(b => b.id_ubicacion === a.idUbicacion && !rev.has(b.id_bien))
+      return this.bienes.filter(b => b.id_ubicacion === a.idUbicacion && !rev.has(b.id_bien) && !this.actVerificadoReciente(b))
         .sort((x, y) => String(x.articulo || '').localeCompare(String(y.articulo || ''), 'es')
           || String(x.clave || '').localeCompare(String(y.clave || ''), 'es', { numeric: true }));
     });
@@ -10469,6 +10483,7 @@ export class AppComponent {
     b.id_ubicacion = a.idUbicacion; b.ubicacion = this.actNombreArea;
     b.id_sede = a.idSede; b.sede = this.actNombreSede;
     b.estado_fisico = f.estado;
+    b.fecha_verificacion = new Date().toISOString(); b.verificado_por = this.nombreUsuario || this.email;
     if ('idUsuarioDirecto' in body) {
       b.id_usuario_directo = f.persona; b.usuario_directo = this.actNombrePersona(f.persona);
       b.estatus_asignacion = f.persona != null || b.id_responsable_area != null ? 'ASIGNADO' : 'SIN_ASIGNAR';
@@ -10580,6 +10595,7 @@ export class AppComponent {
       id_bien: -Date.now(), clave: '', articulo: nombre, etiqueta: n.etiqueta || null, activo: true,
       id_ubicacion: a.idUbicacion, ubicacion: this.actNombreArea, id_sede: a.idSede, sede: this.actNombreSede,
       estado_fisico: n.estado, id_usuario_directo: n.persona, usuario_directo: this.actNombrePersona(n.persona),
+      fecha_verificacion: new Date().toISOString(), verificado_por: this.nombreUsuario || this.email,
       estatus_asignacion: n.persona != null ? 'ASIGNADO' : 'SIN_ASIGNAR',
       foto_mini: n.fotoUrl || null, foto_url: n.fotoUrl || null, tiene_foto: !!n.foto,
       modelo: campos.modelo || null, numero_serie: campos.numeroSerie || null, caracteristicas: campos.caracteristicas || null
@@ -10617,7 +10633,11 @@ export class AppComponent {
   }
 
   get actRevisadosArea(): number {
-    return this.actHechos.filter(h => h.tipo !== 'baja').length;
+    const a = this.act;
+    return this.actMemo('revarea', [this.bienes, a.idUbicacion, a.ver], () => {
+      const rev = this.actRevisados.get(a.idUbicacion) || new Set();
+      return this.bienes.filter(b => b.id_ubicacion === a.idUbicacion && (rev.has(b.id_bien) || this.actVerificadoReciente(b))).length;
+    });
   }
 
   get actAvance(): number {
