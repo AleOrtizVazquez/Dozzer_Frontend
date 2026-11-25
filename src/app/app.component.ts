@@ -1,5 +1,5 @@
 
-import { Component, ElementRef, EventEmitter, Input, OnChanges, OnInit, Output, SimpleChanges, ViewChild } from '@angular/core';
+import { Component, ElementRef, EventEmitter, Input, OnChanges, OnInit, Output, SimpleChanges, ViewChild, ViewEncapsulation } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
@@ -544,10 +544,984 @@ export class ElegirComponent {
 }
 
 
+// =========================
+// CONTROL VEHICULAR (pantallas). La lógica y los datos viven en AppComponent (this.app);
+// la plantilla va aparte para que el compilador la revise por separado.
+// =========================
+@Component({
+  selector: 'dz-vehiculos',
+  standalone: true,
+  imports: [CommonModule, FormsModule, IcoComponent],
+  encapsulation: ViewEncapsulation.None,
+  template: `
+        <!-- VEHÍCULOS: control vehicular -->
+          <section *ngIf="app.section==='vehiculos'" class="vx">
+            <div class="cal-cargando" *ngIf="!app.vhPerfil"><div class="loader-ring"></div></div>
+
+            <!-- ============ PENDIENTES (administrador de flota) ============ -->
+            <ng-container *ngIf="app.vh==='inicio' && app.vhPerfil?.admin">
+              <div class="vx-hola">
+                <small>{{ app.saludoHora }}</small>
+                <h1>Hola {{ app.primerNombreVh }} 👋</h1>
+                <p *ngIf="app.vhDec">
+                  <ng-container *ngIf="app.vhDec.total">{{ app.vhDec.enOrden | number }} de {{ app.vhDec.total | number }} vehículos en orden · </ng-container>
+                  <b>{{ app.vhDec.tarjetas.length ? (app.vhDec.tarjetas.length === 1 ? '1 cosa para ti' : app.vhDec.tarjetas.length + ' cosas para ti') : 'nada pendiente' }}</b>
+                </p>
+              </div>
+
+              <div class="vx-flota-anillo" *ngIf="app.vhDec?.total">
+                <div class="vx-ring vx-ring-xl">
+                  <svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52" class="bg"/><circle cx="60" cy="60" r="52" class="fg" [ngClass]="'s-' + app.semaforoDe(app.porcentajeFlota)" stroke-dasharray="326.7" [attr.stroke-dashoffset]="326.7 * (1 - app.porcentajeFlota / 100)"/></svg>
+                  <span><b>{{ app.porcentajeFlota }}%</b><small>en orden</small></span>
+                </div>
+                <div class="vx-flota-txt">
+                  <b>Flota DOZZER</b>
+                  <span><i class="d-rojo"></i>{{ app.vhConteo('rojo') }} atender</span>
+                  <span><i class="d-ambar"></i>{{ app.vhConteo('ambar') }} por vencer</span>
+                  <span><i class="d-verde"></i>{{ app.vhConteo('verde') }} en orden</span>
+                  <button class="vx-link" (click)="app.irVeh('flota')">Ver la flota →</button>
+                </div>
+              </div>
+
+              <div class="cal-cargando" *ngIf="!app.vhDec"><div class="loader-ring"></div></div>
+              <div class="vx-cards">
+                <div class="vx-card" *ngFor="let t of app.vhDec?.tarjetas; trackBy: app.trackTarjeta" [ngClass]="'g-' + t.gravedad" [class.saliendo]="t._saliendo">
+                  <div class="vx-card-top" *ngIf="t.placas" (click)="app.vhAbrirFichaId(t.idVehiculo)">
+                    <span class="vx-placa">{{ t.placas }}</span>
+                    <small>{{ t.vehiculo | titlecase }}<ng-container *ngIf="t.responsable"> · {{ t.responsable | titlecase }}</ng-container></small>
+                  </div>
+                  <b>{{ t.titulo }}</b>
+                  <p *ngIf="t.detalle">{{ t.detalle }}</p>
+                  <div class="vx-card-acc">
+                    <button *ngFor="let a of t.acciones" [class.prim]="a.primaria" [disabled]="t._ocupado" (click)="app.vhAccionTarjeta(t, a)">{{ a.texto }}</button>
+                  </div>
+                </div>
+              </div>
+              <div class="vx-todo-ok" *ngIf="app.vhDec && !app.vhDec.tarjetas.length">
+                <span><ico n="check"></ico></span>
+                <b>Todo en orden</b>
+                <small>DOZZER te avisa en cuanto algo necesite tu atención.</small>
+              </div>
+            </ng-container>
+
+            <!-- ============ FLOTA (estacionamiento) ============ -->
+            <ng-container *ngIf="app.vh==='flota' && app.vhPerfil?.admin">
+              <div class="vx-head">
+                <div><h1>Parque vehicular</h1><p>{{ app.vhLista.length | number }} vehículos</p></div>
+                <div class="vx-head-acc">
+                  <button class="vx-btn-sec" (click)="app.vhMenuFlota = !app.vhMenuFlota" aria-label="Más opciones"><ico n="dots"></ico></button>
+                  <button class="vx-btn" (click)="app.vhNuevo()"><ico n="plus"></ico><span>Vehículo</span></button>
+                  <div class="vx-menu" *ngIf="app.vhMenuFlota" (click)="app.vhMenuFlota=false">
+                    <button (click)="app.vhElegirExcel()"><ico n="download"></ico>Importar Excel</button>
+                    <button (click)="app.vhImprimirQr(app.vhListaFiltrada)" [disabled]="!app.vhLista.length"><ico n="qr"></ico>Imprimir QR de vehículos</button>
+                    <button *ngIf="app.vhPerfil?.adminGeneral" (click)="app.vhAbrirAdmins()"><ico n="shield"></ico>Quién administra la flota</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="vx-filtros">
+                <button [class.on]="app.vhFiltro==='todos'" (click)="app.vhFiltro='todos'">Todos <small>{{ app.vhLista.length }}</small></button>
+                <button class="f-rojo" [class.on]="app.vhFiltro==='rojo'" (click)="app.vhFiltro='rojo'"><i></i>Atender <small>{{ app.vhConteo('rojo') }}</small></button>
+                <button class="f-ambar" [class.on]="app.vhFiltro==='ambar'" (click)="app.vhFiltro='ambar'"><i></i>Por vencer <small>{{ app.vhConteo('ambar') }}</small></button>
+                <button class="f-verde" [class.on]="app.vhFiltro==='verde'" (click)="app.vhFiltro='verde'"><i></i>En orden <small>{{ app.vhConteo('verde') }}</small></button>
+                <button *ngIf="app.vhSinResponsable" [class.on]="app.vhFiltro==='sinresp'" (click)="app.vhFiltro='sinresp'">Sin responsable <small>{{ app.vhSinResponsable }}</small></button>
+              </div>
+              <div class="vx-buscar-fila">
+                <div class="ax-buscar"><ico n="search"></ico><input [(ngModel)]="app.vhQ" placeholder="Placas, modelo, responsable…"></div>
+                <select class="vx-sede" [(ngModel)]="app.vhSede" *ngIf="app.vhSedes.length > 1">
+                  <option [ngValue]="''">Todas las sedes</option>
+                  <option *ngFor="let s of app.vhSedes" [ngValue]="s">{{ s | titlecase }}</option>
+                </select>
+              </div>
+
+              <div class="cal-cargando" *ngIf="app.vhCargando && !app.vhLista.length"><div class="loader-ring"></div></div>
+              <div class="vx-grid">
+                <button class="vx-auto" *ngFor="let v of app.vhListaFiltrada; trackBy: app.trackVeh" [ngClass]="'s-' + v.semaforo" (click)="app.vhAbrirFicha(v)">
+                  <span class="vx-auto-top">
+                    <span class="vx-placa">{{ v.placas }}</span>
+                    <span class="vx-ring vx-ring-s"><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52" class="bg"/><circle cx="60" cy="60" r="52" class="fg" [ngClass]="'s-' + v.semaforo" stroke-dasharray="326.7" [attr.stroke-dashoffset]="326.7 * (1 - v.salud / 100)"/></svg><span>{{ v.salud }}</span></span>
+                  </span>
+                  <b>{{ ((v.marca || '') + ' ' + (v.modelo || '')) | titlecase }}</b>
+                  <small>{{ v.anio || '' }}<ng-container *ngIf="v.color"> · {{ v.color | titlecase }}</ng-container><ng-container *ngIf="v.sede_nombre"> · {{ v.sede_nombre | titlecase }}</ng-container></small>
+                  <span class="vx-resp" [class.vx-resp-no]="!v.id_persona_responsable"><ico n="user"></ico>{{ (v.responsable_nombre | titlecase) || 'Sin responsable' }}</span>
+                  <span class="vx-dots"><i *ngFor="let it of v.items" [ngClass]="'d-' + it.estado" [title]="it.nombre + ': ' + it.texto"></i></span>
+                </button>
+              </div>
+              <p class="ax-vacio" *ngIf="!app.vhCargando && !app.vhListaFiltrada.length">{{ app.vhLista.length ? 'No hay vehículos con ese filtro.' : 'Todavía no hay vehículos. Importa el Excel o agrega uno.' }}</p>
+            </ng-container>
+
+            <!-- ============ MI VEHÍCULO (responsable) ============ -->
+            <ng-container *ngIf="app.vh==='mio'">
+              <div class="vx-hola">
+                <small>{{ app.saludoHora }}</small>
+                <h1>Hola {{ app.primerNombreVh }} 👋</h1>
+              </div>
+              <div class="vx-marcador" *ngIf="app.vhPerfil?.yo as yo">
+                <div><b>🔥 {{ yo.racha }}</b><small>{{ yo.racha === 1 ? 'semana' : 'semanas' }} de racha</small></div>
+                <div><b>{{ yo.puntos_mes | number }}</b><small>puntos este mes</small></div>
+                <div *ngIf="yo.lugar"><b>#{{ yo.lugar }}</b><small>de {{ yo.participantes }} en el podio</small></div>
+                <div><b class="vx-nivel" [ngClass]="'n-' + yo.nivel">{{ yo.nivel }}</b><small>nivel</small></div>
+              </div>
+
+              <div class="vx-mio" *ngFor="let v of app.vhPerfil?.vehiculos" [ngClass]="'s-' + v.semaforo">
+                <div class="vx-mio-top">
+                  <div>
+                    <span class="vx-placa vx-placa-l">{{ v.placas }}</span>
+                    <h2>{{ ((v.marca || '') + ' ' + (v.modelo || '')) | titlecase }}</h2>
+                    <small>{{ v.anio || '' }}<ng-container *ngIf="v.color"> · {{ v.color | titlecase }}</ng-container></small>
+                  </div>
+                  <div class="vx-ring vx-ring-l">
+                    <svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52" class="bg"/><circle cx="60" cy="60" r="52" class="fg" [ngClass]="'s-' + v.semaforo" stroke-dasharray="326.7" [attr.stroke-dashoffset]="326.7 * (1 - v.salud / 100)"/></svg>
+                    <span><b>{{ v.salud }}%</b><small>salud</small></span>
+                  </div>
+                </div>
+                <p class="vx-mio-estado">{{ app.textoEstadoVeh(v) }}</p>
+                <button class="vx-pit" *ngIf="!v.pit_semana" (click)="app.psAbrir(v.id_vehiculo)"><span>🏁</span>Pit Stop semanal<small>30 segundos</small></button>
+                <div class="vx-pit-ok" *ngIf="v.pit_semana"><ico n="check"></ico><span><b>Pit Stop hecho esta semana</b><small>El próximo es el lunes. ¡Sigue la racha!</small></span></div>
+
+                <button class="vx-papeles-btn" (click)="v._papeles = !v._papeles"><ico n="file"></ico>Mis papeles<ico class="vx-flecha" [class.abierta]="v._papeles" n="chev"></ico></button>
+                <dl class="vx-papeles" *ngIf="v._papeles">
+                  <div><dt>Placas</dt><dd>{{ v.placas }}</dd></div>
+                  <div><dt>Número de serie</dt><dd>{{ v.numero_serie || '—' }}</dd></div>
+                  <div><dt>Tarjeta de circulación</dt><dd>{{ v.tarjeta_circulacion || '—' }}</dd></div>
+                  <div><dt>Seguro</dt><dd>{{ v.aseguradora || '—' }}<small *ngIf="v.poliza_numero">Póliza {{ v.poliza_numero }}</small><small *ngIf="v.poliza_vigencia">Vigente hasta {{ v.poliza_vigencia | date:'d MMM yyyy' }}</small></dd></div>
+                  <div><dt>Verificación</dt><dd>{{ v.proxima_verificacion ? ('Próxima: ' + (v.proxima_verificacion | date:'MMM yyyy')) : '—' }}<small *ngIf="v.holograma">Holograma {{ v.holograma | titlecase }}</small></dd></div>
+                  <div *ngIf="v.numero_economico"><dt>No. económico</dt><dd>{{ v.numero_economico }}</dd></div>
+                </dl>
+              </div>
+
+              <div class="vx-vacio-mio" *ngIf="app.vhPerfil && !app.vhPerfil.vehiculos.length">
+                <span><ico n="car"></ico></span>
+                <b>No tienes un vehículo asignado</b>
+                <small>Si traes una unidad, escanea el QR que tiene pegado.</small>
+              </div>
+              <button class="vx-otra" (click)="app.vhEscanearQr()"><ico n="qr"></ico>¿Traes otra unidad? Escanea su QR</button>
+            </ng-container>
+
+            <!-- ============ PODIO ============ -->
+            <ng-container *ngIf="app.vh==='podio'">
+              <div class="vx-head"><div><h1>Podio del mes</h1><p>{{ app.nombreMes(app.vhPodio?.mes) }} · puntos por hacer el Pit Stop a tiempo</p></div></div>
+              <div class="cal-cargando" *ngIf="!app.vhPodio"><div class="loader-ring"></div></div>
+              <ng-container *ngIf="app.vhPodio">
+                <div class="vx-podio" *ngIf="app.vhPodio.lista.length">
+                  <div class="vx-escalon e2" *ngIf="app.vhPodio.lista[1] as p"><span class="vx-avatar">{{ app.inicialesDe(p.nombre) }}</span><b>{{ app.nombreCorto(p.nombre) | titlecase }}</b><small>{{ p.puntos }} pts</small><div class="vx-bloque">🥈<span>2</span></div></div>
+                  <div class="vx-escalon e1" *ngIf="app.vhPodio.lista[0] as p"><span class="vx-corona">👑</span><span class="vx-avatar">{{ app.inicialesDe(p.nombre) }}</span><b>{{ app.nombreCorto(p.nombre) | titlecase }}</b><small>{{ p.puntos }} pts</small><div class="vx-bloque">🥇<span>1</span></div></div>
+                  <div class="vx-escalon e3" *ngIf="app.vhPodio.lista[2] as p"><span class="vx-avatar">{{ app.inicialesDe(p.nombre) }}</span><b>{{ app.nombreCorto(p.nombre) | titlecase }}</b><small>{{ p.puntos }} pts</small><div class="vx-bloque">🥉<span>3</span></div></div>
+                </div>
+                <div class="vx-tabla">
+                  <div class="vx-fila" *ngFor="let p of app.vhPodio.lista; let i = index" [class.yo]="p.yo">
+                    <span class="vx-pos">{{ i + 1 }}</span>
+                    <span class="vx-avatar vx-avatar-s">{{ app.inicialesDe(p.nombre) }}</span>
+                    <span class="vx-fila-txt"><b>{{ p.nombre | titlecase }}<em *ngIf="p.yo">Tú</em></b><small>🔥 {{ p.racha }} · <span class="vx-nivel" [ngClass]="'n-' + p.nivel">{{ p.nivel }}</span> · confianza {{ p.confianza }}%</small></span>
+                    <span class="vx-pts">{{ p.puntos }}<small>pts</small></span>
+                  </div>
+                  <p class="ax-vacio" *ngIf="!app.vhPodio.lista.length">Aún no hay responsables con vehículo asignado.</p>
+                </div>
+                <p class="vx-reglas">Ganas <b>10 puntos</b> por cada Pit Stop semanal a tiempo y <b>+5</b> si llevas 4 semanas o más de racha. Reportar un problema <b>nunca</b> quita puntos; un reporte falso quita 30.</p>
+              </ng-container>
+            </ng-container>
+
+            <!-- ============ FICHA DEL VEHÍCULO ============ -->
+            <div class="ax-fondo" *ngIf="app.vhFicha as F" (click)="app.vhFicha=null">
+              <div class="ax-hoja vx-ficha" (click)="$event.stopPropagation()">
+                <button class="ax-cerrar" (click)="app.vhFicha=null" aria-label="Cerrar">×</button>
+                <div class="cal-cargando" *ngIf="F._cargando"><div class="loader-ring"></div></div>
+                <ng-container *ngIf="!F._cargando">
+                  <div class="vx-ficha-top" [ngClass]="'s-' + F.semaforo">
+                    <div>
+                      <span class="vx-placa vx-placa-l">{{ F.placas }}</span>
+                      <h2>{{ ((F.marca || '') + ' ' + (F.modelo || '')) | titlecase }}</h2>
+                      <small>{{ F.anio || '' }}<ng-container *ngIf="F.color"> · {{ F.color | titlecase }}</ng-container><ng-container *ngIf="F.sede_nombre"> · {{ F.sede_nombre | titlecase }}</ng-container><ng-container *ngIf="F.numero_economico"> · {{ F.numero_economico }}</ng-container></small>
+                    </div>
+                    <div class="vx-ring vx-ring-l">
+                      <svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52" class="bg"/><circle cx="60" cy="60" r="52" class="fg" [ngClass]="'s-' + F.semaforo" stroke-dasharray="326.7" [attr.stroke-dashoffset]="326.7 * (1 - F.salud / 100)"/></svg>
+                      <span><b>{{ F.salud }}%</b><small>salud</small></span>
+                    </div>
+                  </div>
+
+                  <div class="ax-hoja-cuerpo">
+                    <div class="vx-resp-fila">
+                      <ico n="user"></ico>
+                      <select [ngModel]="F.id_persona_responsable" (ngModelChange)="app.vhCambiarResponsable(F, $event)">
+                        <option [ngValue]="null">{{ F.responsable_nombre ? (F.responsable_nombre | titlecase) + ' (sin ligar)' : 'Sin responsable' }}</option>
+                        <option *ngFor="let p of app.personasActivas" [ngValue]="p.id_persona">{{ p.nombre_completo | titlecase }}</option>
+                      </select>
+                      <button class="vx-acceso" *ngIf="F.id_persona_responsable && !F.responsable_con_acceso" (click)="app.vhAbrirAcceso(F)">Dar acceso</button>
+                      <span class="vx-acceso-ok" *ngIf="F.id_persona_responsable && F.responsable_con_acceso"><ico n="check"></ico>Con acceso</span>
+                    </div>
+
+                    <div class="vx-items">
+                      <button class="vx-item" *ngFor="let it of F.items" [ngClass]="'e-' + it.estado" (click)="app.vhAccionItem(F, it)">
+                        <i></i><span><b>{{ it.nombre }}</b><small>{{ it.texto }}</small></span>
+                        <em *ngIf="app.textoAccionItem(it) as ta">{{ ta }}</em>
+                      </button>
+                    </div>
+
+                    <div class="vx-km" *ngIf="F.km_actual">
+                      <span><b>{{ F.km_actual | number }}</b><small>km actuales</small></span>
+                      <span *ngIf="F.servicio?.km_semana"><b>{{ F.servicio.km_semana | number }}</b><small>km por semana</small></span>
+                      <span *ngIf="F.servicio?.restan_km != null"><b>{{ F.servicio.restan_km | number }}</b><small>km para servicio</small></span>
+                    </div>
+
+                    <ng-container *ngIf="F.pendientes?.length">
+                      <div class="ax-sub">Pendientes</div>
+                      <div class="vx-pend" *ngFor="let p of F.pendientes">
+                        <span><b>{{ p.titulo }}</b><small>{{ p.estado === 'EN_TALLER' ? 'En taller' : 'Reportado' }} · {{ p.fecha_creacion | date:'d MMM' }}</small></span>
+                        <button *ngIf="p.estado==='ABIERTO'" (click)="app.vhPendiente(F, p, 'taller')">Al taller</button>
+                        <button *ngIf="p.estado==='ABIERTO'" class="sec" (click)="app.vhPendiente(F, p, 'descartar')">No es nada</button>
+                        <button *ngIf="p.estado==='EN_TALLER'" (click)="app.vhPendiente(F, p, 'listo')">Ya quedó</button>
+                      </div>
+                    </ng-container>
+
+                    <ng-container *ngIf="F.revisiones?.length">
+                      <div class="ax-sub">Últimos Pit Stop</div>
+                      <div class="vx-rev" *ngFor="let r of F.revisiones" [class.sosp]="r.calificacion==='REVISAR'" [class.falsa]="r.calificacion==='FALSA'">
+                        <span class="vx-rev-f">{{ r.fecha | date:'d MMM' }}</span>
+                        <span class="vx-rev-t"><b>{{ r.km | number }} km<ng-container *ngIf="r.km_recorridos != null"> · +{{ r.km_recorridos | number }}</ng-container></b>
+                          <small>{{ r.quien | titlecase }} · {{ r.problemas ? (r.problemas + (r.problemas === 1 ? ' problema' : ' problemas')) : 'todo bien' }}<ng-container *ngIf="r.sospecha"> · ⚠ {{ r.sospecha }}</ng-container><ng-container *ngIf="r.calificacion==='FALSA'"> · marcado falso</ng-container></small></span>
+                        <a *ngIf="r.foto_url" [href]="r.foto_url" target="_blank" rel="noopener" class="vx-rev-foto"><ico n="image"></ico></a>
+                      </div>
+                    </ng-container>
+
+                    <ng-container *ngIf="F.historial?.length">
+                      <button class="vx-papeles-btn" (click)="F._hist = !F._hist"><ico n="history"></ico>Historial<ico class="vx-flecha" [class.abierta]="F._hist" n="chev"></ico></button>
+                      <div class="vx-hist" *ngIf="F._hist">
+                        <div *ngFor="let h of F.historial"><small>{{ h.fecha | date:'d MMM yyyy' }}</small><span>{{ h.texto }}</span><em *ngIf="h.quien">{{ h.quien | titlecase }}</em></div>
+                      </div>
+                    </ng-container>
+
+                    <div class="vx-ficha-acc">
+                      <button (click)="app.vhEditarVeh(F)"><ico n="edit"></ico>Editar datos</button>
+                      <button (click)="app.vhImprimirQr([F])"><ico n="qr"></ico>QR del vehículo</button>
+                      <button class="rojo" (click)="app.vhBaja(F)"><ico n="trash"></ico>Dar de baja</button>
+                    </div>
+                  </div>
+                </ng-container>
+              </div>
+            </div>
+
+            <!-- ============ HOJA DE ACCIÓN (renovar, verificar, taller, acceso…) ============ -->
+            <div class="ax-fondo vx-sobre" *ngIf="app.vhHoja as H" (click)="app.vhHoja=null">
+              <div class="ax-hoja" (click)="$event.stopPropagation()">
+                <button class="ax-cerrar" (click)="app.vhHoja=null" aria-label="Cerrar">×</button>
+                <div class="ax-hoja-cuerpo ax-hoja-sola">
+                  <span class="vx-placa" *ngIf="H.placas">{{ H.placas }}</span>
+                  <h2>{{ H.titulo }}</h2>
+                  <p class="ax-texto-hoja" *ngIf="H.texto">{{ H.texto }}</p>
+
+                  <ng-container *ngIf="H.tipo==='poliza'">
+                    <label class="vx-campo"><span>Vigente hasta</span><input type="date" [(ngModel)]="H.vigencia"></label>
+                    <div class="vx-rapidos"><button *ngFor="let m of [12, 24, 36]" (click)="H.vigencia = app.fechaMasMeses(m)">{{ m / 12 }} {{ m === 12 ? 'año' : 'años' }}</button></div>
+                    <label class="vx-campo"><span>Aseguradora</span><input [(ngModel)]="H.aseguradora" placeholder="Igual que antes"></label>
+                    <label class="vx-campo"><span>Número de póliza</span><input [(ngModel)]="H.numero" placeholder="Igual que antes"></label>
+                  </ng-container>
+
+                  <ng-container *ngIf="H.tipo==='verificacion'">
+                    <div class="ax-seg vx-seg4"><button *ngFor="let h of ['DOBLE CERO', 'CERO', 'UNO', 'DOS']" [class.on]="H.holograma===h" (click)="H.holograma=h; H.proxima = app.proximaVerificacion(h)">{{ h | titlecase }}</button></div>
+                    <label class="vx-campo"><span>Próxima verificación</span><input type="date" [(ngModel)]="H.proxima"></label>
+                  </ng-container>
+
+                  <ng-container *ngIf="H.tipo==='trabajos'">
+                    <div class="vx-chips"><button *ngFor="let t of app.vhTrabajos" [class.on]="H.trabajos.includes(t)" (click)="app.alternarTrabajo(H, t)">{{ t }}</button></div>
+                    <label class="vx-campo" *ngIf="H.pedirKm"><span>Kilometraje (opcional)</span><input type="number" inputmode="numeric" [(ngModel)]="H.km" placeholder="Ej. 48312"></label>
+                  </ng-container>
+
+                  <ng-container *ngIf="H.tipo==='acceso'">
+                    <ng-container *ngIf="!H.resultado">
+                      <label class="vx-campo"><span>Correo del responsable</span><input type="email" [(ngModel)]="H.correo" placeholder="nombre@correo.com"></label>
+                      <p class="vx-nota-chica">DOZZER le crea una contraseña temporal y te prepara el mensaje para mandarlo por WhatsApp.</p>
+                    </ng-container>
+                    <ng-container *ngIf="H.resultado as R">
+                      <div class="vx-acceso-res"><small>Correo</small><b>{{ R.correo }}</b><small>Contraseña temporal</small><b class="vx-pass">{{ R.password }}</b></div>
+                      <a class="ax-grande ax-verde vx-wa" [href]="app.enlaceWhatsapp(R.mensaje)" target="_blank" rel="noopener">Enviar por WhatsApp</a>
+                      <button class="ax-texto-btn" (click)="app.copiarTexto(R.mensaje)">Copiar mensaje</button>
+                    </ng-container>
+                  </ng-container>
+
+                  <p class="ax-error" *ngIf="H.error">{{ H.error }}</p>
+                  <button class="ax-grande ax-verde" *ngIf="!(H.tipo==='acceso' && H.resultado)" [disabled]="H.guardando" (click)="app.vhGuardarHoja()"><ico n="check"></ico>{{ H.guardando ? 'Guardando…' : (H.boton || 'Guardar') }}</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- ============ LISTA DE ACCESOS / ADMINISTRADORES ============ -->
+            <div class="ax-fondo" *ngIf="app.vhLista2 as L" (click)="app.vhLista2=null">
+              <div class="ax-hoja" (click)="$event.stopPropagation()">
+                <button class="ax-cerrar" (click)="app.vhLista2=null" aria-label="Cerrar">×</button>
+                <div class="ax-hoja-cuerpo ax-hoja-sola">
+                  <h2>{{ L.titulo }}</h2>
+                  <p class="ax-texto-hoja">{{ L.texto }}</p>
+                  <div class="ax-lista ax-lista-hoja">
+                    <ng-container *ngIf="L.tipo==='accesos'">
+                      <div class="vx-fila" *ngFor="let v of L.items">
+                        <span class="vx-placa">{{ v.placas }}</span>
+                        <span class="vx-fila-txt"><b>{{ v.responsable_nombre | titlecase }}</b><small>{{ ((v.marca || '') + ' ' + (v.modelo || '')) | titlecase }}</small></span>
+                        <button class="vx-acceso" (click)="app.vhAbrirAcceso(v)">Dar acceso</button>
+                      </div>
+                    </ng-container>
+                    <ng-container *ngIf="L.tipo==='admins'">
+                      <div class="ax-buscar ax-buscar-hoja"><ico n="search"></ico><input [(ngModel)]="L.q" placeholder="Buscar persona"></div>
+                      <label class="vx-fila vx-fila-sw" *ngFor="let u of app.filtrarAdmins(L)">
+                        <span class="vx-fila-txt"><b>{{ (u.nombre || u.correo) | titlecase }}</b><small>{{ u.admin ? 'Administrador general (ya administra la flota)' : u.correo }}</small></span>
+                        <span class="sw" [class.on]="u.flota || u.admin" (click)="!u.admin && app.vhCambiarAdmin(u)"><i></i></span>
+                      </label>
+                    </ng-container>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ============ EDITAR / NUEVO VEHÍCULO ============ -->
+            <div class="ax-fondo vx-sobre" *ngIf="app.vhEditar as E" (click)="app.vhEditar=null">
+              <div class="ax-hoja vx-form" (click)="$event.stopPropagation()">
+                <button class="ax-cerrar" (click)="app.vhEditar=null" aria-label="Cerrar">×</button>
+                <div class="ax-hoja-cuerpo ax-hoja-sola">
+                  <h2>{{ E.id_vehiculo ? 'Editar vehículo' : 'Nuevo vehículo' }}</h2>
+                  <div class="vx-form-grid">
+                    <label class="vx-campo"><span>Placas *</span><input [(ngModel)]="E.placas" maxlength="20" style="text-transform:uppercase"></label>
+                    <label class="vx-campo"><span>Marca</span><input [(ngModel)]="E.marca" maxlength="60"></label>
+                    <label class="vx-campo"><span>Modelo</span><input [(ngModel)]="E.modelo" maxlength="80"></label>
+                    <label class="vx-campo"><span>Año</span><input type="number" [(ngModel)]="E.anio"></label>
+                    <label class="vx-campo"><span>Color</span><input [(ngModel)]="E.color" maxlength="40"></label>
+                    <label class="vx-campo"><span>No. económico</span><input [(ngModel)]="E.numero_economico" maxlength="20"></label>
+                    <label class="vx-campo"><span>Número de serie</span><input [(ngModel)]="E.numero_serie" maxlength="40"></label>
+                    <label class="vx-campo"><span>Tarjeta de circulación</span><input [(ngModel)]="E.tarjeta_circulacion" maxlength="40"></label>
+                    <label class="vx-campo"><span>Sede</span><select [(ngModel)]="E.id_sede"><option [ngValue]="null">{{ E.sede_nombre ? (E.sede_nombre | titlecase) : '—' }}</option><option *ngFor="let s of app.catalogs.sedes" [ngValue]="s.id_sede">{{ s.nombre_sede | titlecase }}</option></select></label>
+                    <label class="vx-campo"><span>Responsable</span><select [(ngModel)]="E.id_persona_responsable"><option [ngValue]="null">{{ E.responsable_nombre ? (E.responsable_nombre | titlecase) : 'Sin responsable' }}</option><option *ngFor="let p of app.personasActivas" [ngValue]="p.id_persona">{{ p.nombre_completo | titlecase }}</option></select></label>
+                    <label class="vx-campo"><span>Aseguradora</span><input [(ngModel)]="E.aseguradora" maxlength="80"></label>
+                    <label class="vx-campo"><span>Número de póliza</span><input [(ngModel)]="E.poliza_numero" maxlength="60"></label>
+                    <label class="vx-campo"><span>Póliza desde</span><input type="date" [(ngModel)]="E.poliza_inicio"></label>
+                    <label class="vx-campo"><span>Póliza vigente hasta</span><input type="date" [(ngModel)]="E.poliza_vigencia"></label>
+                    <label class="vx-campo"><span>Tenencia pagada (año)</span><input type="number" [(ngModel)]="E.tenencia_anio"></label>
+                    <label class="vx-campo"><span>Holograma</span><select [(ngModel)]="E.holograma"><option [ngValue]="null">—</option><option *ngFor="let h of ['DOBLE CERO', 'CERO', 'UNO', 'DOS']" [ngValue]="h">{{ h | titlecase }}</option></select></label>
+                    <label class="vx-campo"><span>Verifica (1.er semestre)</span><input [(ngModel)]="E.verifica_sem1" placeholder="Ej. ENE / FEB" maxlength="20"></label>
+                    <label class="vx-campo"><span>Verifica (2.º semestre)</span><input [(ngModel)]="E.verifica_sem2" placeholder="Ej. JUL / AGO" maxlength="20"></label>
+                    <label class="vx-campo"><span>Próxima verificación</span><input type="date" [(ngModel)]="E.proxima_verificacion"></label>
+                    <label class="vx-campo"><span>Servicio cada (km)</span><input type="number" [(ngModel)]="E.servicio_cada_km"></label>
+                    <label class="vx-campo"><span>Servicio cada (meses)</span><input type="number" [(ngModel)]="E.servicio_cada_meses"></label>
+                    <label class="vx-campo"><span>Consecutivo interno</span><input [(ngModel)]="E.consecutivo" maxlength="30"></label>
+                  </div>
+                  <p class="ax-error" *ngIf="E.error">{{ E.error }}</p>
+                  <button class="ax-grande ax-verde" [disabled]="E.guardando" (click)="app.vhGuardarVeh()"><ico n="check"></ico>{{ E.guardando ? 'Guardando…' : 'Guardar' }}</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- ============ IMPORTAR EXCEL ============ -->
+            <div class="ax-fondo vx-sobre" *ngIf="app.vhImport as I" (click)="!I.guardando && (app.vhImport=null)">
+              <div class="ax-hoja" (click)="$event.stopPropagation()">
+                <button class="ax-cerrar" (click)="app.vhImport=null" [disabled]="I.guardando" aria-label="Cerrar">×</button>
+                <div class="ax-hoja-cuerpo ax-hoja-sola">
+                  <ng-container *ngIf="!I.resultado">
+                    <span class="ax-etq">{{ I.archivo }}</span>
+                    <h2>{{ I.filas.length }} vehículos listos</h2>
+                    <p class="ax-texto-hoja">Revisé el archivo antes de guardar. Esto es lo que encontré:</p>
+                    <div class="vx-avisos">
+                      <div *ngFor="let a of I.avisos" [ngClass]="'g-' + a.g"><b>{{ a.titulo }}</b><small>{{ a.detalle }}</small></div>
+                      <div class="g-verde" *ngIf="!I.avisos.length"><b>Sin errores</b><small>Todo se ve bien.</small></div>
+                    </div>
+                    <p class="vx-nota-chica">Los vehículos que ya existen (mismas placas) se actualizan; los nuevos se agregan. Podrás corregir cualquier dato después.</p>
+                    <button class="ax-grande ax-verde" [disabled]="I.guardando" (click)="app.vhImportar()"><ico n="check"></ico>{{ I.guardando ? 'Importando…' : 'Importar ' + I.filas.length + ' vehículos' }}</button>
+                  </ng-container>
+                  <ng-container *ngIf="I.resultado as R">
+                    <h2>¡Listo!</h2>
+                    <p class="ax-texto-hoja">{{ R.creados }} nuevos · {{ R.actualizados }} actualizados</p>
+                    <div class="vx-avisos">
+                      <div class="g-azul" *ngIf="R.sinResponsable?.length"><b>{{ R.sinResponsable.length }} responsables no se encontraron en el catálogo de personas</b><small>{{ R.sinResponsable.slice(0, 6).join(' · ') }}{{ R.sinResponsable.length > 6 ? '…' : '' }}</small></div>
+                      <div class="g-azul" *ngIf="R.sinSede?.length"><b>{{ R.sinSede.length }} sedes no coinciden con el catálogo</b><small>{{ R.sinSede.slice(0, 6).join(' · ') }}{{ R.sinSede.length > 6 ? '…' : '' }}</small></div>
+                      <div class="g-rojo" *ngIf="R.errores?.length"><b>{{ R.errores.length }} filas no se guardaron</b><small>{{ R.errores.join(' · ') }}</small></div>
+                    </div>
+                    <button class="ax-grande ax-verde" (click)="app.vhImport=null; app.irVeh('inicio')">Ver pendientes</button>
+                  </ng-container>
+                </div>
+              </div>
+            </div>
+
+            <!-- ============ ESCANEAR QR DE UN VEHÍCULO ============ -->
+            <div class="ax-fondo vx-sobre" *ngIf="app.vhEsc as S" (click)="app.vhCerrarEscaner()">
+              <div class="ax-hoja" (click)="$event.stopPropagation()">
+                <button class="ax-cerrar" (click)="app.vhCerrarEscaner()" aria-label="Cerrar">×</button>
+                <div class="ax-hoja-cuerpo ax-hoja-sola">
+                  <h2>Escanea el QR del vehículo</h2>
+                  <p class="ax-texto-hoja">Está pegado dentro de la unidad.</p>
+                  <div class="ax-video vx-video"><video id="vh-cam" playsinline muted></video><span class="ax-mira"></span></div>
+                  <div class="ax-escribir"><input [(ngModel)]="S.codigo" placeholder="O escribe el código del QR" (keydown.enter)="app.vhBuscarQr(S.codigo)"><button [disabled]="!(S.codigo || '').trim()" (click)="app.vhBuscarQr(S.codigo)">Buscar</button></div>
+                  <p class="ax-error" *ngIf="S.error">{{ S.error }}</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ============ PIT STOP (pantalla completa) ============ -->
+          <div class="ps" *ngIf="app.ps as P">
+            <div class="ps-top">
+              <button class="ps-x" (click)="app.psCerrar()" aria-label="Salir">×</button>
+              <div class="ps-pasos" *ngIf="!P.resultado"><i *ngFor="let n of [1,2,3,4,5]" [class.on]="P.paso >= n"></i></div>
+              <span class="ps-placa" *ngIf="P.v">{{ P.v.placas }}</span>
+            </div>
+            <div class="cal-cargando" *ngIf="!P.v && !P.error"><div class="loader-ring"></div></div>
+            <p class="ax-error ps-err" *ngIf="P.error && !P.v">{{ P.error }}</p>
+
+            <ng-container *ngIf="P.v && !P.resultado">
+              <!-- 1. Odómetro -->
+              <div class="ps-paso" *ngIf="P.paso===1">
+                <h2>¿Cuánto marca el tablero?</h2>
+                <div class="ps-odo">
+                  <span class="ps-dig" *ngFor="let d of app.odometroDigitos(P.km); trackBy: app.trackIdx"><span class="ps-rollo" [style.transform]="'translateY(-' + (d === ' ' ? 0 : +d) * 10 + '%)'"><i *ngFor="let n of [0,1,2,3,4,5,6,7,8,9]">{{ d === ' ' ? '' : n }}</i></span></span>
+                  <em>km</em>
+                </div>
+                <p class="ps-km-info" [class.mal]="app.psKmMenor" *ngIf="P.v.km_anterior != null">
+                  <ng-container *ngIf="!P.km">Último reporte: {{ P.v.km_anterior | number }} km</ng-container>
+                  <ng-container *ngIf="P.km && !app.psKmMenor">+{{ (+P.km - P.v.km_anterior) | number }} km esta semana</ng-container>
+                  <ng-container *ngIf="P.km && app.psKmMenor">Debe ser mayor a {{ P.v.km_anterior | number }} km</ng-container>
+                </p>
+                <div class="ps-teclado">
+                  <button *ngFor="let k of ['1','2','3','4','5','6','7','8','9','⌫','0','✓']" [class.ok]="k==='✓'" [class.borrar]="k==='⌫'" (click)="app.psTecla(k)">{{ k }}</button>
+                </div>
+              </div>
+
+              <!-- 2. Llantas y luces -->
+              <div class="ps-paso" *ngIf="P.paso===2">
+                <h2>Llantas y luces</h2>
+                <p class="ps-ayuda">Toca solo lo que esté mal. Todo viene en verde.</p>
+                <p class="ps-pregunta" *ngFor="let q of app.psPreguntas('llanta')">💬 {{ q.texto }}</p>
+                <div class="ps-auto">
+                  <svg viewBox="0 0 200 330" class="ps-svg">
+                    <path d="M58 40 Q100 8 142 40 L152 110 L152 250 Q152 300 100 312 Q48 300 48 250 L48 110 Z" class="ps-carro"/>
+                    <path d="M66 92 Q100 74 134 92 L130 128 Q100 120 70 128 Z" class="ps-vidrio"/>
+                    <path d="M70 236 Q100 244 130 236 L134 268 Q100 282 66 268 Z" class="ps-vidrio"/>
+                    <g *ngFor="let l of app.psLlantas" class="ps-llanta" [ngClass]="'e-' + P.llantas[l.k]" (click)="app.psLlanta(l.k)">
+                      <rect [attr.x]="l.x" [attr.y]="l.y" width="24" height="58" rx="8"/>
+                    </g>
+                    <g *ngFor="let l of app.psLuces" class="ps-luz" [ngClass]="'e-' + P.luces[l.k]" (click)="app.psLuz(l.k)">
+                      <ellipse [attr.cx]="l.x" [attr.cy]="l.y" rx="13" ry="8"/>
+                    </g>
+                  </svg>
+                  <div class="ps-leyenda"><span><i class="e-ok"></i>Bien</span><span><i class="e-baja"></i>Baja</span><span><i class="e-mal"></i>Mal</span><span><i class="e-falla"></i>Foco fundido</span></div>
+                </div>
+                <label class="ps-golpe" [class.on]="P.golpe.hay">
+                  <span><b>¿Tiene un golpe o rayón nuevo?</b><small>{{ P.golpe.hay ? 'Toma una foto del daño' : 'Si no, déjalo así' }}</small></span>
+                  <span class="sw" [class.on]="P.golpe.hay" (click)="P.golpe.hay = !P.golpe.hay; $event.preventDefault()"><i></i></span>
+                </label>
+                <ng-container *ngIf="P.golpe.hay">
+                  <label class="ax-foto ps-foto">
+                    <img *ngIf="P.fotoUrl" [src]="P.fotoUrl" alt="">
+                    <span *ngIf="!P.fotoUrl" class="ax-foto-vacia"><ico n="camera"></ico><b>Foto del golpe</b></span>
+                    <input type="file" accept="image/*" capture="environment" hidden (change)="app.psFoto($event)">
+                  </label>
+                  <input class="ax-input" [(ngModel)]="P.golpe.nota" placeholder="¿Dónde? Ej. puerta trasera derecha" maxlength="120">
+                </ng-container>
+              </div>
+
+              <!-- 3. Niveles -->
+              <div class="ps-paso" *ngIf="P.paso===3">
+                <h2>Niveles</h2>
+                <p class="ps-ayuda">Vienen llenos. Si alguno está bajo, arrastra su barra hacia abajo.</p>
+                <p class="ps-pregunta" *ngFor="let q of app.psPreguntasNiveles">💬 {{ q.texto }}</p>
+                <div class="ps-niveles">
+                  <div class="ps-nivel" *ngFor="let n of app.psNiveles" [class.pide]="app.psPide(n.k)">
+                    <div class="ps-tubo" (pointerdown)="app.psArrastrar($event, n.k)">
+                      <div class="ps-liquido" [ngClass]="'c-' + app.colorNivel(P.niveles[n.k])" [style.height.%]="P.niveles[n.k]"></div>
+                      <span class="ps-marca" style="bottom:35%"></span>
+                    </div>
+                    <b>{{ app.textoNivel(P.niveles[n.k]) }}</b>
+                    <small>{{ n.nombre }}</small>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 4. Tablero -->
+              <div class="ps-paso" *ngIf="P.paso===4">
+                <h2>¿Algún testigo encendido?</h2>
+                <p class="ps-ayuda">Toca los que veas prendidos en el tablero. Si no hay, sigue.</p>
+                <div class="ps-tablero">
+                  <button *ngFor="let t of app.psTestigos" class="ps-testigo" [class.on]="P.testigos.includes(t.k)" [ngClass]="'t-' + t.color" (click)="app.psTestigo(t.k)">
+                    <svg viewBox="0 0 48 48"><ng-container [ngSwitch]="t.k">
+                      <g *ngSwitchCase="'motor'"><path d="M9 21h6l3-4h11l2 4h5v4h3v8h-3v4h-6l-3 3H18l-4-4H9z"/></g>
+                      <g *ngSwitchCase="'aceite'"><path d="M6 23h18l6-4 12 3-12 10H10z"/><path d="M30 19l2-3"/><path d="M40 28c0 2 2 3 2 5"/></g>
+                      <g *ngSwitchCase="'bateria'"><rect x="8" y="16" width="32" height="20" rx="2"/><path d="M14 16v-3h4v3M30 16v-3h4v3M14 26h6M31 23v6M28 26h6"/></g>
+                      <g *ngSwitchCase="'temperatura'"><path d="M24 8v19"/><circle cx="24" cy="31" r="5"/><path d="M28 13h4M28 18h4M28 23h4"/><path d="M8 41c3-2 5 2 8 0s5 2 8 0 5 2 8 0 5 2 8 0"/></g>
+                      <g *ngSwitchCase="'frenos'"><circle cx="24" cy="24" r="10"/><path d="M24 18v7M24 29v1"/><path d="M11 14a16 16 0 0 0 0 20M37 14a16 16 0 0 1 0 20"/></g>
+                      <g *ngSwitchCase="'abs'"><circle cx="24" cy="24" r="12"/><path d="M8 14a19 19 0 0 0 0 20M40 14a19 19 0 0 1 0 20"/><text x="24" y="28" text-anchor="middle" class="ps-txt">ABS</text></g>
+                      <g *ngSwitchCase="'bolsa'"><circle cx="17" cy="11" r="4"/><path d="M14 19l-3 12h10l6 8M17 19l6 8"/><circle cx="33" cy="25" r="7"/></g>
+                      <g *ngSwitchCase="'llantas'"><path d="M12 14c-3 4-3 16 0 20h24c3-4 3-16 0-20"/><path d="M10 38h28"/><path d="M24 19v8M24 31v1"/></g>
+                    </ng-container></svg>
+                    <small>{{ t.nombre }}</small>
+                  </button>
+                </div>
+              </div>
+
+              <!-- 5. Resumen -->
+              <div class="ps-paso" *ngIf="P.paso===5">
+                <h2>{{ app.psProblemas.length ? 'Esto vamos a reportar' : 'Todo bien 👌' }}</h2>
+                <div class="ps-resumen">
+                  <div class="ps-res-km"><b>{{ +P.km | number }}</b><small>km</small></div>
+                  <div class="ps-res-lista" *ngIf="app.psProblemas.length"><span *ngFor="let p of app.psProblemas"><i></i>{{ p }}</span></div>
+                  <p class="ps-ayuda" *ngIf="!app.psProblemas.length">Sin problemas. Tu vehículo está listo para la semana.</p>
+                  <p class="ps-ayuda" *ngIf="app.psProblemas.length">Reportar problemas <b>no</b> te quita puntos: Juan Carlos los atiende.</p>
+                </div>
+                <p class="ax-error" *ngIf="P.error">{{ P.error }}</p>
+              </div>
+
+              <div class="ps-pie">
+                <button class="ps-atras" *ngIf="P.paso > 1" (click)="P.paso = P.paso - 1; P.error=''">Atrás</button>
+                <button class="ps-sig" *ngIf="P.paso < 5" [disabled]="P.paso===1 && !app.psKmValido" (click)="app.psSiguiente()">Siguiente</button>
+                <button class="ps-sig ps-enviar" *ngIf="P.paso===5" [disabled]="P.enviando" (click)="app.psEnviar()">{{ P.enviando ? 'Enviando…' : '🏁 Enviar Pit Stop' }}</button>
+              </div>
+            </ng-container>
+
+            <!-- Resultado -->
+            <div class="ps-fin" *ngIf="P.resultado as R">
+              <ng-container *ngIf="!R.offline">
+                <div class="vx-ring vx-ring-xl ps-ring">
+                  <svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52" class="bg"/><circle cx="60" cy="60" r="52" class="fg" [ngClass]="'s-' + R.semaforo" stroke-dasharray="326.7" [attr.stroke-dashoffset]="326.7 * (1 - (P.anim ? R.salud : 0) / 100)"/></svg>
+                  <span><b>{{ R.salud }}%</b><small>salud</small></span>
+                </div>
+                <h2>¡Pit Stop listo!</h2>
+                <div class="ps-premios">
+                  <span *ngIf="R.puntos > 0" class="ps-pts">+{{ R.puntos }} pts</span>
+                  <span *ngIf="R.yo">🔥 {{ R.yo.racha }} {{ R.yo.racha === 1 ? 'semana' : 'semanas' }}</span>
+                  <span *ngIf="R.yo?.lugar">#{{ R.yo.lugar }} del podio</span>
+                </div>
+                <p class="ps-ayuda" *ngIf="R.problemas">Reportaste {{ R.problemas }} {{ R.problemas === 1 ? 'problema' : 'problemas' }}. Ya le avisamos a Juan Carlos.</p>
+              </ng-container>
+              <ng-container *ngIf="R.offline">
+                <span class="vx-todo-ok ps-off"><span><ico n="check"></ico></span></span>
+                <h2>Guardado en tu celular</h2>
+                <p class="ps-ayuda">No hay señal. Se envía solo en cuanto tengas internet.</p>
+              </ng-container>
+              <button class="ps-sig" (click)="app.psCerrar(true)">Listo</button>
+            </div>
+          </div>
+`,
+  styles: [`
+    .cal-cargando{display:grid;place-items:center;padding:50px}
+    .ax-top{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:40px;margin-bottom:6px}
+    .ax-volver{display:inline-flex;align-items:center;gap:4px;border:0;background:transparent;color:#244c78;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;padding:8px 6px 8px 0}
+    .ax-volver ico{width:18px;height:18px;transform:rotate(90deg)}
+    .ax-sync{margin-left:auto;display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:#6b7a8d}
+    .ax-sync i{width:8px;height:8px;border-radius:50%;background:#3aa876;box-shadow:0 0 0 3px #3aa87622}
+    .ax-sync-pendiente i{background:#e2a03c;box-shadow:0 0 0 3px #e2a03c22;animation:axLatido 1.2s ease-in-out infinite}
+    .ax-sync-offline i{background:#8a97a8;box-shadow:0 0 0 3px #8a97a822}
+    .ax-sync-error{color:#bd4b52}.ax-sync-error i{background:#d4646b;box-shadow:0 0 0 3px #d4646b22}
+    @keyframes axLatido{50%{opacity:.35}}
+    .ax-h1{font-size:28px;letter-spacing:-.025em;color:#14243a;margin:8px 2px 18px;font-weight:800;line-height:1.15}
+    .ax-texto{color:#6b7a8d;font-size:15px;margin:-8px 2px 16px;line-height:1.45}
+    .ax-lista{display:flex;flex-direction:column;gap:10px}
+    .ax-op,.ax-bien{display:flex;align-items:center;gap:14px;width:100%;background:#fff;border:0;border-radius:18px;padding:14px 16px;text-align:left;cursor:pointer;font-family:inherit;box-shadow:0 1px 2px #17263d0f,0 4px 14px #17263d0a;transition:transform .12s,box-shadow .15s}
+    .ax-op:hover,.ax-bien:hover{box-shadow:0 1px 2px #17263d14,0 8px 22px #17263d14}
+    .ax-op:active,.ax-bien:active{transform:scale(.985)}
+    .ax-op-ico{width:46px;height:46px;border-radius:14px;background:linear-gradient(140deg,#eef4fb,#dfe9f5);color:#244c78;display:grid;place-items:center;flex-shrink:0}
+    .ax-op-ico ico{width:22px;height:22px}
+    .ax-op-lista .ax-op-ico{background:linear-gradient(140deg,#e8f6ee,#d3eedf);color:#21835a}
+    .ax-op-lista .ax-op-txt small{color:#21835a;font-weight:700}
+    .ax-op-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+    .ax-op-txt b{font-size:16px;color:#14243a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:700}
+    .ax-op-txt small{font-size:13px;color:#7b889a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .ax-op-chev{width:18px;height:18px;color:#b3bfcd;flex-shrink:0}
+    .ax-buscar{display:flex;align-items:center;gap:10px;background:#fff;border-radius:16px;padding:0 16px;margin-bottom:14px;box-shadow:0 1px 2px #17263d0f,0 4px 14px #17263d0a}
+    .ax-buscar ico{width:18px;height:18px;color:#8a97a8;flex-shrink:0}
+    .ax-buscar input{border:0!important;outline:0;background:transparent;height:50px;flex:1;font-size:16px;box-shadow:none!important;padding:0!important;margin:0!important;min-width:0}
+    .ax-vacio{text-align:center;color:#8a97a8;font-size:14px;padding:18px 8px;margin:0}
+    .ax-hero{background:linear-gradient(135deg,#17263d 0%,#244c78 100%);color:#fff;border-radius:24px;padding:22px 22px 20px;margin-bottom:16px;box-shadow:0 12px 30px #17263d33;position:relative;overflow:hidden}
+    .ax-hero::after{content:"";position:absolute;right:-40px;top:-40px;width:160px;height:160px;border-radius:50%;background:#ffffff0d}
+    .ax-hero small{font-size:12px;letter-spacing:.08em;text-transform:uppercase;opacity:.7;font-weight:700}
+    .ax-hero h1{margin:4px 0 16px;font-size:30px;letter-spacing:-.025em;line-height:1.1;font-weight:800;color:#fff}
+    .ax-hero>span{font-size:14px;opacity:.85;font-weight:600}
+    .ax-barra{height:8px;border-radius:99px;background:#ffffff26;overflow:hidden;margin-bottom:10px}
+    .ax-barra i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#f28c1e,#ffb45c);transition:width .4s ease}
+    .ax-escanear{width:100%;height:68px;border:0;border-radius:20px;background:linear-gradient(135deg,#f28c1e,#e2731a);color:#fff;font-family:inherit;font-size:19px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:12px;cursor:pointer;box-shadow:0 10px 26px #f28c1e55;transition:transform .12s}
+    .ax-escanear:active{transform:scale(.98)}
+    .ax-escanear ico{width:28px;height:28px}
+    .ax-links{display:flex;justify-content:center;gap:8px;margin:14px 0 4px;flex-wrap:wrap}
+    .ax-links button{display:inline-flex;align-items:center;gap:6px;border:0;background:#fff;color:#244c78;font-family:inherit;font-size:14px;font-weight:700;border-radius:999px;padding:10px 16px;cursor:pointer;box-shadow:0 1px 2px #17263d0f,0 3px 10px #17263d0a}
+    .ax-links ico{width:16px;height:16px}
+    .ax-escribir{display:flex;gap:8px;margin-top:10px}
+    .ax-escribir input{flex:1;min-width:0;height:50px;border:1.5px solid #dce3ec;border-radius:14px;padding:0 14px;font-size:16px;background:#fff}
+    .ax-escribir button{border:0;background:#244c78;color:#fff;border-radius:14px;padding:0 18px;font-family:inherit;font-weight:700;font-size:15px;cursor:pointer}
+    .ax-escribir button:disabled{opacity:.4}
+    .ax-error{background:#fdecee;color:#9c3a40;border-radius:14px;padding:12px 14px;font-size:14px;margin:12px 0 0;line-height:1.4}
+    .ax-video{position:relative;border-radius:22px;overflow:hidden;background:#000;aspect-ratio:1;max-height:58vh;margin:0 auto;box-shadow:0 12px 30px #17263d33}
+    .ax-video[hidden]{display:none}
+    .ax-video video{width:100%;height:100%;object-fit:cover;display:block}
+    .ax-mira{position:absolute;left:50%;top:50%;width:58%;aspect-ratio:1;transform:translate(-50%,-50%);border:3px solid #fff;border-radius:22px;box-shadow:0 0 0 999px #00000047;pointer-events:none}
+    .ax-video-x{position:absolute;top:10px;right:10px;width:38px;height:38px;border-radius:50%;border:0;background:#000000a0;color:#fff;font-size:24px;line-height:1;cursor:pointer}
+    .ax-video.ax-video-flot{position:fixed;z-index:400;top:max(12px,env(safe-area-inset-top));right:12px;width:104px;height:104px;aspect-ratio:auto;border:3px solid #fff;border-radius:20px}
+    .ax-video.ax-video-flot .ax-mira,.ax-video.ax-video-flot .ax-video-x{display:none}
+    .ax-pista{text-align:center;color:#7b889a;font-size:13.5px;margin:10px 0 0}
+    .ax-links button{background:transparent!important;box-shadow:none!important;color:#8a97a8!important;font-weight:600!important;padding:6px 10px!important}
+    .ax-bien-ver{cursor:default}.ax-bien-ver:active{transform:none}.ax-bien-ver:hover{box-shadow:0 1px 2px #17263d0f,0 4px 14px #17263d0a}
+    .ax-chip{flex-shrink:0;font-size:12px;font-weight:700;color:#a8650f;background:#fff4dc;border-radius:999px;padding:4px 10px}
+    .ax-etqs{display:flex;align-items:center;gap:14px;background:#fff;border-radius:18px;padding:12px 12px 12px 14px;margin:4px 0 6px;box-shadow:0 1px 2px #17263d0f,0 4px 14px #17263d0a}
+    .ax-etqs .ax-op-ico{background:linear-gradient(140deg,#fff1df,#ffe2bf);color:#c4670f}
+    .ax-etqs button{border:0;background:#244c78;color:#fff;border-radius:12px;height:42px;padding:0 16px;font-family:inherit;font-weight:700;font-size:14.5px;cursor:pointer;flex-shrink:0}
+    .ax-texto-hoja{color:#6b7a8d;font-size:15px;margin:4px 0 14px}
+    .ax-buscar-hoja{box-shadow:none;border:1.5px solid #e3e9f1}
+    .ax-buscar-link{color:#244c78;font-weight:700;padding:10px}
+    .ax-cuantos{flex-shrink:0;min-width:38px;height:30px;border-radius:999px;background:#244c78;color:#fff;font-weight:800;font-size:14px;display:grid;place-items:center;padding:0 8px}
+    .ax-naranja{background:linear-gradient(135deg,#f28c1e,#e2731a);box-shadow:0 10px 24px #f28c1e44}
+    .ax-sub{font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#8a97a8;margin:26px 4px 10px}
+    .ax-bien{padding:10px 14px 10px 10px}
+    .ax-bien-foto{width:54px;height:54px;border-radius:14px;background:#f1f4f8;overflow:hidden;display:grid;place-items:center;flex-shrink:0;color:#b3bfcd}
+    .ax-bien-foto img{width:100%;height:100%;object-fit:cover}
+    .ax-bien-foto ico{width:22px;height:22px}
+    .ax-falta{width:9px;height:9px;border-radius:50%;background:#f28c1e;flex-shrink:0;margin-right:4px}
+    .ax-mas{border:0;background:transparent;color:#244c78;font-family:inherit;font-weight:700;font-size:14.5px;padding:12px;cursor:pointer}
+    .ax-listo{display:flex;flex-direction:column;align-items:center;gap:4px;padding:30px 10px 10px;text-align:center}
+    .ax-listo span{width:60px;height:60px;border-radius:50%;background:linear-gradient(140deg,#e8f6ee,#cdebd9);color:#21835a;display:grid;place-items:center;margin-bottom:6px}
+    .ax-listo span ico{width:30px;height:30px}
+    .ax-listo b{font-size:18px;color:#14243a}.ax-listo small{color:#7b889a;font-size:14px}
+    .ax-terminar{display:block;width:100%;margin-top:22px;height:52px;border:1.5px solid #d5dfeb;background:transparent;color:#244c78;border-radius:16px;font-family:inherit;font-size:15.5px;font-weight:700;cursor:pointer}
+    .ax-quitado{opacity:.5}
+    .ax-quitado .ax-op-txt small{color:#21835a;font-weight:700}
+    .ax-marca{width:28px;height:28px;border-radius:50%;border:2px solid #d5dfeb;display:grid;place-items:center;flex-shrink:0;color:#fff}
+    .ax-marca.on{background:#d4646b;border-color:#d4646b}.ax-marca ico{width:15px;height:15px}
+    .ax-motivo{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#fff;border-radius:16px;padding:6px 6px 6px 16px;margin:18px 0 10px;box-shadow:0 1px 2px #17263d0f,0 4px 14px #17263d0a}
+    .ax-motivo span{font-size:14px;font-weight:700;color:#41546b}
+    .ax-motivo select{border:0;background:#f1f4f8;border-radius:12px;height:44px;padding:0 12px;font-size:15px;font-family:inherit;color:#14243a;font-weight:600;max-width:62%}
+    .ax-input{width:100%;box-sizing:border-box;height:50px;border:1.5px solid #dce3ec;border-radius:14px;padding:0 14px;font-size:16px;background:#fff;margin-bottom:10px;font-family:inherit}
+    .ax-input-grande{height:58px;font-size:18px;font-weight:600}
+    .ax-grande{width:100%;height:60px;border:0;border-radius:18px;background:#244c78;color:#fff;font-family:inherit;font-size:18px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:10px;cursor:pointer;margin-top:14px;transition:transform .12s}
+    .ax-grande:active{transform:scale(.98)}.ax-grande:disabled{opacity:.4}
+    .ax-grande ico{width:22px;height:22px}
+    .ax-verde{background:linear-gradient(135deg,#21835a,#2b9d6c);box-shadow:0 10px 24px #21835a44}
+    .ax-rojo{background:linear-gradient(135deg,#bd4b52,#d4646b);box-shadow:0 10px 24px #bd4b5244}
+    .ax-texto-btn{display:block;width:100%;border:0;background:transparent;color:#8a97a8;font-family:inherit;font-size:14.5px;font-weight:600;padding:14px;cursor:pointer;text-align:center}
+    .ax-texto-btn.ax-izq{text-align:left;padding:4px 2px 8px;color:#244c78;font-weight:700;width:auto}
+    .ax-fondo{position:fixed;inset:0;z-index:190;background:#0f1b2c99;backdrop-filter:blur(3px);display:flex;align-items:flex-end;justify-content:center;animation:axFondo .2s ease}
+    .ax-hoja{position:relative;width:100%;max-width:520px;max-height:94vh;overflow:auto;background:#f7f9fc;border-radius:28px 28px 0 0;box-shadow:0 -10px 40px #0f1b2c40;animation:axSube .28s cubic-bezier(.2,.9,.3,1);padding-bottom:env(safe-area-inset-bottom)}
+    @keyframes axFondo{from{opacity:0}}
+    @keyframes axSube{from{transform:translateY(40px);opacity:.4}}
+    @media(min-width:700px){.ax-fondo{align-items:center}.ax-hoja{border-radius:28px}}
+    .ax-cerrar{position:absolute;top:12px;right:12px;z-index:2;width:38px;height:38px;border-radius:50%;border:0;background:#ffffffd9;color:#41546b;font-size:24px;line-height:1;cursor:pointer;box-shadow:0 2px 8px #0002}
+    .ax-foto{display:block;position:relative;aspect-ratio:4/3;max-height:40vh;width:100%;background:linear-gradient(140deg,#e9eff6,#dde6f0);cursor:pointer;overflow:hidden}
+    .ax-foto img{width:100%;height:100%;object-fit:cover;display:block}
+    .ax-foto-vacia{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:#244c78}
+    .ax-foto-vacia ico{width:44px;height:44px;background:#fff;border-radius:50%;padding:14px;box-sizing:content-box;box-shadow:0 6px 18px #17263d1a}
+    .ax-foto-vacia b{font-size:16px}
+    .ax-foto-cam{position:absolute;right:14px;bottom:14px;width:46px;height:46px;border-radius:50%;background:#14243acc;color:#fff;display:grid;place-items:center;backdrop-filter:blur(4px)}
+    .ax-foto-cam ico{width:22px;height:22px}
+    .ax-hoja-cuerpo{padding:20px 22px 18px}
+    .ax-hoja-sola{padding-top:30px}
+    .ax-hoja-cuerpo h2{margin:0;font-size:24px;letter-spacing:-.02em;color:#14243a;line-height:1.2;font-weight:800}
+    .ax-clave{margin:4px 0 14px;color:#7b889a;font-size:14px;font-weight:600;font-family:"SFMono-Regular",Consolas,monospace}
+    .ax-nota{display:flex;align-items:center;gap:8px;margin:0 0 10px;padding:10px 12px;border-radius:12px;background:#fff4dc;color:#7a4c0b;font-size:14px;line-height:1.35}
+    .ax-nota ico{width:17px;height:17px;flex-shrink:0}
+    .ax-nota-azul{background:#eaf1fa;color:#244c78}.ax-nota-verde{background:#e8f6ee;color:#1d6b4a}
+    .ax-seg{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;background:#e9eef4;border-radius:14px;padding:4px;margin:14px 0 10px}
+    .ax-seg button{height:44px;border:0;border-radius:11px;background:transparent;color:#53657c;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;transition:background .15s,box-shadow .15s}
+    .ax-seg button.on{background:#fff;color:#14243a;box-shadow:0 1px 3px #17263d24}
+    .ax-persona{display:flex;align-items:center;gap:10px;background:#fff;border:1.5px solid #e3e9f1;border-radius:14px;padding:0 4px 0 14px;cursor:pointer}
+    .ax-persona ico{width:18px;height:18px;color:#8a97a8;flex-shrink:0}
+    .ax-persona select{flex:1;min-width:0;border:0;background:transparent;height:50px;font-size:15.5px;font-family:inherit;color:#14243a;outline:0}
+    .ax-etq{display:inline-block;font-family:"SFMono-Regular",Consolas,monospace;font-weight:700;font-size:13px;background:#eaf1fa;color:#244c78;border-radius:8px;padding:5px 10px;margin-bottom:10px}
+    .ax-lista-hoja{max-height:44vh;overflow:auto;padding:2px 2px 6px}
+    .ax-lector{display:flex;align-items:center;gap:14px;background:#fff;border-radius:20px;padding:16px 18px;box-shadow:0 1px 2px #17263d0f,0 6px 18px #17263d0d}
+    .ax-lector-ico{width:52px;height:52px;border-radius:16px;background:linear-gradient(135deg,#f28c1e,#e2731a);color:#fff;display:grid;place-items:center;flex-shrink:0;box-shadow:0 8px 20px #f28c1e44}
+    .ax-lector-ico ico{width:26px;height:26px}
+    .ax-lector .ax-op-txt b{font-size:18px}
+    .ax-lector-luz{width:12px;height:12px;border-radius:50%;background:#3aa876;box-shadow:0 0 0 5px #3aa87626;animation:axLatido 1.6s ease-in-out infinite;flex-shrink:0}
+    .ax-mas-datos{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px}
+    .ax-mas-datos input,.ax-mas-datos select{height:48px;border:1.5px solid #e3e9f1;border-radius:12px;padding:0 12px;font-size:15px;background:#fff;min-width:0;font-family:inherit}
+    .sw{width:44px;height:26px;border-radius:13px;background:#cfd8e3;position:relative;flex-shrink:0;transition:background .2s}
+    .sw i{position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px #0003;transition:left .2s}
+    .sw.on{background:#2d6a4f}.sw.on i{left:21px}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+    @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+    .loader-ring{width:36px;height:36px;border-radius:50%;border:3px solid #dfe8f3;border-top-color:#244c78;animation:spin .9s linear infinite;flex-shrink:0}
+    /* ===== CONTROL VEHICULAR ===== */
+    .vx{max-width:980px;margin:0 auto;padding-bottom:40px}
+    .vx-hola{margin:6px 2px 18px}
+    .vx-hola small{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#8a97a8;font-weight:800}
+    .vx-hola h1{margin:4px 0 6px;font-size:30px;letter-spacing:-.03em;color:#14243a;font-weight:800}
+    .vx-hola p{margin:0;color:#6b7a8d;font-size:15.5px}.vx-hola p b{color:#14243a}
+    .vx-placa{display:inline-flex;align-items:center;font-family:"SFMono-Regular",Consolas,monospace;font-weight:800;font-size:13px;letter-spacing:.06em;color:#14243a;background:linear-gradient(#fff,#f1f4f8);border:1.5px solid #c9d3df;border-radius:7px;padding:3px 8px;box-shadow:inset 0 -2px 0 #e3e9f1;white-space:nowrap}
+    .vx-placa-l{font-size:15px;padding:5px 11px}
+    .vx-ring{position:relative;display:inline-grid;place-items:center;flex-shrink:0}
+    .vx-ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+    .vx-ring circle{fill:none;stroke-width:11;stroke-linecap:round}
+    .vx-ring .bg{stroke:#e9eef4}
+    .vx-ring .fg{transition:stroke-dashoffset 1.1s cubic-bezier(.2,.8,.2,1)}
+    .vx-ring .fg.s-verde{stroke:#2bb673}.vx-ring .fg.s-ambar{stroke:#f2a33a}.vx-ring .fg.s-rojo{stroke:#e0555c}
+    .vx-ring>span{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.05}
+    .vx-ring>span b{font-size:22px;color:#14243a;font-weight:800}.vx-ring>span small{font-size:11px;color:#8a97a8;font-weight:700}
+    .vx-ring-s{width:44px;height:44px}.vx-ring-s>span{font-size:12px;font-weight:800;color:#14243a}
+    .vx-ring-l{width:96px;height:96px}
+    .vx-ring-xl{width:150px;height:150px}.vx-ring-xl>span b{font-size:34px}
+    .vx-flota-anillo{display:flex;align-items:center;gap:22px;background:#fff;border-radius:24px;padding:18px 22px;margin-bottom:18px;box-shadow:0 1px 2px #17263d0f,0 10px 30px #17263d0f}
+    .vx-flota-txt{display:flex;flex-direction:column;gap:6px;font-size:14.5px;color:#41546b}
+    .vx-flota-txt>b{font-size:17px;color:#14243a;margin-bottom:2px}
+    .vx-flota-txt span{display:flex;align-items:center;gap:8px}
+    .vx-flota-txt i,.vx-filtros i{width:9px;height:9px;border-radius:50%;display:inline-block}
+    .d-rojo{background:#e0555c}.d-ambar{background:#f2a33a}.d-verde{background:#2bb673}.d-gris{background:#c3ccd8}.d-azul{background:#4f8fd6}
+    .vx-link{border:0;background:none;color:#244c78;font-weight:800;font-family:inherit;font-size:14px;cursor:pointer;padding:6px 0 0;text-align:left}
+    .vx-cards{display:flex;flex-direction:column;gap:12px}
+    .vx-card{background:#fff;border-radius:20px;padding:16px 18px;box-shadow:0 1px 2px #17263d0f,0 6px 20px #17263d0d;border-left:6px solid #c3ccd8;transition:transform .25s,opacity .25s;animation:fadeUp .25s ease backwards}
+    .vx-card.g-rojo{border-left-color:#e0555c}.vx-card.g-ambar{border-left-color:#f2a33a}.vx-card.g-azul{border-left-color:#4f8fd6}
+    .vx-card.saliendo{transform:translateX(40px);opacity:0}
+    .vx-card-top{display:flex;align-items:center;gap:10px;margin-bottom:8px;cursor:pointer;min-width:0}
+    .vx-card-top small{color:#7b889a;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .vx-card>b{display:block;font-size:17px;color:#14243a;line-height:1.3}
+    .vx-card>p{margin:4px 0 0;color:#6b7a8d;font-size:14px}
+    .vx-card-acc{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+    .vx-card-acc button{flex:1;min-width:130px;height:48px;border-radius:14px;border:1.5px solid #dce3ec;background:#fff;color:#41546b;font-family:inherit;font-weight:700;font-size:15px;cursor:pointer}
+    .vx-card-acc button.prim{background:#244c78;border-color:#244c78;color:#fff}
+    .vx-card.g-rojo .vx-card-acc button.prim{background:linear-gradient(135deg,#bd4b52,#d4646b);border-color:#bd4b52}
+    .vx-card-acc button:disabled{opacity:.5}
+    .vx-todo-ok{display:flex;flex-direction:column;align-items:center;gap:6px;padding:40px 10px;text-align:center}
+    .vx-todo-ok>span{width:72px;height:72px;border-radius:50%;background:linear-gradient(140deg,#e8f6ee,#c9ead7);color:#21835a;display:grid;place-items:center}
+    .vx-todo-ok>span ico{width:36px;height:36px}
+    .vx-todo-ok b{font-size:20px;color:#14243a}.vx-todo-ok small{color:#7b889a;font-size:14.5px}
+    .vx-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin:6px 2px 16px}
+    .vx-head h1{margin:0;font-size:28px;letter-spacing:-.025em;color:#14243a;font-weight:800}
+    .vx-head p{margin:4px 0 0;color:#6b7a8d;font-size:14.5px}
+    .vx-head-acc{display:flex;gap:8px;position:relative}
+    .vx-btn{height:46px;border:0;border-radius:14px;background:#244c78;color:#fff;font-family:inherit;font-weight:800;font-size:15px;display:inline-flex;align-items:center;gap:8px;padding:0 16px;cursor:pointer}
+    .vx-btn ico{width:18px;height:18px}
+    .vx-btn-sec{width:46px;height:46px;border:0;border-radius:14px;background:#fff;color:#41546b;display:grid;place-items:center;cursor:pointer;box-shadow:0 1px 2px #17263d14,0 3px 10px #17263d0d}
+    .vx-btn-sec ico{width:20px;height:20px}
+    .vx-menu{position:absolute;right:0;top:54px;z-index:30;background:#fff;border-radius:16px;box-shadow:0 18px 44px #17263d30;padding:6px;min-width:250px;animation:fadeUp .15s ease backwards}
+    .vx-menu button{width:100%;display:flex;align-items:center;gap:10px;border:0;background:transparent;padding:12px;border-radius:10px;font-family:inherit;font-size:14.5px;color:#25364c;cursor:pointer;text-align:left}
+    .vx-menu button:hover{background:#f3f6fa}.vx-menu ico{width:18px;height:18px;color:#6b7a8d}
+    .vx-filtros{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 10px;scrollbar-width:none}
+    .vx-filtros button{flex-shrink:0;display:inline-flex;align-items:center;gap:7px;border:0;background:#fff;border-radius:999px;padding:10px 14px;font-family:inherit;font-size:14px;font-weight:700;color:#41546b;cursor:pointer;box-shadow:0 1px 2px #17263d14}
+    .vx-filtros button small{color:#8a97a8;font-weight:800}
+    .vx-filtros button.on{background:#14243a;color:#fff}.vx-filtros button.on small{color:#c1ccdb}
+    .vx-filtros .f-rojo i{background:#e0555c}.vx-filtros .f-ambar i{background:#f2a33a}.vx-filtros .f-verde i{background:#2bb673}
+    .vx-buscar-fila{display:flex;gap:8px;margin-bottom:14px}.vx-buscar-fila .ax-buscar{flex:1;margin:0}
+    .vx-sede{border:0;border-radius:16px;background:#fff;padding:0 12px;font-family:inherit;font-size:14.5px;box-shadow:0 1px 2px #17263d0f,0 4px 14px #17263d0a;max-width:45%}
+    .vx-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+    .vx-auto{display:flex;flex-direction:column;gap:5px;text-align:left;background:#fff;border:0;border-radius:20px;padding:14px 16px 14px;cursor:pointer;font-family:inherit;position:relative;overflow:hidden;
+      box-shadow:0 1px 2px #17263d0f,0 6px 18px #17263d0d;transition:transform .12s,box-shadow .15s}
+    .vx-auto::before{content:"";position:absolute;left:0;right:0;top:0;height:5px;background:#c3ccd8}
+    .vx-auto.s-verde::before{background:#2bb673}.vx-auto.s-ambar::before{background:#f2a33a}.vx-auto.s-rojo::before{background:#e0555c}
+    .vx-auto:hover{box-shadow:0 2px 4px #17263d14,0 12px 28px #17263d1a}.vx-auto:active{transform:scale(.98)}
+    .vx-auto-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px}
+    .vx-auto>b{font-size:16px;color:#14243a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .vx-auto>small{font-size:12.5px;color:#7b889a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .vx-resp{display:flex;align-items:center;gap:6px;font-size:13px;color:#41546b;font-weight:600;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .vx-resp ico{width:14px;height:14px;color:#8a97a8;flex-shrink:0}.vx-resp-no{color:#a8650f}
+    .vx-dots{display:flex;gap:5px;margin-top:6px}.vx-dots i{width:22px;height:5px;border-radius:3px}
+    .vx-dots i.d-gris{opacity:.6}
+    .vx-marcador{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
+    .vx-marcador>div{background:#fff;border-radius:16px;padding:12px 10px;text-align:center;box-shadow:0 1px 2px #17263d0f,0 4px 14px #17263d0a;display:flex;flex-direction:column;gap:3px}
+    .vx-marcador b{font-size:20px;color:#14243a}.vx-marcador small{font-size:11.5px;color:#7b889a;font-weight:600}
+    .vx-nivel{display:inline-block;font-weight:800;border-radius:999px;padding:1px 9px;font-size:inherit}
+    .vx-marcador b.vx-nivel{font-size:15px;padding:3px 10px;align-self:center}
+    .n-Oro{background:linear-gradient(135deg,#ffe08a,#f2b33a);color:#6b4500}.n-Plata{background:linear-gradient(135deg,#eef2f6,#c9d3df);color:#3b4b5f}.n-Bronce{background:linear-gradient(135deg,#f6d6bf,#d89a6c);color:#5e3415}
+    .vx-mio{background:#fff;border-radius:26px;padding:20px;margin-bottom:14px;box-shadow:0 1px 2px #17263d0f,0 14px 36px #17263d12;position:relative;overflow:hidden}
+    .vx-mio::before{content:"";position:absolute;left:0;right:0;top:0;height:6px;background:#2bb673}
+    .vx-mio.s-ambar::before{background:#f2a33a}.vx-mio.s-rojo::before{background:#e0555c}
+    .vx-mio-top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .vx-mio-top h2{margin:10px 0 2px;font-size:22px;color:#14243a;letter-spacing:-.02em}
+    .vx-mio-top small{color:#7b889a;font-size:13.5px}
+    .vx-mio-estado{margin:12px 0 14px;color:#41546b;font-size:14.5px;line-height:1.4}
+    .vx-pit{width:100%;height:74px;border:0;border-radius:22px;background:linear-gradient(135deg,#f28c1e,#e2731a);color:#fff;font-family:inherit;font-size:20px;font-weight:800;cursor:pointer;
+      display:flex;align-items:center;justify-content:center;gap:12px;box-shadow:0 12px 28px #f28c1e55;position:relative;overflow:hidden;transition:transform .12s}
+    .vx-pit:active{transform:scale(.98)}
+    .vx-pit span{font-size:28px}
+    .vx-pit small{font-size:12.5px;font-weight:700;opacity:.85;background:#ffffff2e;border-radius:999px;padding:3px 9px}
+    .vx-pit::after{content:"";position:absolute;top:0;left:-60%;width:40%;height:100%;background:linear-gradient(90deg,transparent,#ffffff40,transparent);animation:vxBrillo 2.8s ease-in-out infinite}
+    @keyframes vxBrillo{60%,100%{left:130%}}
+    .vx-pit-ok{display:flex;align-items:center;gap:12px;background:#e8f6ee;color:#1d6b4a;border-radius:18px;padding:14px 16px}
+    .vx-pit-ok ico{width:26px;height:26px;flex-shrink:0}.vx-pit-ok span{display:flex;flex-direction:column;gap:2px}.vx-pit-ok b{font-size:16px}.vx-pit-ok small{font-size:13px;opacity:.85}
+    .vx-papeles-btn{display:flex;align-items:center;gap:10px;width:100%;border:0;background:#f4f6fa;border-radius:14px;padding:13px 14px;margin-top:12px;font-family:inherit;font-size:15px;font-weight:700;color:#25364c;cursor:pointer}
+    .vx-papeles-btn ico{width:18px;height:18px;color:#6b7a8d}
+    .vx-flecha{margin-left:auto;transition:transform .2s}.vx-flecha.abierta{transform:rotate(180deg)}
+    .vx-papeles{margin:8px 0 0;display:grid;gap:2px}
+    .vx-papeles>div{display:flex;justify-content:space-between;gap:12px;padding:10px 4px;border-bottom:1px solid #edf0f4}
+    .vx-papeles dt{color:#7b889a;font-size:13.5px}.vx-papeles dd{margin:0;text-align:right;font-weight:700;color:#14243a;font-size:14px;display:flex;flex-direction:column;gap:2px}
+    .vx-papeles dd small{font-weight:500;color:#6b7a8d;font-size:12.5px}
+    .vx-vacio-mio{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;padding:30px 10px}
+    .vx-vacio-mio>span{width:68px;height:68px;border-radius:22px;background:linear-gradient(135deg,#17263d,#244c78);color:#fff;display:grid;place-items:center}
+    .vx-vacio-mio>span ico{width:34px;height:34px}.vx-vacio-mio b{font-size:18px;color:#14243a}.vx-vacio-mio small{color:#7b889a}
+    .vx-otra{display:flex;align-items:center;justify-content:center;gap:8px;margin:14px auto 0;border:0;background:transparent;color:#244c78;font-family:inherit;font-weight:700;font-size:14.5px;cursor:pointer;padding:10px}
+    .vx-otra ico{width:18px;height:18px}
+    .vx-podio{display:grid;grid-template-columns:1fr 1.15fr 1fr;align-items:end;gap:10px;margin:10px 0 18px;padding:0 4px}
+    .vx-escalon{display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center;min-width:0}
+    .vx-escalon b{font-size:14px;color:#14243a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+    .vx-escalon small{font-size:12.5px;color:#7b889a;font-weight:700}
+    .vx-avatar{width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#244c78,#17263d);color:#fff;display:grid;place-items:center;font-weight:800;font-size:18px;box-shadow:0 6px 16px #17263d33}
+    .vx-escalon.e1 .vx-avatar{width:70px;height:70px;font-size:22px;background:linear-gradient(135deg,#f2b33a,#e2731a);box-shadow:0 8px 22px #f28c1e55}
+    .vx-corona{font-size:24px;margin-bottom:-4px;animation:vxFlota 2.4s ease-in-out infinite}
+    @keyframes vxFlota{50%{transform:translateY(-4px)}}
+    .vx-bloque{width:100%;border-radius:14px 14px 4px 4px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:2px;padding-top:10px;font-size:22px;color:#fff;font-weight:800;margin-top:6px}
+    .vx-bloque span{font-size:26px}
+    .e1 .vx-bloque{height:110px;background:linear-gradient(180deg,#f2b33a,#e2731a)}
+    .e2 .vx-bloque{height:84px;background:linear-gradient(180deg,#b9c5d3,#8a9bb0)}
+    .e3 .vx-bloque{height:66px;background:linear-gradient(180deg,#d89a6c,#b9733f)}
+    .vx-tabla{display:flex;flex-direction:column;gap:8px}
+    .vx-fila{display:flex;align-items:center;gap:12px;background:#fff;border-radius:16px;padding:10px 14px;box-shadow:0 1px 2px #17263d0f}
+    .vx-fila.yo{box-shadow:0 0 0 2px #f28c1e,0 6px 18px #f28c1e33}
+    .vx-pos{width:24px;text-align:center;font-weight:800;color:#8a97a8}
+    .vx-avatar-s{width:38px;height:38px;font-size:13px;box-shadow:none}
+    .vx-fila-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+    .vx-fila-txt b{font-size:15px;color:#14243a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .vx-fila-txt b em{font-style:normal;font-size:11px;background:#f28c1e;color:#fff;border-radius:999px;padding:1px 7px;margin-left:6px;vertical-align:middle}
+    .vx-fila-txt small{font-size:12.5px;color:#7b889a}
+    .vx-pts{font-size:20px;font-weight:800;color:#14243a;display:flex;flex-direction:column;align-items:flex-end;line-height:1}.vx-pts small{font-size:11px;color:#8a97a8}
+    .vx-fila-sw{cursor:pointer}
+    .vx-reglas{color:#6b7a8d;font-size:13.5px;line-height:1.5;margin:18px 4px 0;text-align:center}
+    .vx-ficha{max-width:560px}
+    .vx-ficha-top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:26px 22px 18px;background:linear-gradient(180deg,#fff,#f7f9fc);border-bottom:1px solid #edf0f4;position:relative}
+    .vx-ficha-top::before{content:"";position:absolute;left:0;right:0;top:0;height:6px;background:#2bb673}
+    .vx-ficha-top.s-ambar::before{background:#f2a33a}.vx-ficha-top.s-rojo::before{background:#e0555c}
+    .vx-ficha-top h2{margin:10px 0 2px;font-size:22px;color:#14243a}.vx-ficha-top small{color:#7b889a;font-size:13px}
+    .vx-resp-fila{display:flex;align-items:center;gap:10px;background:#fff;border:1.5px solid #e3e9f1;border-radius:14px;padding:4px 6px 4px 14px;margin-bottom:14px}
+    .vx-resp-fila>ico{width:18px;height:18px;color:#8a97a8;flex-shrink:0}
+    .vx-resp-fila select{flex:1;min-width:0;border:0;background:transparent;height:46px;font-size:15px;font-family:inherit;color:#14243a;outline:0}
+    .vx-acceso{flex-shrink:0;border:0;background:#244c78;color:#fff;border-radius:10px;height:38px;padding:0 12px;font-family:inherit;font-weight:700;font-size:13.5px;cursor:pointer}
+    .vx-acceso-ok{flex-shrink:0;display:inline-flex;align-items:center;gap:4px;color:#21835a;font-weight:700;font-size:13px;padding-right:8px}.vx-acceso-ok ico{width:15px;height:15px}
+    .vx-items{display:flex;flex-direction:column;gap:8px}
+    .vx-item{display:flex;align-items:center;gap:12px;width:100%;border:0;background:#fff;border-radius:14px;padding:12px 14px;text-align:left;font-family:inherit;cursor:pointer;box-shadow:0 1px 2px #17263d0f}
+    .vx-item>i{width:12px;height:12px;border-radius:50%;background:#c3ccd8;flex-shrink:0}
+    .vx-item.e-verde>i{background:#2bb673}.vx-item.e-ambar>i{background:#f2a33a}.vx-item.e-rojo>i{background:#e0555c;box-shadow:0 0 0 4px #e0555c26}
+    .vx-item>span{flex:1;display:flex;flex-direction:column;gap:2px;min-width:0}
+    .vx-item b{font-size:14.5px;color:#14243a}.vx-item small{font-size:13px;color:#6b7a8d}
+    .vx-item em{font-style:normal;font-size:12.5px;font-weight:800;color:#244c78;background:#eaf1fa;border-radius:999px;padding:5px 10px;flex-shrink:0}
+    .vx-item.e-rojo em{color:#fff;background:#d4646b}
+    .vx-km{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:14px 0 2px}
+    .vx-km>span{background:#fff;border-radius:14px;padding:10px;text-align:center;display:flex;flex-direction:column;gap:2px;box-shadow:0 1px 2px #17263d0f}
+    .vx-km b{font-size:17px;color:#14243a}.vx-km small{font-size:11.5px;color:#7b889a}
+    .vx-pend{display:flex;align-items:center;gap:8px;background:#fff;border-radius:14px;padding:10px 10px 10px 14px;margin-bottom:8px;box-shadow:0 1px 2px #17263d0f}
+    .vx-pend>span{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}.vx-pend b{font-size:14px;color:#14243a}.vx-pend small{font-size:12.5px;color:#7b889a}
+    .vx-pend button{flex-shrink:0;border:0;background:#244c78;color:#fff;border-radius:10px;height:36px;padding:0 10px;font-family:inherit;font-weight:700;font-size:13px;cursor:pointer}
+    .vx-pend button.sec{background:#eef1f5;color:#41546b}
+    .vx-rev{display:flex;align-items:center;gap:12px;padding:10px 4px;border-bottom:1px solid #edf0f4}
+    .vx-rev-f{width:52px;font-size:12.5px;font-weight:800;color:#8a97a8;flex-shrink:0}
+    .vx-rev-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}.vx-rev-t b{font-size:14px;color:#14243a}.vx-rev-t small{font-size:12.5px;color:#7b889a}
+    .vx-rev.sosp .vx-rev-t small{color:#a8650f}.vx-rev.falsa{opacity:.6}.vx-rev.falsa .vx-rev-t small{color:#bd4b52}
+    .vx-rev-foto{color:#244c78}.vx-rev-foto ico{width:20px;height:20px}
+    .vx-hist{display:flex;flex-direction:column;gap:0;margin-top:6px}
+    .vx-hist>div{display:flex;flex-direction:column;gap:2px;padding:9px 4px;border-bottom:1px solid #edf0f4}
+    .vx-hist small{font-size:12px;color:#8a97a8;font-weight:700}.vx-hist span{font-size:14px;color:#25364c}.vx-hist em{font-style:normal;font-size:12px;color:#7b889a}
+    .vx-ficha-acc{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:18px}
+    .vx-ficha-acc button{display:flex;flex-direction:column;align-items:center;gap:6px;border:0;background:#fff;border-radius:14px;padding:12px 6px;font-family:inherit;font-size:12.5px;font-weight:700;color:#41546b;cursor:pointer;box-shadow:0 1px 2px #17263d0f}
+    .vx-ficha-acc ico{width:20px;height:20px}.vx-ficha-acc .rojo{color:#bd4b52}
+    .ax-fondo.vx-sobre{z-index:200}
+    .vx-campo{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+    .vx-campo>span{font-size:13px;font-weight:700;color:#41546b}
+    .vx-campo input,.vx-campo select{height:48px;border:1.5px solid #dce3ec;border-radius:12px;padding:0 12px;font-size:15.5px;background:#fff;font-family:inherit;width:100%;box-sizing:border-box}
+    .vx-rapidos{display:flex;gap:8px;margin:-4px 0 12px}
+    .vx-rapidos button,.vx-chips button{border:1.5px solid #dce3ec;background:#fff;border-radius:999px;padding:9px 14px;font-family:inherit;font-size:14px;font-weight:700;color:#41546b;cursor:pointer}
+    .vx-chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+    .vx-chips button.on{background:#244c78;border-color:#244c78;color:#fff}
+    .ax-seg.vx-seg4{grid-template-columns:repeat(4,1fr)}.ax-seg.vx-seg4 button{font-size:13.5px}
+    .vx-nota-chica{font-size:13px;color:#7b889a;line-height:1.45;margin:0 0 6px}
+    .vx-acceso-res{background:#fff;border-radius:16px;padding:14px 16px;display:flex;flex-direction:column;gap:2px;margin-bottom:6px;box-shadow:0 1px 2px #17263d0f}
+    .vx-acceso-res small{font-size:12px;color:#8a97a8;font-weight:700;margin-top:6px}.vx-acceso-res b{font-size:16px;color:#14243a}
+    .vx-pass{font-family:"SFMono-Regular",Consolas,monospace;font-size:22px!important;letter-spacing:.06em}
+    .vx-wa{text-decoration:none;background:linear-gradient(135deg,#1faa53,#25d366)!important}
+    .vx-form{max-width:640px}
+    .vx-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 10px;margin-top:10px}
+    .vx-avisos{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+    .vx-avisos>div{border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:3px;background:#fff;border-left:5px solid #c3ccd8}
+    .vx-avisos b{font-size:14.5px;color:#14243a}.vx-avisos small{font-size:12.5px;color:#6b7a8d;line-height:1.45;word-break:break-word}
+    .vx-avisos .g-rojo{border-left-color:#e0555c;background:#fdf1f2}.vx-avisos .g-ambar{border-left-color:#f2a33a;background:#fff8ea}
+    .vx-avisos .g-azul{border-left-color:#4f8fd6;background:#eef5fd}.vx-avisos .g-verde{border-left-color:#2bb673;background:#eefaf3}
+    .vx-video{margin-bottom:12px}
+    /* Con el Pit Stop abierto, las confirmaciones y avisos van encima de él */
+    body:has(.ps) .confirm-backdrop{z-index:360}
+    body:has(.ps) .aviso-backdrop{z-index:370}
+    @media(max-width:600px){
+      .vx-hola h1,.vx-head h1{font-size:25px}
+      .vx-flota-anillo{gap:14px;padding:14px}.vx-ring-xl{width:118px;height:118px}.vx-ring-xl>span b{font-size:27px}
+      .vx-grid{grid-template-columns:1fr 1fr;gap:8px}.vx-auto{padding:12px}.vx-auto>b{font-size:14.5px}
+      .vx-marcador{grid-template-columns:repeat(2,1fr)}
+      .vx-form-grid{grid-template-columns:1fr}
+      .vx-head-acc .vx-btn span{display:none}.vx-head-acc .vx-btn{width:46px;padding:0;justify-content:center}
+    }
+
+    /* ===== PIT STOP ===== */
+    .ps{position:fixed;inset:0;z-index:300;background:radial-gradient(900px 600px at 50% -10%,#24406a 0%,#14243a 55%,#0d1828 100%);color:#fff;display:flex;flex-direction:column;overflow-y:auto;animation:fadeIn .2s ease both;
+      padding:max(12px,env(safe-area-inset-top)) 18px max(18px,env(safe-area-inset-bottom))}
+    .ps-top{display:flex;align-items:center;gap:12px;min-height:44px}
+    .ps-x{width:40px;height:40px;border-radius:50%;border:0;background:#ffffff1a;color:#fff;font-size:24px;line-height:1;cursor:pointer;flex-shrink:0}
+    .ps-pasos{flex:1;display:flex;gap:6px}
+    .ps-pasos i{flex:1;height:5px;border-radius:3px;background:#ffffff26;transition:background .3s}
+    .ps-pasos i.on{background:linear-gradient(90deg,#f28c1e,#ffb45c)}
+    .ps-placa{font-family:"SFMono-Regular",Consolas,monospace;font-weight:800;font-size:13px;letter-spacing:.06em;background:#fff;color:#14243a;border-radius:7px;padding:4px 9px;flex-shrink:0}
+    .ps-err{margin:30px auto;max-width:420px}
+    .ps-paso{flex:1;display:flex;flex-direction:column;align-items:center;max-width:460px;width:100%;margin:0 auto;padding-top:18px;animation:fadeUp .25s ease backwards}
+    .ps-paso h2{margin:0 0 6px;font-size:24px;font-weight:800;letter-spacing:-.02em;text-align:center}
+    .ps-ayuda{margin:0 0 14px;color:#b9c6d7;font-size:14.5px;text-align:center;line-height:1.45}.ps-ayuda b{color:#fff}
+    .ps-pregunta{margin:0 0 12px;background:#f28c1e26;color:#ffd29b;border-radius:14px;padding:10px 14px;font-size:14px;line-height:1.4;text-align:center;width:100%;box-sizing:border-box}
+    .ps-odo{display:flex;align-items:center;gap:4px;margin:26px 0 10px;padding:14px 16px;border-radius:18px;background:linear-gradient(#05090f,#111b29);box-shadow:inset 0 3px 12px #000,0 0 0 2px #ffffff14,0 18px 40px #0006}
+    .ps-dig{width:36px;height:56px;overflow:hidden;border-radius:6px;background:linear-gradient(#1a2433,#0b121c 45%,#0b121c 55%,#1a2433);box-shadow:inset 0 0 0 1px #ffffff12}
+    .ps-rollo{display:flex;flex-direction:column;transition:transform .35s cubic-bezier(.2,.9,.3,1.2)}
+    .ps-rollo i{height:56px;display:grid;place-items:center;font-style:normal;font-family:"SFMono-Regular",Consolas,monospace;font-size:36px;font-weight:700;color:#f3f6fa}
+    .ps-dig:last-of-type .ps-rollo i{color:#ffb45c}
+    .ps-odo em{font-style:normal;font-weight:800;color:#8fa0b6;margin-left:6px;font-size:16px}
+    .ps-km-info{margin:0 0 16px;font-size:16px;font-weight:700;color:#7fe0ad;min-height:22px}.ps-km-info.mal{color:#ff9aa0}
+    .ps-teclado{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;width:100%;max-width:330px}
+    .ps-teclado button{height:62px;border:0;border-radius:18px;background:#ffffff14;color:#fff;font-family:inherit;font-size:26px;font-weight:700;cursor:pointer;transition:background .1s,transform .08s}
+    .ps-teclado button:active{background:#ffffff2e;transform:scale(.95)}
+    .ps-teclado button.borrar{font-size:22px;color:#b9c6d7}.ps-teclado button.ok{background:linear-gradient(135deg,#f28c1e,#e2731a)}
+    .ps-auto{width:100%;display:flex;flex-direction:column;align-items:center}
+    .ps-svg{width:min(62vw,230px);height:auto;overflow:visible}
+    .ps-carro{fill:#e9eef5;stroke:#ffffff;stroke-width:3}
+    .ps-vidrio{fill:#9fb4cd;opacity:.7}
+    .ps-llanta rect{fill:#2bb673;stroke:#0d1828;stroke-width:3;cursor:pointer;transition:fill .2s}
+    .ps-llanta.e-baja rect{fill:#f2a33a}.ps-llanta.e-mal rect{fill:#e0555c}
+    .ps-luz ellipse{fill:#fff6c7;stroke:#0d1828;stroke-width:2.5;cursor:pointer;transition:fill .2s}
+    .ps-luz.e-falla ellipse{fill:#3a4658}
+    .ps-leyenda{display:flex;flex-wrap:wrap;justify-content:center;gap:12px;margin:10px 0 16px;font-size:12.5px;color:#b9c6d7}
+    .ps-leyenda span{display:flex;align-items:center;gap:6px}.ps-leyenda i{width:12px;height:12px;border-radius:4px}
+    .ps-leyenda .e-ok{background:#2bb673}.ps-leyenda .e-baja{background:#f2a33a}.ps-leyenda .e-mal{background:#e0555c}.ps-leyenda .e-falla{background:#3a4658;border:1.5px solid #8fa0b6}
+    .ps-golpe{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;background:#ffffff12;border-radius:16px;padding:14px 16px;cursor:pointer;box-sizing:border-box}
+    .ps-golpe span:first-child{display:flex;flex-direction:column;gap:2px}.ps-golpe b{font-size:15px}.ps-golpe small{font-size:13px;color:#b9c6d7}
+    .ps-golpe.on{background:#f28c1e26}
+    .ps-foto{margin-top:12px;border-radius:16px;max-height:30vh}
+    .ps .ax-input{margin-top:10px;background:#ffffff12;border-color:#ffffff26;color:#fff}
+    .ps-niveles{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;width:100%;margin-top:8px}
+    .ps-nivel{display:flex;flex-direction:column;align-items:center;gap:6px}
+    .ps-tubo{position:relative;width:54px;height:min(42vh,260px);border-radius:16px;background:#ffffff12;box-shadow:inset 0 0 0 2px #ffffff1f;overflow:hidden;cursor:ns-resize;touch-action:none}
+    .ps-liquido{position:absolute;left:0;right:0;bottom:0;border-radius:0 0 14px 14px;transition:height .08s linear,background .3s}
+    .ps-liquido.c-verde{background:linear-gradient(0deg,#1f9a5f,#3fd08a)}.ps-liquido.c-ambar{background:linear-gradient(0deg,#d98a1f,#ffc163)}.ps-liquido.c-rojo{background:linear-gradient(0deg,#c2414a,#ff7a81)}
+    .ps-liquido::after{content:"";position:absolute;left:0;right:0;top:0;height:6px;background:#ffffff55}
+    .ps-marca{position:absolute;left:0;right:0;height:0;border-top:2px dashed #ffffff55}
+    .ps-nivel b{font-size:14px}.ps-nivel small{font-size:11.5px;color:#b9c6d7;text-align:center}
+    .ps-nivel.pide .ps-tubo{box-shadow:inset 0 0 0 2px #f28c1e,0 0 0 4px #f28c1e40;animation:axLatido 1.4s ease-in-out infinite}
+    .ps-tablero{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;width:100%;margin-top:6px}
+    .ps-testigo{display:flex;flex-direction:column;align-items:center;gap:6px;border:0;border-radius:18px;background:#05090f;box-shadow:inset 0 0 0 1px #ffffff14;padding:14px 4px 10px;cursor:pointer;font-family:inherit;transition:background .2s,box-shadow .2s}
+    .ps-testigo svg{width:40px;height:40px;fill:none;stroke:#3a4658;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;transition:stroke .2s,filter .2s}
+    .ps-testigo .ps-txt{fill:#3a4658;stroke:none;font-size:10px;font-weight:800;font-family:Arial,sans-serif}
+    .ps-testigo small{font-size:11px;color:#8fa0b6;line-height:1.2;text-align:center}
+    .ps-testigo.on.t-ambar svg{stroke:#ffb020;filter:drop-shadow(0 0 6px #ffb020)}.ps-testigo.on.t-ambar .ps-txt{fill:#ffb020}
+    .ps-testigo.on.t-rojo svg{stroke:#ff4b55;filter:drop-shadow(0 0 6px #ff4b55)}.ps-testigo.on.t-rojo .ps-txt{fill:#ff4b55}
+    .ps-testigo.on{background:#111b29;box-shadow:inset 0 0 0 1.5px #ffffff2e}.ps-testigo.on small{color:#fff}
+    .ps-resumen{width:100%;display:flex;flex-direction:column;align-items:center;gap:14px;margin-top:10px}
+    .ps-res-km{display:flex;align-items:baseline;gap:6px}.ps-res-km b{font-size:40px;font-weight:800}.ps-res-km small{color:#8fa0b6;font-weight:800}
+    .ps-res-lista{width:100%;display:flex;flex-direction:column;gap:8px}
+    .ps-res-lista span{display:flex;align-items:center;gap:10px;background:#ffffff12;border-radius:14px;padding:12px 14px;font-size:15px}
+    .ps-res-lista i{width:10px;height:10px;border-radius:50%;background:#f2a33a;flex-shrink:0}
+    .ps-pie{display:flex;gap:10px;max-width:460px;width:100%;margin:18px auto 0}
+    .ps-atras{height:58px;border:0;border-radius:18px;background:#ffffff14;color:#fff;font-family:inherit;font-weight:700;font-size:16px;padding:0 20px;cursor:pointer}
+    .ps-sig{flex:1;height:58px;border:0;border-radius:18px;background:#fff;color:#14243a;font-family:inherit;font-weight:800;font-size:17px;cursor:pointer;transition:transform .12s}
+    .ps-sig:active{transform:scale(.98)}.ps-sig:disabled{opacity:.35}
+    .ps-enviar{background:linear-gradient(135deg,#f28c1e,#e2731a);color:#fff;box-shadow:0 12px 28px #f28c1e55}
+    .ps-fin{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;max-width:420px;width:100%;margin:0 auto;text-align:center;animation:fadeUp .3s ease backwards}
+    .ps-fin h2{margin:6px 0 0;font-size:28px;font-weight:800}
+    .ps-ring .bg{stroke:#ffffff1f}.ps-ring>span b{color:#fff}.ps-ring>span small{color:#b9c6d7}
+    .ps-premios{display:flex;flex-wrap:wrap;justify-content:center;gap:8px}
+    .ps-premios span{background:#ffffff14;border-radius:999px;padding:8px 14px;font-weight:800;font-size:15px;animation:vxSalta .5s cubic-bezier(.2,1.6,.4,1) backwards}
+    .ps-premios span:nth-child(2){animation-delay:.12s}.ps-premios span:nth-child(3){animation-delay:.24s}
+    .ps-premios .ps-pts{background:linear-gradient(135deg,#f28c1e,#e2731a)}
+    @keyframes vxSalta{from{transform:scale(.4);opacity:0}}
+    .ps-fin .ps-sig{width:100%;flex:none;margin-top:10px}
+    .ps-off>span{background:#ffffff1a!important;color:#7fe0ad!important}
+    @media(max-width:380px){.ps-dig{width:30px;height:48px}.ps-rollo i{height:48px;font-size:30px}.ps-teclado button{height:54px}.ps-tablero{grid-template-columns:repeat(3,1fr)}}
+  `]
+})
+export class VehiculosComponent {
+  @Input() app: any;
+}
+
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, FormsModule, IcoComponent, ElegirComponent, FirmaComponent],
+  imports: [CommonModule, FormsModule, IcoComponent, ElegirComponent, FirmaComponent, VehiculosComponent],
   template: `
   <div class="app-shell">
 
@@ -607,17 +1581,30 @@ export class ElegirComponent {
           </button>
         </div>
 
-        <!-- VEHÍCULOS -->
-        <button class="nav-grupo" [class.abierto]="grupoMenu==='vehiculos'" [class.actual]="grupoDeSeccion(section)==='vehiculos'" (click)="alternarGrupoMenu('vehiculos')">
-          <span class="nav-icon"><ico n="car"></ico></span><span>Vehículos</span>
-          <ico class="nav-flecha" n="chev"></ico>
-        </button>
-        <div class="nav-sub" *ngIf="grupoMenu==='vehiculos'">
-          <button class="nav-item" [class.active]="section==='vehiculos'" (click)="irA('vehiculos')">
-            <span class="nav-icon"><ico n="car"></ico></span><span>Parque vehicular</span>
-            <span class="nav-pronto">Pronto</span>
+        <!-- VEHÍCULOS (solo si administra la flota o tiene un vehículo) -->
+        <ng-container *ngIf="verVehiculos">
+          <button class="nav-grupo" [class.abierto]="grupoMenu==='vehiculos'" [class.actual]="grupoDeSeccion(section)==='vehiculos'" (click)="alternarGrupoMenu('vehiculos')">
+            <span class="nav-icon"><ico n="car"></ico></span><span>Vehículos</span>
+            <span class="nav-badge" *ngIf="grupoMenu!=='vehiculos' && (avisosVehiculos > 0 || vhPitPendiente)">{{ avisosVehiculos || '!' }}</span>
+            <ico class="nav-flecha" n="chev"></ico>
           </button>
-        </div>
+          <div class="nav-sub" *ngIf="grupoMenu==='vehiculos'">
+            <button class="nav-item" *ngIf="vhPerfil?.admin" [class.active]="section==='vehiculos' && vh==='inicio'" (click)="irVeh('inicio')">
+              <span class="nav-icon"><ico n="spark"></ico></span><span>Pendientes</span>
+              <span class="nav-badge" *ngIf="avisosVehiculos > 0">{{ avisosVehiculos }}</span>
+            </button>
+            <button class="nav-item" *ngIf="vhPerfil?.admin" [class.active]="section==='vehiculos' && vh==='flota'" (click)="irVeh('flota')">
+              <span class="nav-icon"><ico n="car"></ico></span><span>Flota</span>
+            </button>
+            <button class="nav-item" *ngIf="vhPerfil?.vehiculos?.length" [class.active]="section==='vehiculos' && vh==='mio'" (click)="irVeh('mio')">
+              <span class="nav-icon"><ico n="gauge"></ico></span><span>Mi vehículo</span>
+              <span class="nav-badge" *ngIf="vhPitPendiente">Pit Stop</span>
+            </button>
+            <button class="nav-item" [class.active]="section==='vehiculos' && vh==='podio'" (click)="irVeh('podio')">
+              <span class="nav-icon"><ico n="chart"></ico></span><span>Podio</span>
+            </button>
+          </div>
+        </ng-container>
 
         <!-- CATÁLOGOS -->
         <button class="nav-grupo nav-solo" *ngIf="isAdmin" [class.actual]="section==='catalogos'" (click)="irA('catalogos')">
@@ -3458,15 +4445,10 @@ export class ElegirComponent {
             </div>
 
           </section>
-        <!-- VEHÍCULOS: en construcción -->
-          <section *ngIf="section==='vehiculos'" class="vh-pronto">
-            <div class="vh-card">
-              <span class="vh-ico"><ico n="car"></ico></span>
-              <span class="vh-tag">En construcción</span>
-              <h1>Control vehicular</h1>
-              <p>Aquí vas a llevar el parque vehicular: quién trae cada vehículo, pólizas de seguro, verificaciones, tenencias y sus documentos, con avisos antes de que algo venza.</p>
-            </div>
-          </section>
+        <!-- VEHÍCULOS: componente aparte (su plantilla se revisa por separado) -->
+          <dz-vehiculos [app]="appRef"></dz-vehiculos>
+
+
 
         <!-- ACTUALIZAR: el administrador coteja área por área (sin formatos). Pocas decisiones a la vista; lo demás lo resuelve el sistema -->
           <section *ngIf="section==='actualizar' && isAdmin" class="ax">
@@ -4294,13 +5276,6 @@ export class ElegirComponent {
     .nav-sub .nav-item{padding:10px 12px;margin-bottom:2px;font-size:14.5px;gap:12px}
     .nav-sub .nav-icon ico{width:18px;height:18px}
     .nav-pronto{margin-left:auto;font-size:10.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#f2b35c;background:#f28c1e26;border-radius:999px;padding:3px 8px}
-    .vh-pronto{display:grid;place-items:center;min-height:60vh;padding:20px}
-    .vh-card{max-width:520px;text-align:center;background:#fff;border-radius:28px;padding:42px 32px;box-shadow:0 1px 2px #17263d0f,0 18px 50px #17263d14;display:flex;flex-direction:column;align-items:center;gap:10px}
-    .vh-ico{width:84px;height:84px;border-radius:26px;background:linear-gradient(135deg,#17263d,#244c78);color:#fff;display:grid;place-items:center;box-shadow:0 14px 32px #17263d40;margin-bottom:6px}
-    .vh-ico ico{width:42px;height:42px}
-    .vh-tag{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#c4670f;background:#fff1df;border-radius:999px;padding:6px 12px}
-    .vh-card h1{margin:4px 0 0;font-size:30px;letter-spacing:-.025em;color:#14243a}
-    .vh-card p{margin:0;color:#6b7a8d;font-size:15.5px;line-height:1.55}
     .side-cuenta{margin-top:auto;border-top:1px solid #35455d;padding-top:14px;display:flex;flex-direction:column;gap:2px}
     .side-user{display:flex;align-items:center;gap:10px;padding:0 6px 10px}
     .side-op{display:flex;align-items:center;gap:12px;width:100%;border:0;background:transparent;color:#c1ccdb;padding:9px 10px;border-radius:9px;font-size:14px;text-align:left;cursor:pointer}
@@ -7151,6 +8126,12 @@ export class AppComponent {
         history.replaceState(null, '', window.location.pathname);
         setTimeout(() => this.irDesdeAviso(ir));
       }
+      // QR pegado en un vehículo: abre su Pit Stop
+      const vq = params.get('v');
+      if (vq) {
+        history.replaceState(null, '', window.location.pathname);
+        try { sessionStorage.setItem('dozzer_vehiculo', vq); } catch { /* */ }
+      }
       const etiqueta = this.codigoDeTexto(params.get('e') || '');
       if (etiqueta) {
         history.replaceState(null, '', window.location.pathname);
@@ -7173,6 +8154,8 @@ export class AppComponent {
 
   private irDesdeAviso(ir: string): void {
     if (!this.logged || this.mustChangePassword) return;
+    if (ir === 'flota') { this.irVeh('inicio'); return; }
+    if (ir === 'pitstop') { this.irVeh('mio'); return; }
     if (ir === 'requisiciones') { this.section = 'requisiciones'; this.menuCollapsed = true; this.loadRequisiciones(); return; }
     if (ir === 'calibracion' && (this.isAdmin || this.canAuthorize)) { this.irA('calibracion'); return; }
     if (ir === 'autorizaciones' || ir === 'solicitudes') {
@@ -7615,6 +8598,8 @@ export class AppComponent {
     this.quitarPushAlSalir();
     this.actDetenerCamara(true);
     this.act = this.actInicial();
+    this.vhCerrarEscaner();
+    this.vhPerfil = null; this.vhDec = null; this.vhLista = []; this.vhFicha = null; this.vhPodio = null; this.ps = null; this.vhHoja = null;
     clearInterval(this.novedadesTimer); this.novedadesTimer = null; this.vigilando = ''; this.avisoApp = null;
     try { localStorage.removeItem('dozzer_ui_' + this.email); } catch { /* */ }
     this.uiGuardado = '';
@@ -7691,6 +8676,7 @@ export class AppComponent {
   irA(s: string): void {
     this.menuCollapsed = true;
     if (s !== 'inicio' && this.grupoDeSeccion(s) !== 'catalogos') this.grupoMenu = this.grupoDeSeccion(s);
+    if (s === 'vehiculos') { this.irVeh(this.vhPerfil?.admin ? 'inicio' : 'mio'); return; }
     if (this.section === 'actualizar' && s !== 'actualizar') this.actDetenerCamara(true);
     this.editing = false;
     if (s === 'inicio') { this.section = 'inicio'; return; }
@@ -8107,6 +9093,10 @@ export class AppComponent {
     Object.keys(this.catalogs).forEach(k => this.loadCatalog(k));
     this.loadSolicitudes();
     this.loadRequisiciones();
+    this.cargarPerfilVeh();
+    let vehiculo: string | null = null;
+    try { vehiculo = sessionStorage.getItem('dozzer_vehiculo'); sessionStorage.removeItem('dozzer_vehiculo'); } catch { /* */ }
+    if (vehiculo) setTimeout(() => this.vhBuscarQr(vehiculo!), 700);
   }
 
   // =========================
@@ -10806,6 +11796,763 @@ export class AppComponent {
     if (this.actStream) this.actStream.getTracks().forEach(t => t.stop());
     this.actStream = null;
     if (this.act) this.act.escaneando = false;
+  }
+
+  // =========================
+  // CONTROL VEHICULAR
+  // El sistema calcula todo; el responsable hace su Pit Stop y el administrador de flota solo decide en tarjetas.
+  // =========================
+  // El componente de Vehículos recibe la app completa
+  get appRef(): AppComponent { return this; }
+  vhPerfil: any = null;
+  vh: 'inicio' | 'flota' | 'mio' | 'podio' = 'inicio';
+  vhDec: any = null;
+  vhLista: any[] = [];
+  vhCargando = false;
+  vhFiltro = 'todos';
+  vhQ = '';
+  vhSede: any = '';
+  vhMenuFlota = false;
+  vhFicha: any = null;
+  vhHoja: any = null;
+  vhLista2: any = null;
+  vhEditar: any = null;
+  vhImport: any = null;
+  vhEsc: any = null;
+  vhPodio: any = null;
+  ps: any = null;
+  private vhStream: MediaStream | null = null;
+  private vhTimer: any = null;
+  private personasCache: { src: any; v: any[] } = { src: null, v: [] };
+  readonly vhTrabajos = ['Servicio', 'Aceite', 'Frenos', 'Llantas', 'Afinación', 'Luces', 'Batería', 'Suspensión', 'Carrocería', 'Otro'];
+  readonly psLlantas = [{ k: 'di', x: 28, y: 64 }, { k: 'dd', x: 148, y: 64 }, { k: 'ti', x: 28, y: 212 }, { k: 'td', x: 148, y: 212 }];
+  readonly psLuces = [{ k: 'fi', x: 74, y: 44 }, { k: 'fd', x: 126, y: 44 }, { k: 'ti', x: 74, y: 296 }, { k: 'td', x: 126, y: 296 }];
+  readonly psNiveles = [{ k: 'aceite', nombre: 'Aceite' }, { k: 'frenos', nombre: 'Frenos' }, { k: 'direccion', nombre: 'Dirección' }, { k: 'limpia', nombre: 'Limpiaparabrisas' }];
+  readonly psTestigos = [
+    { k: 'motor', nombre: 'Check engine', color: 'ambar' }, { k: 'aceite', nombre: 'Aceite', color: 'rojo' },
+    { k: 'bateria', nombre: 'Batería', color: 'rojo' }, { k: 'temperatura', nombre: 'Temperatura', color: 'rojo' },
+    { k: 'frenos', nombre: 'Frenos', color: 'rojo' }, { k: 'abs', nombre: 'ABS', color: 'ambar' },
+    { k: 'bolsa', nombre: 'Bolsa de aire', color: 'rojo' }, { k: 'llantas', nombre: 'Presión de llantas', color: 'ambar' }
+  ];
+
+  // ----- Perfil y navegación -----
+
+  cargarPerfilVeh(): void {
+    if (!this.logged) return;
+    this.http.get<any>(this.api + '/vehiculos/perfil').subscribe({
+      next: p => {
+        this.vhPerfil = p || { admin: false, vehiculos: [] };
+        if (this.vhPerfil.admin && !this.vhDec) this.cargarDecisiones();
+        if (this.section === 'vehiculos' && this.vh === 'inicio' && !this.vhPerfil.admin) this.vh = this.vhPerfil.vehiculos?.length ? 'mio' : 'podio';
+        if (this.section === 'vehiculos' && this.vh === 'flota' && !this.vhPerfil.admin) this.vh = 'mio';
+      },
+      error: () => { this.vhPerfil = { admin: false, vehiculos: [], yo: null }; }
+    });
+  }
+
+  get verVehiculos(): boolean {
+    return !!this.vhPerfil && (this.vhPerfil.admin || (this.vhPerfil.vehiculos || []).length > 0);
+  }
+
+  get avisosVehiculos(): number {
+    return (this.vhDec?.tarjetas || []).filter((t: any) => t.gravedad === 'rojo').length;
+  }
+
+  irVeh(v: string): void {
+    this.menuCollapsed = true;
+    this.editing = false;
+    this.section = 'vehiculos';
+    this.grupoMenu = 'vehiculos';
+    this.vh = (v as any);
+    this.vhMenuFlota = false;
+    if (!this.vhPerfil || v === 'mio') this.cargarPerfilVeh();
+    if (v === 'inicio') { this.cargarDecisiones(); if (!this.vhLista.length) this.cargarFlota(); }
+    if (v === 'flota') this.cargarFlota();
+    if (v === 'podio') this.cargarPodio();
+    if (!(this.catalogs.personas || []).length) this.loadCatalog('personas');
+    if (!(this.catalogs.sedes || []).length) this.loadCatalog('sedes');
+  }
+
+  cargarDecisiones(): void {
+    this.http.get<any>(this.api + '/vehiculos/decisiones').subscribe({
+      next: d => this.vhDec = d,
+      error: e => {
+        if (!this.vhDec) this.vhDec = { total: 0, enOrden: 0, tarjetas: [] };
+        if (e?.status !== 403) this.notificar('error', 'No se pudieron cargar los pendientes', this.mensajeError(e, 'Inténtalo de nuevo.'), 4000);
+      }
+    });
+  }
+
+  cargarFlota(): void {
+    this.vhCargando = true;
+    this.http.get<any[]>(this.api + '/vehiculos').subscribe({
+      next: l => { this.vhLista = l || []; this.vhCargando = false; },
+      error: e => { this.vhCargando = false; if (e?.status !== 403) this.notificar('error', 'No se pudo cargar la flota', this.mensajeError(e, 'Inténtalo de nuevo.'), 4000); }
+    });
+  }
+
+  cargarPodio(): void {
+    this.http.get<any>(this.api + '/vehiculos/podio').subscribe({ next: p => this.vhPodio = p, error: () => this.vhPodio = { lista: [] } });
+  }
+
+  private vhRefrescar(): void {
+    if (this.vhPerfil?.admin) { this.cargarDecisiones(); this.cargarFlota(); }
+    const id = this.vhFicha?.id_vehiculo;
+    if (id) {
+      this.http.get<any>(this.api + '/vehiculos/' + id).subscribe({
+        next: f => { if (this.vhFicha?.id_vehiculo === id) this.vhFicha = { ...f, _hist: this.vhFicha._hist }; },
+        error: () => { /* se queda como estaba */ }
+      });
+    }
+  }
+
+  // ----- Textos y cálculos de pantalla -----
+
+  get primerNombreVh(): string {
+    return this.titulo(this.nombreCorto(this.vhPerfil?.nombre || this.nombreUsuario || ''));
+  }
+
+  get porcentajeFlota(): number {
+    const d = this.vhDec;
+    return d?.total ? Math.round((d.enOrden || 0) * 100 / d.total) : 0;
+  }
+
+  semaforoDe(p: number): string {
+    return p >= 80 ? 'verde' : p >= 50 ? 'ambar' : 'rojo';
+  }
+
+  vhConteo(s: string): number {
+    return this.vhLista.filter(v => v.semaforo === s).length;
+  }
+
+  get vhSinResponsable(): number {
+    return this.vhLista.filter(v => !v.id_persona_responsable).length;
+  }
+
+  get vhSedes(): string[] {
+    return Array.from(new Set(this.vhLista.map(v => v.sede_nombre).filter((x: any) => !!x))).sort((a: any, b: any) => a.localeCompare(b, 'es'));
+  }
+
+  get vhListaFiltrada(): any[] {
+    const q = this.norm(this.vhQ || '');
+    const peso: any = { rojo: 0, ambar: 1, verde: 2 };
+    return this.vhLista
+      .filter(v => (this.vhFiltro === 'todos' || (this.vhFiltro === 'sinresp' ? !v.id_persona_responsable : v.semaforo === this.vhFiltro))
+        && (!this.vhSede || v.sede_nombre === this.vhSede)
+        && (!q || this.norm([v.placas, v.marca, v.modelo, v.responsable_nombre, v.numero_economico, v.numero_serie, v.sede_nombre, v.consecutivo].filter(Boolean).join(' ')).includes(q)))
+      .sort((a, b) => (peso[a.semaforo] ?? 3) - (peso[b.semaforo] ?? 3) || String(a.placas).localeCompare(String(b.placas)));
+  }
+
+  get personasActivas(): any[] {
+    const src = this.catalogs.personas;
+    if (this.personasCache.src !== src) {
+      this.personasCache = { src, v: (src || []).filter((p: any) => p.estatus !== false)
+        .sort((a: any, b: any) => String(a.nombre_completo || '').localeCompare(String(b.nombre_completo || ''), 'es')) };
+    }
+    return this.personasCache.v;
+  }
+
+  textoEstadoVeh(v: any): string {
+    const mal = (v.items || []).filter((i: any) => i.estado === 'rojo' || i.estado === 'ambar');
+    if (!mal.length) return 'Todo en regla ✓';
+    return mal.slice(0, 2).map((i: any) => i.nombre + ': ' + i.texto.charAt(0).toLowerCase() + i.texto.slice(1)).join(' · ');
+  }
+
+  textoAccionItem(it: any): string | null {
+    if (!this.vhPerfil?.admin) return null;
+    switch (it.clave) {
+      case 'poliza': return it.estado === 'verde' ? 'Renovar' : 'Ya lo renové';
+      case 'verificacion': return 'Ya se verificó';
+      case 'tenencia': return it.estado === 'verde' ? null : 'Ya se pagó';
+      case 'servicio': return 'Registrar servicio';
+      case 'reporte': return it.estado === 'ambar' ? 'Recordarle' : null;
+      default: return null;
+    }
+  }
+
+  nombreMes(m: any): string {
+    return ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'][+m || 0] || '';
+  }
+
+  private fechaIso(d: Date): string {
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+
+  fechaMasMeses(m: number): string {
+    const d = new Date(); d.setMonth(d.getMonth() + m);
+    return this.fechaIso(d);
+  }
+
+  proximaVerificacion(h: string): string {
+    const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() + (h === 'DOBLE CERO' ? 24 : 6));
+    return this.fechaIso(d);
+  }
+
+  enlaceWhatsapp(m: string): string {
+    return 'https://wa.me/?text=' + encodeURIComponent(m || '');
+  }
+
+  copiarTexto(t: string): void {
+    try { navigator.clipboard.writeText(t).then(() => this.notificar('exito', 'Copiado', 'Pégalo donde quieras enviarlo.', 2000)); }
+    catch { this.notificar('info', 'No se pudo copiar', 'Selecciona el texto y cópialo a mano.', 3000); }
+  }
+
+  alternarTrabajo(H: any, t: string): void {
+    H.trabajos = H.trabajos.includes(t) ? H.trabajos.filter((x: string) => x !== t) : [...H.trabajos, t];
+  }
+
+  trackTarjeta(_: number, t: any): string { return t.tipo + '|' + (t.idVehiculo || '') + '|' + (t.idPendiente || t.idRevision || ''); }
+  trackVeh(_: number, v: any): any { return v.id_vehiculo; }
+  trackIdx(i: number): number { return i; }
+
+  // ----- Tarjetas de decisión -----
+
+  vhAccionTarjeta(t: any, a: any): void {
+    const id = t.idVehiculo, base = this.api + '/vehiculos/' + id;
+    switch (a.id) {
+      case 'poliza': this.vhHojaPoliza(id, t.placas, t); break;
+      case 'verificacion': this.vhHojaVerif(id, t.placas, t); break;
+      case 'tenencia': this.vhPost(t, base + '/tenencia', {}, 'Tenencia registrada'); break;
+      case 'posponer': this.vhPost(t, base + '/posponer', { clave: t.tipo, dias: 7 }, 'Te lo recuerdo en una semana'); break;
+      case 'taller': this.vhPost(t, base + '/taller', t.idPendiente ? { idPendiente: t.idPendiente } : { titulo: t.tipo === 'fuga' ? 'Posible fuga de aceite' : 'Servicio', clave: t.tipo }, 'Enviado al taller'); break;
+      case 'descartar': this.vhPost(t, this.api + '/vehiculos/pendientes/' + t.idPendiente + '/cerrar', { estado: 'DESCARTADO' }, 'Descartado'); break;
+      case 'listo': this.vhHojaTrabajos('listo', id, t.placas, t.idPendiente, t); break;
+      case 'servicio_hecho': this.vhHojaTrabajos('servicio', id, t.placas, null, t); break;
+      case 'recordar': this.vhPost(t, base + '/recordar', {}, 'Le llegó el aviso a su celular'); break;
+      case 'rev_ok': this.vhPost(t, this.api + '/vehiculos/revisiones/' + t.idRevision + '/calificar', { calificacion: 'OK' }, 'Listo'); break;
+      case 'rev_falsa': this.vhPost(t, this.api + '/vehiculos/revisiones/' + t.idRevision + '/calificar', { calificacion: 'FALSA' }, 'Marcado como falso: le baja la confianza'); break;
+      case 'importar': this.vhElegirExcel(); break;
+      case 'nuevo': this.vhNuevo(); break;
+      case 'ver_accesos': this.vhVerAccesos(t.ids || []); break;
+      case 'ver_sin_responsable': this.vhFiltro = 'sinresp'; this.irVeh('flota'); break;
+    }
+  }
+
+  private vhQuitarTarjeta(t: any): void {
+    if (!t || !this.vhDec) return;
+    t._saliendo = true;
+    setTimeout(() => { if (this.vhDec) this.vhDec.tarjetas = this.vhDec.tarjetas.filter((x: any) => x !== t); }, 260);
+  }
+
+  private vhPost(t: any, url: string, body: any, mensaje: string): void {
+    if (t) t._ocupado = true;
+    this.http.post<any>(url, body).subscribe({
+      next: () => { this.vhQuitarTarjeta(t); this.notificar('exito', mensaje, '', 1800); this.vhRefrescar(); },
+      error: e => { if (t) t._ocupado = false; this.notificar('error', 'No se pudo', this.mensajeError(e, 'Inténtalo de nuevo.'), 4000); }
+    });
+  }
+
+  vhHojaPoliza(id: any, placas: string, t?: any): void {
+    const v = this.vhLista.find(x => x.id_vehiculo === id) || this.vhFicha;
+    this.vhHoja = { tipo: 'poliza', idVehiculo: id, placas, card: t, titulo: 'Renovación del seguro', texto: '¿Hasta cuándo es válida la nueva póliza?',
+                    vigencia: this.fechaMasMeses(12), aseguradora: v?.aseguradora || '', numero: '', boton: 'Guardar renovación' };
+  }
+
+  vhHojaVerif(id: any, placas: string, t?: any): void {
+    const v = this.vhLista.find(x => x.id_vehiculo === id) || this.vhFicha;
+    const h = v?.holograma || 'CERO';
+    this.vhHoja = { tipo: 'verificacion', idVehiculo: id, placas, card: t, titulo: 'Verificación hecha', texto: '¿Qué holograma le dieron?',
+                    holograma: h, proxima: this.proximaVerificacion(h), boton: 'Guardar' };
+  }
+
+  vhHojaTrabajos(modo: 'listo' | 'servicio', id: any, placas: string, idPendiente: any, t?: any): void {
+    this.vhHoja = { tipo: 'trabajos', modo, idVehiculo: id, idPendiente, placas, card: t,
+                    titulo: modo === 'listo' ? '¿Qué se le hizo?' : 'Servicio hecho', texto: 'Toca lo que se hizo.',
+                    trabajos: modo === 'servicio' ? ['Servicio', 'Aceite'] : [], pedirKm: modo === 'servicio', km: null, boton: 'Guardar' };
+  }
+
+  vhAbrirAcceso(v: any): void {
+    const persona = (this.catalogs.personas || []).find((p: any) => p.id_persona === v.id_persona_responsable);
+    this.vhHoja = { tipo: 'acceso', idVehiculo: v.id_vehiculo, placas: v.placas, titulo: 'Acceso para ' + this.titulo(this.nombreCorto(v.responsable_nombre || '')),
+                    texto: 'Podrá entrar a DOZZER desde su celular para hacer su Pit Stop.', correo: v.responsable_correo || persona?.correo || '', boton: 'Crear acceso' };
+  }
+
+  vhGuardarHoja(): void {
+    const H = this.vhHoja;
+    if (!H || H.guardando) return;
+    H.error = '';
+    const base = this.api + '/vehiculos/' + H.idVehiculo;
+    let req: any, mensaje = 'Guardado';
+    if (H.tipo === 'poliza') {
+      if (!H.vigencia) { H.error = 'Elige la fecha de vigencia.'; return; }
+      req = this.http.post(base + '/poliza', { vigencia: H.vigencia, aseguradora: H.aseguradora, numero: H.numero }); mensaje = 'Seguro renovado';
+    } else if (H.tipo === 'verificacion') {
+      if (!H.proxima) { H.error = 'Elige la fecha de la próxima verificación.'; return; }
+      req = this.http.post(base + '/verificacion', { proxima: H.proxima, holograma: H.holograma }); mensaje = 'Verificación registrada';
+    } else if (H.tipo === 'trabajos') {
+      if (!H.trabajos.length) { H.error = 'Toca al menos una opción.'; return; }
+      req = H.modo === 'listo'
+        ? this.http.post(this.api + '/vehiculos/pendientes/' + H.idPendiente + '/cerrar', { estado: 'RESUELTO', trabajos: H.trabajos })
+        : this.http.post(base + '/servicio', { trabajos: H.trabajos, km: H.km || null });
+      mensaje = H.modo === 'listo' ? 'Listo, quedó registrado' : 'Servicio registrado';
+    } else if (H.tipo === 'acceso') {
+      if (!String(H.correo || '').includes('@')) { H.error = 'Escribe un correo válido.'; return; }
+      H.guardando = true;
+      this.http.post<any>(base + '/acceso', { correo: H.correo }).subscribe({
+        next: r => { H.guardando = false; H.resultado = r; H.titulo = '¡Acceso listo!'; H.texto = 'Mándale estos datos para que entre.'; this.vhRefrescar();
+                     if (this.vhLista2?.tipo === 'accesos') this.vhLista2.items = this.vhLista2.items.filter((x: any) => x.id_vehiculo !== H.idVehiculo); },
+        error: e => { H.guardando = false; H.error = this.mensajeError(e, 'No se pudo crear el acceso.'); }
+      });
+      return;
+    }
+    H.guardando = true;
+    req.subscribe({
+      next: () => { this.vhQuitarTarjeta(H.card); this.vhHoja = null; this.notificar('exito', mensaje, '', 1800); this.vhRefrescar(); },
+      error: (e: any) => { H.guardando = false; H.error = this.mensajeError(e, 'No se pudo guardar.'); }
+    });
+  }
+
+  vhVerAccesos(ids: any[]): void {
+    const abrir = () => this.vhLista2 = { tipo: 'accesos', titulo: 'Dar accesos', texto: 'Cada responsable entra con su correo y una contraseña temporal que le mandas por WhatsApp.',
+                                          items: this.vhLista.filter(v => ids.includes(v.id_vehiculo)) };
+    if (this.vhLista.length) { abrir(); return; }
+    this.http.get<any[]>(this.api + '/vehiculos').subscribe({ next: l => { this.vhLista = l || []; abrir(); }, error: () => abrir() });
+  }
+
+  vhAbrirAdmins(): void {
+    this.http.get<any[]>(this.api + '/vehiculos/administradores').subscribe({
+      next: l => this.vhLista2 = { tipo: 'admins', titulo: 'Quién administra la flota', q: '', items: l || [],
+                                   texto: 'Pueden ver toda la flota, decidir los pendientes y dar accesos. No los hace administradores de bienes.' },
+      error: e => this.notificar('error', 'No se pudo cargar', this.mensajeError(e, 'Inténtalo de nuevo.'), 4000)
+    });
+  }
+
+  filtrarAdmins(L: any): any[] {
+    const q = this.norm(L.q || '');
+    return (L.items || []).filter((u: any) => !q || this.norm((u.nombre || '') + ' ' + (u.correo || '')).includes(q))
+      .sort((a: any, b: any) => Number(!(b.flota || b.admin)) - Number(!(a.flota || a.admin)));
+  }
+
+  vhCambiarAdmin(u: any): void {
+    const nuevo = !u.flota;
+    this.http.put(this.api + '/vehiculos/administradores/' + u.id_usuario, { activo: nuevo }).subscribe({
+      next: () => { u.flota = nuevo; this.notificar('exito', nuevo ? 'Ahora administra la flota' : 'Ya no administra la flota', 'Se aplica la próxima vez que entre.', 2500); },
+      error: e => this.notificar('error', 'No se pudo', this.mensajeError(e, 'Inténtalo de nuevo.'), 4000)
+    });
+  }
+
+  // ----- Ficha -----
+
+  vhAbrirFicha(v: any): void { this.vhAbrirFichaId(v.id_vehiculo); }
+
+  vhAbrirFichaId(id: any): void {
+    if (!id || !this.vhPerfil?.admin) return;
+    this.vhFicha = { _cargando: true };
+    if (!(this.catalogs.personas || []).length) this.loadCatalog('personas');
+    this.http.get<any>(this.api + '/vehiculos/' + id).subscribe({
+      next: f => this.vhFicha = f,
+      error: e => { this.vhFicha = null; this.notificar('error', 'No se pudo abrir', this.mensajeError(e, 'Inténtalo de nuevo.'), 4000); }
+    });
+  }
+
+  vhAccionItem(F: any, it: any): void {
+    if (!this.textoAccionItem(it)) return;
+    if (it.clave === 'poliza') this.vhHojaPoliza(F.id_vehiculo, F.placas);
+    if (it.clave === 'verificacion') this.vhHojaVerif(F.id_vehiculo, F.placas);
+    if (it.clave === 'servicio') this.vhHojaTrabajos('servicio', F.id_vehiculo, F.placas, null);
+    if (it.clave === 'tenencia') this.vhPost(null, this.api + '/vehiculos/' + F.id_vehiculo + '/tenencia', {}, 'Tenencia registrada');
+    if (it.clave === 'reporte') this.vhPost(null, this.api + '/vehiculos/' + F.id_vehiculo + '/recordar', {}, 'Le llegó el aviso a su celular');
+  }
+
+  vhPendiente(F: any, p: any, accion: string): void {
+    if (accion === 'taller') this.vhPost(null, this.api + '/vehiculos/' + F.id_vehiculo + '/taller', { idPendiente: p.id_pendiente }, 'Enviado al taller');
+    if (accion === 'descartar') this.vhPost(null, this.api + '/vehiculos/pendientes/' + p.id_pendiente + '/cerrar', { estado: 'DESCARTADO' }, 'Descartado');
+    if (accion === 'listo') this.vhHojaTrabajos('listo', F.id_vehiculo, F.placas, p.id_pendiente);
+  }
+
+  vhCambiarResponsable(F: any, idPersona: any): void {
+    this.http.put<any>(this.api + '/vehiculos/' + F.id_vehiculo + '/responsable', { idPersona }).subscribe({
+      next: f => { this.vhFicha = { ...f, _hist: F._hist }; this.notificar('exito', 'Responsable actualizado', '', 1800); this.vhRefrescar(); },
+      error: e => this.notificar('error', 'No se pudo', this.mensajeError(e, 'Inténtalo de nuevo.'), 4000)
+    });
+  }
+
+  vhBaja(F: any): void {
+    this.abrirDialogo({
+      tipo: 'peligro', icono: '✗', titulo: '¿Dar de baja ' + F.placas + '?',
+      mensaje: 'El vehículo sale de la flota (vendido, siniestrado…). Su historial se conserva.',
+      textoConfirmar: 'Dar de baja', textoCancelar: 'Cancelar',
+      accion: terminar => this.http.delete(this.api + '/vehiculos/' + F.id_vehiculo).subscribe({
+        next: () => { terminar(); this.vhFicha = null; this.notificar('baja', 'Vehículo dado de baja', F.placas, 2000); this.vhRefrescar(); },
+        error: e => terminar(this.mensajeError(e, 'No se pudo dar de baja.'))
+      })
+    });
+  }
+
+  // ----- Alta y edición -----
+
+  vhNuevo(): void {
+    if (!(this.catalogs.sedes || []).length) this.loadCatalog('sedes');
+    if (!(this.catalogs.personas || []).length) this.loadCatalog('personas');
+    this.vhEditar = { id_sede: null, id_persona_responsable: null, holograma: null, servicio_cada_km: 10000, servicio_cada_meses: 6, tenencia_anio: new Date().getFullYear() };
+  }
+
+  vhEditarVeh(F: any): void {
+    const f = (x: any) => x ? String(x).substring(0, 10) : null;
+    this.vhEditar = { ...F, id_sede: F.id_sede ?? null, id_persona_responsable: F.id_persona_responsable ?? null, holograma: F.holograma ?? null,
+                      poliza_inicio: f(F.poliza_inicio), poliza_vigencia: f(F.poliza_vigencia), proxima_verificacion: f(F.proxima_verificacion) };
+  }
+
+  vhGuardarVeh(): void {
+    const E = this.vhEditar;
+    if (!E || E.guardando) return;
+    E.error = '';
+    if (!String(E.placas || '').trim()) { E.error = 'Escribe las placas.'; return; }
+    const campos = ['consecutivo', 'marca', 'modelo', 'anio', 'color', 'placas', 'numero_serie', 'tarjeta_circulacion', 'numero_economico', 'estado', 'id_sede', 'sede_nombre',
+      'id_persona_responsable', 'responsable_nombre', 'poliza_numero', 'aseguradora', 'poliza_inicio', 'poliza_vigencia', 'tenencia_anio', 'holograma', 'verifica_sem1',
+      'verifica_sem2', 'proxima_verificacion', 'servicio_cada_km', 'servicio_cada_meses', 'notas'];
+    const body: any = {};
+    for (const c of campos) body[c] = E[c] === '' || E[c] === undefined ? null : E[c];
+    body.placas = String(E.placas).trim().toUpperCase();
+    E.guardando = true;
+    const req = E.id_vehiculo ? this.http.put<any>(this.api + '/vehiculos/' + E.id_vehiculo, body) : this.http.post<any>(this.api + '/vehiculos', body);
+    req.subscribe({
+      next: f => { this.vhEditar = null; this.vhFicha = f; this.notificar('exito', 'Vehículo guardado', f.placas, 1800); this.vhRefrescar(); },
+      error: e => { E.guardando = false; E.error = this.mensajeError(e, 'No se pudo guardar.'); }
+    });
+  }
+
+  // ----- Importar el Excel (con revisión de errores antes de guardar) -----
+
+  vhElegirExcel(): void {
+    const inp = document.createElement('input');
+    inp.type = 'file';
+    inp.accept = '.xlsx,.xls';
+    inp.onchange = () => { const f = inp.files?.[0]; if (f) this.vhLeerExcel(f); };
+    inp.click();
+  }
+
+  private vhClave(h: any): string {
+    return String(h ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  }
+
+  async vhLeerExcel(archivo: File): Promise<void> {
+    try {
+      const wb = XLSX.read(await archivo.arrayBuffer(), { type: 'array', cellDates: true });
+      const hojas = wb.SheetNames.map(n => ({ n, filas: XLSX.utils.sheet_to_json<any[]>(wb.Sheets[n], { header: 1, raw: true, defval: null }) }));
+      const conPlacas = hojas.filter(h => h.filas.some(f => (f || []).some((c: any) => this.vhClave(c) === 'PLACAS')));
+      const hoja = conPlacas.find(h => this.vhClave(h.n).includes('PROPUESTA')) || conPlacas[0];
+      if (!hoja) { this.notificar('error', 'No encontré los vehículos', 'El archivo debe tener una columna "PLACAS".', 5000); return; }
+      const iEnc = hoja.filas.findIndex(f => (f || []).some((c: any) => this.vhClave(c) === 'PLACAS'));
+      const enc = (hoja.filas[iEnc] || []).map((c: any) => this.vhClave(c));
+      const col = (...pruebas: ((k: string) => boolean)[]) => { for (const p of pruebas) { const i = enc.findIndex(p); if (i >= 0) return i; } return -1; };
+      const C = {
+        consecutivo: col(k => k.startsWith('CONSECUTIVO')), responsable: col(k => k === 'RESPONSABLE', k => k === 'NOMBRE'), estado: col(k => k === 'ESTADO'),
+        sede: col(k => k === 'SEDE', k => k === 'OFICINAS'), marca: col(k => k === 'MARCA'), modelo: col(k => k === 'MODELO'), vehiculo: col(k => k === 'VEHICULO'),
+        anio: col(k => k === 'ANO' || k === 'ANIO'), color: col(k => k === 'COLOR'), placas: col(k => k === 'PLACAS'), serie: col(k => k.startsWith('NUMERODESERIE') || k === 'SERIE'),
+        tarjeta: col(k => k.startsWith('TARJETA')), economico: col(k => k.startsWith('NOECONOMICO') || k.startsWith('NUMEROECONOMICO')),
+        poliza: col(k => k.startsWith('POLIZA')), aseguradora: col(k => k.startsWith('ASEGURADORA')), inicio: col(k => k.startsWith('FECHADEINICIO')),
+        vigencia: col(k => k.startsWith('FECHADEVIGENCIA') || k === 'VIGENCIA'), tenencia: col(k => k.includes('TENENCIA')), holograma: col(k => k.includes('HOLOG')),
+        sem1: col(k => k === '1SEMESTRE', k => k.startsWith('VERIFICA1')), sem2: col(k => k === '2SEMESTRE', k => k.startsWith('VERIFICA2')),
+        proxima: col(k => k.startsWith('PROXIMAVERIFICACION'))
+      };
+      const avisos: any[] = [], invalidas: string[] = [];
+      const val = (f: any[], i: number) => i < 0 ? null : f[i];
+      const txt = (f: any[], i: number) => { const v = val(f, i); if (v === null || v === undefined) return null; const s = String(v).trim(); return s ? s : null; };
+      const fecha = (f: any[], i: number, placas: string, campo: string): string | null => {
+        const v = val(f, i);
+        if (v === null || v === undefined || String(v).trim() === '') return null;
+        if (v instanceof Date && !isNaN(v.getTime())) return this.fechaIso(v);
+        const m = String(v).trim().match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+        if (m) return m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
+        invalidas.push(placas + ' (' + campo + ': "' + String(v).trim().slice(0, 20) + '")');
+        return null;
+      };
+      const filas: any[] = [];
+      for (const f of hoja.filas.slice(iEnc + 1)) {
+        if (!f) continue;
+        const placas = txt(f, C.placas);
+        if (!placas) continue;
+        const sinMarca = C.marca < 0 && C.vehiculo >= 0;
+        filas.push({
+          consecutivo: txt(f, C.consecutivo), responsable: txt(f, C.responsable), estado: txt(f, C.estado), sede: txt(f, C.sede),
+          marca: sinMarca ? null : txt(f, C.marca), modelo: sinMarca ? txt(f, C.vehiculo) : txt(f, C.modelo), anio: sinMarca ? txt(f, C.modelo) : txt(f, C.anio),
+          color: txt(f, C.color), placas: placas.toUpperCase().replace(/\s+/g, ''), numero_serie: txt(f, C.serie), tarjeta_circulacion: txt(f, C.tarjeta),
+          numero_economico: txt(f, C.economico), poliza_numero: txt(f, C.poliza), aseguradora: txt(f, C.aseguradora),
+          poliza_inicio: fecha(f, C.inicio, placas, 'inicio'), poliza_vigencia: fecha(f, C.vigencia, placas, 'vigencia'), tenencia: txt(f, C.tenencia),
+          holograma: txt(f, C.holograma), verifica_sem1: txt(f, C.sem1), verifica_sem2: txt(f, C.sem2), proxima_verificacion: fecha(f, C.proxima, placas, 'próxima verificación')
+        });
+      }
+      if (!filas.length) { this.notificar('error', 'No encontré vehículos', 'La columna "PLACAS" está vacía.', 5000); return; }
+      const hoy = this.fechaIso(new Date());
+      const vencidas = filas.filter(r => r.poliza_vigencia && r.poliza_vigencia < hoy);
+      if (vencidas.length) avisos.push({ g: 'rojo', titulo: vencidas.length + (vencidas.length === 1 ? ' seguro vencido' : ' seguros vencidos'), detalle: vencidas.map(r => r.placas).join(' · ') });
+      const sinPoliza = filas.filter(r => !r.poliza_numero && !r.poliza_vigencia);
+      if (sinPoliza.length) avisos.push({ g: 'rojo', titulo: sinPoliza.length + ' sin póliza de seguro', detalle: sinPoliza.map(r => r.placas).join(' · ') });
+      const veces = new Map<string, string[]>();
+      for (const r of filas) if (r.poliza_numero) veces.set(r.poliza_numero, [...(veces.get(r.poliza_numero) || []), r.placas]);
+      const repetidas = Array.from(veces.entries()).filter(x => x[1].length > 1);
+      if (repetidas.length) avisos.push({ g: 'ambar', titulo: 'Misma póliza en varios vehículos', detalle: repetidas.map(x => x[0] + ': ' + x[1].join(' y ')).join(' · ') });
+      const malas = filas.filter(r => r.poliza_inicio && r.poliza_vigencia && r.poliza_vigencia <= r.poliza_inicio);
+      if (malas.length) avisos.push({ g: 'ambar', titulo: 'Póliza que vence el mismo día que empieza (o antes)', detalle: malas.map(r => r.placas).join(' · ') });
+      if (invalidas.length) avisos.push({ g: 'ambar', titulo: invalidas.length + (invalidas.length === 1 ? ' fecha no se entiende' : ' fechas no se entienden'), detalle: invalidas.join(' · ') + '. Se guardan vacías; corrígelas en la ficha.' });
+      const plac = new Map<string, number>();
+      for (const r of filas) plac.set(r.placas, (plac.get(r.placas) || 0) + 1);
+      const dup = Array.from(plac.entries()).filter(x => x[1] > 1).map(x => x[0]);
+      if (dup.length) avisos.push({ g: 'ambar', titulo: 'Placas repetidas en el archivo', detalle: dup.join(' · ') + ' (se queda la última fila)' });
+      const sinTarjeta = filas.filter(r => !r.tarjeta_circulacion);
+      if (sinTarjeta.length) avisos.push({ g: 'azul', titulo: sinTarjeta.length + ' sin tarjeta de circulación', detalle: sinTarjeta.map(r => r.placas).join(' · ') });
+      this.vhImport = { archivo: archivo.name, filas, avisos, guardando: false, resultado: null };
+    } catch {
+      this.notificar('error', 'No se pudo leer el archivo', 'Revisa que sea un Excel (.xlsx).', 5000);
+    }
+  }
+
+  vhImportar(): void {
+    const I = this.vhImport;
+    if (!I || I.guardando) return;
+    I.guardando = true;
+    this.http.post<any>(this.api + '/vehiculos/importar', { filas: I.filas }).subscribe({
+      next: r => { I.guardando = false; I.resultado = r; this.vhRefrescar(); this.cargarPerfilVeh(); },
+      error: e => { I.guardando = false; this.notificar('error', 'No se pudo importar', this.mensajeError(e, 'Inténtalo de nuevo.'), 6000); }
+    });
+  }
+
+  // ----- QR de cada vehículo (se pega dentro de la unidad) -----
+
+  private urlVehiculo(codigo: string): string {
+    return window.location.origin + '/?v=' + codigo;
+  }
+
+  async vhImprimirQr(lista: any[]): Promise<void> {
+    const vs = (lista || []).filter(v => v?.codigo_qr);
+    if (!vs.length) { this.notificar('info', 'Sin QR', 'Abre la ficha del vehículo e inténtalo de nuevo.', 3000); return; }
+    const w = window.open('', '_blank');
+    if (!w) { this.notificar('error', 'El navegador bloqueó la ventana', 'Permite ventanas emergentes para DOZZER.', 5000); return; }
+    w.document.write('<p style="font-family:sans-serif">Preparando…</p>');
+    const piezas: string[] = [];
+    for (const v of vs) {
+      const svg = await QRCode.toString(this.urlVehiculo(v.codigo_qr), { type: 'svg', errorCorrectionLevel: 'M', margin: 0, color: { dark: '#000000', light: '#ffffff' } });
+      const esc = (s: any) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' } as any)[c]);
+      piezas.push('<div class="t"><div class="q">' + svg + '</div><div class="x"><b>' + esc(v.placas) + '</b><span>' + esc(((v.marca || '') + ' ' + (v.modelo || '')).trim()) +
+        '</span><em>Escanéame para tu Pit Stop</em><small>DOZZER · ' + esc(v.codigo_qr) + '</small></div></div>');
+    }
+    w.document.open();
+    w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>QR de vehículos</title><style>' +
+      '@page{margin:10mm}body{font-family:Arial,sans-serif;margin:0;display:grid;grid-template-columns:1fr 1fr;gap:8mm}' +
+      '.t{border:1.5px dashed #999;border-radius:4mm;padding:5mm;display:flex;gap:5mm;align-items:center;break-inside:avoid}' +
+      '.q{width:38mm;height:38mm;flex-shrink:0}.q svg{width:100%;height:100%}.x{display:flex;flex-direction:column;gap:1.5mm}' +
+      '.x b{font-size:20pt;letter-spacing:1px}.x span{font-size:11pt}.x em{font-size:10pt;font-style:normal;font-weight:bold}.x small{font-size:8pt;color:#555}' +
+      '</style></head><body>' + piezas.join('') + '<script>setTimeout(function(){window.print()},400)<\/script></body></html>');
+    w.document.close();
+  }
+
+  // ----- Escanear el QR de un vehículo (cambio de unidad) -----
+
+  async vhEscanearQr(): Promise<void> {
+    this.vhEsc = { codigo: '', error: '' };
+    const S = this.vhEsc;
+    try {
+      this.vhStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+    } catch { S.error = 'No se pudo abrir la cámara. Escribe el código que viene abajo del QR.'; return; }
+    let video: HTMLVideoElement | undefined;
+    for (let i = 0; i < 30 && !video; i++) { await new Promise(r => setTimeout(r, 50)); video = (document.getElementById('vh-cam') as HTMLVideoElement | null) || undefined; }
+    if (!video || this.vhEsc !== S) { this.vhCerrarEscaner(); return; }
+    video.muted = true; video.setAttribute('playsinline', ''); video.setAttribute('autoplay', '');
+    video.srcObject = this.vhStream;
+    try { await video.play(); } catch { /* */ }
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true } as any) as CanvasRenderingContext2D;
+    const v = video;
+    const leer = () => {
+      if (this.vhEsc !== S || !this.vhStream) return;
+      if (v.readyState >= v.HAVE_CURRENT_DATA && v.videoWidth) {
+        const e = Math.min(1, 640 / v.videoWidth);
+        canvas.width = Math.round(v.videoWidth * e); canvas.height = Math.round(v.videoHeight * e);
+        ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
+        const qr = jsQR(ctx.getImageData(0, 0, canvas.width, canvas.height).data, canvas.width, canvas.height, { inversionAttempts: 'dontInvert' });
+        if (qr?.data) { this.avisarEscaneo(qr.data); this.vhBuscarQr(qr.data); return; }
+      }
+      this.vhTimer = setTimeout(leer, 200);
+    };
+    leer();
+  }
+
+  vhCerrarEscaner(): void {
+    clearTimeout(this.vhTimer);
+    if (this.vhStream) this.vhStream.getTracks().forEach(t => t.stop());
+    this.vhStream = null;
+    this.vhEsc = null;
+  }
+
+  vhBuscarQr(texto: string): void {
+    let c = String(texto || '').trim();
+    try { if (/^https?:\/\//i.test(c)) c = new URL(c).searchParams.get('v') || c; } catch { /* */ }
+    c = c.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (!c) return;
+    this.http.get<any>(this.api + '/vehiculos/qr/' + encodeURIComponent(c)).subscribe({
+      next: r => { this.vhCerrarEscaner(); this.psAbrir(r.id_vehiculo, r.qr); },
+      error: e => {
+        const msg = this.mensajeError(e, 'Ese QR no es de un vehículo de DOZZER.');
+        if (this.vhEsc) { this.vhEsc.error = msg; this.vhTimer = setTimeout(() => this.vhEscanearReanudar(), 1500); }
+        else this.notificar('error', 'QR no reconocido', msg, 4000);
+      }
+    });
+  }
+
+  private vhEscanearReanudar(): void {
+    if (this.vhEsc && this.vhStream) { const S = this.vhEsc; this.vhCerrarEscaner(); this.vhEscanearQr().then(() => { if (this.vhEsc) this.vhEsc.error = S.error; }); }
+  }
+
+  // ----- PIT STOP -----
+
+  psAbrir(id: any, qr?: string): void {
+    this.menuCollapsed = true;
+    this.ps = { id, qr: qr || null, v: null, paso: 1, km: '', error: '', enviando: false, resultado: null, anim: false, inicio: Date.now(),
+                llantas: { di: 'ok', dd: 'ok', ti: 'ok', td: 'ok' }, luces: { fi: 'ok', fd: 'ok', ti: 'ok', td: 'ok' },
+                niveles: { aceite: 100, frenos: 100, direccion: 100, limpia: 100 }, testigos: [], golpe: { hay: false, nota: '' }, foto: null, fotoUrl: '' };
+    const P = this.ps;
+    this.http.get<any>(this.api + '/vehiculos/' + id + '/pitstop' + (qr ? '?qr=' + encodeURIComponent(qr) : '')).subscribe({
+      next: v => { if (this.ps === P) { P.v = v; P.inicio = Date.now(); } },
+      error: e => { if (this.ps === P) P.error = this.mensajeError(e, 'No se pudo abrir el Pit Stop.'); }
+    });
+  }
+
+  psCerrar(fin = false): void {
+    const P = this.ps;
+    if (!P) return;
+    if (fin || P.resultado || P.paso <= 1 || !P.v) { this.ps = null; return; }
+    this.abrirDialogo({
+      tipo: 'confirmar', icono: '🏁', titulo: '¿Salir sin enviar?', mensaje: 'Se pierde lo que llevas de este Pit Stop.',
+      textoConfirmar: 'Salir', textoCancelar: 'Seguir', accion: terminar => { terminar(); this.ps = null; }
+    });
+  }
+
+  odometroDigitos(km: string): string[] {
+    return String(km || '').padStart(7, '0').split('');
+  }
+
+  get psKmMenor(): boolean {
+    const P = this.ps;
+    return !!P?.km && P.v?.km_anterior != null && +P.km < P.v.km_anterior;
+  }
+
+  get psKmValido(): boolean {
+    const P = this.ps;
+    return !!P?.km && +P.km > 0 && !this.psKmMenor;
+  }
+
+  psTecla(k: string): void {
+    const P = this.ps;
+    if (!P) return;
+    if (k === '⌫') { P.km = P.km.slice(0, -1); return; }
+    if (k === '✓') { this.psSiguiente(); return; }
+    if (P.km.length >= 7) return;
+    P.km = (P.km + k).replace(/^0+/, '');
+    try { navigator.vibrate?.(8); } catch { /* */ }
+  }
+
+  psSiguiente(): void {
+    const P = this.ps;
+    if (!P) return;
+    P.error = '';
+    if (P.paso === 1) {
+      if (!this.psKmValido) return;
+      const ant = P.v.km_anterior, sem = P.v.km_semana || 0, dif = +P.km - (ant ?? +P.km);
+      if (ant != null && dif > Math.max(sem * 4, 2500)) {
+        this.abrirDialogo({
+          tipo: 'confirmar', icono: '🛣', titulo: '¿Seguro? Son ' + dif.toLocaleString('es-MX') + ' km', mensaje: 'Es mucho más de lo normal en una semana. Revisa el tablero.',
+          textoConfirmar: 'Sí, está bien', textoCancelar: 'Corregir', accion: terminar => { terminar(); P.paso = 2; }
+        });
+        return;
+      }
+    }
+    if (P.paso === 2 && P.golpe.hay && !P.foto) { P.error = 'Toma una foto del golpe.'; return; }
+    P.paso = Math.min(5, P.paso + 1);
+  }
+
+  psLlanta(k: string): void {
+    const orden = ['ok', 'baja', 'mal'];
+    this.ps.llantas[k] = orden[(orden.indexOf(this.ps.llantas[k]) + 1) % orden.length];
+    try { navigator.vibrate?.(10); } catch { /* */ }
+  }
+
+  psLuz(k: string): void {
+    this.ps.luces[k] = this.ps.luces[k] === 'ok' ? 'falla' : 'ok';
+    try { navigator.vibrate?.(10); } catch { /* */ }
+  }
+
+  psArrastrar(ev: PointerEvent, k: string): void {
+    const tubo = ev.currentTarget as HTMLElement;
+    ev.preventDefault();
+    const fijar = (y: number) => {
+      const r = tubo.getBoundingClientRect();
+      this.ps.niveles[k] = Math.round(Math.max(0, Math.min(100, (r.bottom - y) / r.height * 100)) / 5) * 5;
+    };
+    fijar(ev.clientY);
+    const mover = (e: PointerEvent) => fijar(e.clientY);
+    const soltar = () => { window.removeEventListener('pointermove', mover); window.removeEventListener('pointerup', soltar); };
+    window.addEventListener('pointermove', mover);
+    window.addEventListener('pointerup', soltar);
+  }
+
+  colorNivel(v: number): string { return v >= 60 ? 'verde' : v >= 35 ? 'ambar' : 'rojo'; }
+  textoNivel(v: number): string { return v >= 60 ? 'Bien' : v >= 35 ? 'Medio' : 'Bajo'; }
+
+  psTestigo(k: string): void {
+    const t: string[] = this.ps.testigos;
+    this.ps.testigos = t.includes(k) ? t.filter(x => x !== k) : [...t, k];
+    try { navigator.vibrate?.(10); } catch { /* */ }
+  }
+
+  psPreguntas(prefijo: string): any[] {
+    return (this.ps?.v?.preguntas || []).filter((q: any) => String(q.campo).startsWith(prefijo));
+  }
+
+  get psPreguntasNiveles(): any[] {
+    const k = this.psNiveles.map(n => n.k);
+    return (this.ps?.v?.preguntas || []).filter((q: any) => k.includes(q.campo));
+  }
+
+  psPide(k: string): boolean {
+    return (this.ps?.v?.preguntas || []).some((q: any) => q.campo === k);
+  }
+
+  async psFoto(ev: Event): Promise<void> {
+    const input = ev.target as HTMLInputElement;
+    const archivo = input.files?.[0];
+    input.value = '';
+    if (!archivo || !this.ps) return;
+    try { this.ps.foto = await this.comprimirFoto(archivo); this.ps.fotoUrl = URL.createObjectURL(this.ps.foto); this.ps.error = ''; }
+    catch { this.ps.error = 'No se pudo usar la foto.'; }
+  }
+
+  get psProblemas(): string[] {
+    const P = this.ps;
+    if (!P) return [];
+    const l: string[] = [];
+    const ll: any = { di: 'delantera izquierda', dd: 'delantera derecha', ti: 'trasera izquierda', td: 'trasera derecha' };
+    const lu: any = { fi: 'faro izquierdo', fd: 'faro derecho', ti: 'calavera izquierda', td: 'calavera derecha' };
+    for (const k of Object.keys(P.llantas)) if (P.llantas[k] !== 'ok') l.push('Llanta ' + ll[k] + (P.llantas[k] === 'baja' ? ' baja' : ' en mal estado'));
+    for (const k of Object.keys(P.luces)) if (P.luces[k] === 'falla') l.push('Falla en ' + lu[k]);
+    for (const n of this.psNiveles) if (P.niveles[n.k] < 35) l.push(n.nombre + ' bajo');
+    for (const t of P.testigos) l.push('Testigo: ' + (this.psTestigos.find(x => x.k === t)?.nombre || t));
+    if (P.golpe.hay) l.push('Golpe' + (P.golpe.nota ? ': ' + P.golpe.nota : ''));
+    return l;
+  }
+
+  async psEnviar(): Promise<void> {
+    const P = this.ps;
+    if (!P || P.enviando) return;
+    P.enviando = true; P.error = '';
+    const campos: any = {
+      km: +P.km,
+      segundos: Math.round((Date.now() - P.inicio) / 1000),
+      datos: JSON.stringify({ llantas: P.llantas, luces: P.luces, niveles: P.niveles, testigos: P.testigos, golpe: { hay: P.golpe.hay, nota: P.golpe.nota || '' } })
+    };
+    if (P.qr) campos.qr = P.qr;
+    const res = await this.enviarOEncolar({ url: '/vehiculos/' + P.id + '/pitstop', campos, foto: P.golpe.hay ? P.foto : undefined, descripcion: 'Pit Stop ' + (P.v?.placas || '') });
+    P.enviando = false;
+    if (!res.ok) { P.error = res.error || 'No se pudo enviar.'; return; }
+    P.resultado = res.offline ? { offline: true } : res.r;
+    setTimeout(() => { if (this.ps === P) P.anim = true; }, 80);
+    try { navigator.vibrate?.([30, 60, 30]); } catch { /* */ }
+    this.cargarPerfilVeh();
+    if (this.vhPerfil?.admin) this.cargarDecisiones();
+  }
+
+  get vhPitPendiente(): boolean {
+    return (this.vhPerfil?.vehiculos || []).some((v: any) => !v.pit_semana);
   }
 
   // ----- Seccion Calibración y mantenimiento -----
