@@ -690,7 +690,18 @@ export class ElegirComponent {
                 </dl>
               </div>
 
-              <div class="vx-vacio-mio" *ngIf="app.vhPerfil && !app.vhPerfil.vehiculos.length">
+              <div class="vx-quien" *ngIf="app.vhPerfil?.sin_persona">
+                <span class="vx-quien-ico"><ico n="user"></ico></span>
+                <b>¿Quién eres?</b>
+                <small>Tu cuenta todavía no está ligada a tu nombre. Elígelo una sola vez para ver tu vehículo.</small>
+                <select [(ngModel)]="app.vhQuien">
+                  <option [ngValue]="null">Elige tu nombre</option>
+                  <option *ngFor="let p of app.personasActivas" [ngValue]="p.id_persona">{{ p.nombre_completo | titlecase }}</option>
+                </select>
+                <button class="ax-grande ax-verde" [disabled]="!app.vhQuien || app.vhLigando" (click)="app.vhLigarPersona()">{{ app.vhLigando ? 'Guardando…' : 'Soy yo' }}</button>
+              </div>
+
+              <div class="vx-vacio-mio" *ngIf="app.vhPerfil && !app.vhPerfil.sin_persona && !app.vhPerfil.vehiculos.length">
                 <span><ico n="car"></ico></span>
                 <b>No tienes un vehículo asignado</b>
                 <small>Si traes una unidad, escanea el QR que tiene pegado.</small>
@@ -1398,6 +1409,12 @@ export class ElegirComponent {
     .vx-rev-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}.vx-rev-t b{font-size:14px;color:#14243a}.vx-rev-t small{font-size:12.5px;color:#7b889a}
     .vx-rev.sosp .vx-rev-t small{color:#a8650f}.vx-rev.falsa{opacity:.6}.vx-rev.falsa .vx-rev-t small{color:#bd4b52}
     .vx-rev-foto{color:#244c78}.vx-rev-foto ico{width:20px;height:20px}
+    .vx-quien{background:#fff;border-radius:24px;padding:24px 20px;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;margin-bottom:14px;box-shadow:0 1px 2px #17263d0f,0 14px 36px #17263d12}
+    .vx-quien-ico{width:62px;height:62px;border-radius:20px;background:linear-gradient(135deg,#17263d,#244c78);color:#fff;display:grid;place-items:center;margin-bottom:4px}
+    .vx-quien-ico ico{width:30px;height:30px}
+    .vx-quien b{font-size:19px;color:#14243a}.vx-quien small{color:#6b7a8d;font-size:14px;line-height:1.45;max-width:360px}
+    .vx-quien select{height:50px;border:1.5px solid #dce3ec;border-radius:14px;padding:0 12px;font-size:15.5px;margin-top:8px;max-width:420px}
+    .vx-quien .ax-grande{max-width:420px}
     .vx-calif{display:flex;gap:6px;flex-shrink:0}
     .vx-calif button{width:38px;height:38px;border-radius:12px;border:1.5px solid #e3e9f1;background:#fff;font-size:16px;cursor:pointer;color:#8a97a8;font-weight:800;transition:all .15s}
     .vx-calif button.on:first-child{background:#e8f6ee;border-color:#2bb673}
@@ -12180,6 +12197,24 @@ export class AppComponent {
     if (accion === 'taller') this.vhPost(null, this.api + '/vehiculos/' + F.id_vehiculo + '/taller', { idPendiente: p.id_pendiente }, 'Enviado al taller');
     if (accion === 'descartar') this.vhPost(null, this.api + '/vehiculos/pendientes/' + p.id_pendiente + '/cerrar', { estado: 'DESCARTADO' }, 'Descartado');
     if (accion === 'listo') this.vhHojaTrabajos('listo', F.id_vehiculo, F.placas, p.id_pendiente);
+  }
+
+  // Cuenta sin persona (ej. la cuenta principal del administrador): se liga una vez para ver "Mi vehículo"
+  vhQuien: any = null;
+  vhLigando = false;
+
+  vhLigarPersona(): void {
+    if (!this.vhQuien || this.vhLigando) return;
+    this.vhLigando = true;
+    this.http.post<any>(this.api + '/vehiculos/mi-persona', { idPersona: this.vhQuien }).subscribe({
+      next: p => {
+        this.vhLigando = false;
+        this.vhPerfil = { ...(p || {}), admin: !!p?.admin || this.esAdminFlotaUi, vehiculos: p?.vehiculos || [] };
+        this.nombreUsuario = p?.nombre || this.nombreUsuario;
+        this.notificar('exito', 'Listo', (p?.vehiculos?.length ? 'Ya ves tu vehículo.' : 'Tu cuenta quedó ligada. Cuando te asignen un vehículo, aparecerá aquí.'), 3000);
+      },
+      error: e => { this.vhLigando = false; this.notificar('error', 'No se pudo', this.mensajeError(e, 'Inténtalo de nuevo.'), 4000); }
+    });
   }
 
   // Calificar un Pit Stop: 👍 bien hecho (+5) o falso (−30). Tocar de nuevo lo quita.
