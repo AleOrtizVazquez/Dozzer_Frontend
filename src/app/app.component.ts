@@ -3504,7 +3504,7 @@ export class ElegirComponent {
                 <button (click)="act.escribir = !act.escribir">¿No lee la etiqueta? Escribe el código</button>
               </div>
               <div class="ax-escribir" *ngIf="act.escribir">
-                <input id="ax-codigo" [(ngModel)]="act.manual" (keydown.enter)="actBuscarManual()" placeholder="DZ-000123 o la clave" autocomplete="off">
+                <input id="ax-codigo" [(ngModel)]="act.manual" (keydown.enter)="actBuscarManual()" placeholder="Código de la etiqueta, ej. DZ-000123" autocomplete="off">
                 <button [disabled]="!(act.manual || '').trim()" (click)="actBuscarManual()">Buscar</button>
               </div>
               <p class="ax-error" *ngIf="act.error">{{ act.error }}</p>
@@ -3575,13 +3575,13 @@ export class ElegirComponent {
                       </select>
                     </label>
                     <button class="ax-grande ax-verde" (click)="actConfirmar(f)"><ico n="check"></ico>Está aquí</button>
-                    <button class="ax-texto-btn" (click)="f.baja=true">Ya no existe · dar de baja</button>
+                    <button class="ax-texto-btn" (click)="f.baja=true">Está dañado u obsoleto · dar de baja</button>
                   </ng-container>
 
                   <ng-container *ngIf="f.baja">
                     <div class="ax-motivo">
                       <span>Motivo de la baja</span>
-                      <select [(ngModel)]="f.motivo"><option *ngFor="let m of actMotivos" [value]="m">{{ m }}</option></select>
+                      <select [(ngModel)]="f.motivo"><option *ngFor="let m of actMotivosFicha" [value]="m">{{ m }}</option></select>
                     </div>
                     <input class="ax-input" *ngIf="f.motivo==='Otro'" [(ngModel)]="f.otro" placeholder="Escribe el motivo">
                     <button class="ax-grande ax-rojo" (click)="actBajaFicha(f)">Dar de baja</button>
@@ -10142,10 +10142,11 @@ export class AppComponent {
   private actUltima = { txt: '', t: 0 };
   private actCache: { [k: string]: { deps: any[]; v: any } } = {};
   readonly actMotivos = ['No se encontró', 'Dañado / inservible', 'Obsoleto', 'Otro'];
+  readonly actMotivosFicha = ['Dañado / inservible', 'Obsoleto', 'Otro'];
 
   actInicial(): any {
     return { cargado: false, paso: 'sede', idSede: null, idUbicacion: null, q: '', manual: '', escribir: false, error: '',
-             escaneando: false, seguirCamara: false, verMas: 50, ficha: null, libre: null, nuevo: null, cierre: null, log: [], ver: 0 };
+             escaneando: false, verMas: 50, ficha: null, libre: null, nuevo: null, cierre: null, log: [], ver: 0 };
   }
 
   private actLlave(): string { return 'dozzer_act_' + this.email; }
@@ -10170,7 +10171,8 @@ export class AppComponent {
       const g = JSON.parse(localStorage.getItem(this.actLlave()) || 'null');
       if (g) {
         a.idSede = g.idSede ?? null; a.idUbicacion = g.idUbicacion ?? null;
-        a.log = Array.isArray(g.log) ? g.log : [];
+        const limite = Date.now() - 30 * 24 * 3600 * 1000;
+        a.log = (Array.isArray(g.log) ? g.log : []).filter((h: any) => (h.t || 0) > limite);
       }
     } catch { /* estado dañado: se empieza de cero */ }
     a.paso = a.idSede && a.idUbicacion ? 'trabajo' : a.idSede ? 'area' : 'sede';
@@ -10328,12 +10330,11 @@ export class AppComponent {
     const cod = this.codigoDeTexto(txt);
     const n = a.nuevo, f = a.ficha;
     if (n) {
-      if (cod && !n.etiqueta) { this.avisarEscaneo(txt); this.actValidarLibre(cod, () => n.etiqueta = cod); }
+      if (cod !== n.etiqueta) this.notificar('info', 'Primero guarda este bien nuevo', 'Toca Guardar y después escanea la siguiente etiqueta.', 2500);
       return;
     }
     if (f) {
       if (cod && (cod === f.b.etiqueta || cod === f.etiqueta)) return;
-      if (cod && !f.b.etiqueta && !f.etiqueta) { this.avisarEscaneo(txt); this.actValidarLibre(cod, () => f.etiqueta = cod); return; }
       if (f.baja) { this.notificar('info', 'Termina la baja', 'Confirma o cancela la baja de este bien antes de escanear otro.', 2500); return; }
       // Escanear el siguiente bien confirma el que estaba abierto
       this.avisarEscaneo(txt);
@@ -10366,30 +10367,19 @@ export class AppComponent {
       });
       return;
     }
-    const clave = String(txt || '').trim().toUpperCase();
-    const b = this.bienes.find(x => String(x.clave || '').toUpperCase() === clave);
-    if (b) this.actAbrir(b);
-    else a.error = 'Ningún bien tiene la etiqueta o clave "' + String(txt).slice(0, 40) + '".';
-  }
-
-  // Etiqueta que se quiere pegar: debe estar en blanco
-  private actValidarLibre(cod: string, ok: () => void): void {
-    const otro = this.bienes.find(x => x.etiqueta === cod);
-    if (otro) { this.notificar('info', 'Esa etiqueta ya se usó', cod + ' está pegada en ' + (otro.clave || 'otro bien') + '. Usa otra.', 3500); return; }
-    this.http.get<any>(this.api + '/etiquetas/' + encodeURIComponent(cod)).subscribe({
-      next: r => {
-        if (r?.estado === 'LIBRE') { ok(); return; }
-        this.notificar('info', 'Esa etiqueta no está en blanco', r?.estado === 'NO_EXISTE' ? cod + ' no existe en DOZZER.'
-          : r?.estado === 'ANULADA' ? cod + ' está anulada.' : cod + ' ya está pegada en ' + (r?.clave || 'otro bien') + '.', 3500);
-      },
-      error: e => { if (e?.status === 0) ok(); else this.notificar('error', 'No se pudo revisar la etiqueta', this.mensajeError(e, 'Inténtalo de nuevo.'), 3500); }
-    });
+    // Clave escrita o QR de las etiquetas anteriores (ficha con id y clave)
+    const d = this.datosQr(txt);
+    const b = (d.id && this.bienes.find(x => String(x.codigo_qr || '').replace(/-/g, '').substring(0, 8).toUpperCase() === d.id))
+      || (d.clave && this.bienes.find(x => String(x.clave || '').toUpperCase() === d.clave.trim().toUpperCase()));
+    if (!b) { a.error = 'No se encontró "' + String(txt).slice(0, 40) + '". Revisa el código de la etiqueta.'; return; }
+    if (b.etiqueta) { this.actAbrir(b); return; }
+    a.error = this.titulo(b.articulo || 'Este bien') + ' (' + (b.clave || 's/clave') + ') todavía no tiene etiqueta DOZZER: pégale una y escanéala.';
   }
 
   private actFichaDe(b: any): any {
     const e = String(b.estado_fisico || '').toUpperCase();
     return { b, estado: ['BUENO', 'REGULAR', 'MALO'].includes(e) ? e : 'BUENO', persona: b.id_usuario_directo ?? null,
-             personaOriginal: b.id_usuario_directo ?? null, etiqueta: '', foto: null, fotoUrl: '', baja: false, motivo: 'No se encontró', otro: '' };
+             personaOriginal: b.id_usuario_directo ?? null, etiqueta: '', foto: null, fotoUrl: '', baja: false, motivo: 'Dañado / inservible', otro: '' };
   }
 
   actAbrir(b: any): void {
@@ -10549,10 +10539,6 @@ export class AppComponent {
     });
   }
 
-  actTerminarSinBajas(): void {
-    this.actFinArea();
-  }
-
   actFinArea(): void {
     const a = this.act;
     const n = (t: string) => this.actCuenta(t);
@@ -10686,7 +10672,6 @@ export class AppComponent {
       return;
     }
     a.escaneando = true;
-    a.seguirCamara = true;
     let video: HTMLVideoElement | undefined;
     for (let i = 0; i < 30 && !video; i++) {
       await new Promise(r => setTimeout(r, 50));
@@ -10725,11 +10710,11 @@ export class AppComponent {
     leer();
   }
 
-  actDetenerCamara(manual = false): void {
+  actDetenerCamara(_manual = false): void {
     clearTimeout(this.actTimer);
     if (this.actStream) this.actStream.getTracks().forEach(t => t.stop());
     this.actStream = null;
-    if (this.act) { this.act.escaneando = false; if (manual) this.act.seguirCamara = false; }
+    if (this.act) this.act.escaneando = false;
   }
 
   // ----- Seccion Calibración y mantenimiento -----
