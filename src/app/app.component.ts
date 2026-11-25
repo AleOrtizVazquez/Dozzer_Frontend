@@ -3455,6 +3455,11 @@ export class ElegirComponent {
 
             <!-- 2. Área -->
             <ng-container *ngIf="act.paso==='area'">
+              <div class="ax-etqs" *ngIf="actSinEtiquetaSede">
+                <span class="ax-op-ico"><ico n="printer"></ico></span>
+                <span class="ax-op-txt"><b>{{ actSinEtiquetaSede | number }} bienes sin etiqueta</b><small>en {{ actNombreSede | titlecase }}</small></span>
+                <button (click)="actImprimirEtiquetas()">Imprimir</button>
+              </div>
               <h1 class="ax-h1">¿En qué área estás?</h1>
               <div class="ax-buscar" *ngIf="actAreasTodas > 8">
                 <ico n="search"></ico>
@@ -3480,11 +3485,9 @@ export class ElegirComponent {
                 <span>{{ actRevisadosArea | number }} de {{ (actRevisadosArea + actPendientes.length) | number }} revisados</span>
               </div>
 
-              <div class="ax-fondo ax-fondo-etq" *ngIf="act.etqCam && act.escaneando" (click)="actFinEtqCam()"></div>
-              <div class="ax-video" [hidden]="!act.escaneando" [class.ax-video-flot]="(act.ficha || act.nuevo || act.libre) && !act.etqCam" [class.ax-video-etq]="act.etqCam">
+              <div class="ax-video" [hidden]="!act.escaneando" [class.ax-video-flot]="act.ficha || act.nuevo || act.libre">
                 <video #camAct playsinline muted></video><span class="ax-mira"></span>
-                <span class="ax-video-titulo" *ngIf="act.etqCam">Apunta a la etiqueta en blanco</span>
-                <button class="ax-video-x" (click)="act.etqCam ? actFinEtqCam() : actDetenerCamara(true)" aria-label="Cerrar cámara">×</button>
+                <button class="ax-video-x" (click)="actDetenerCamara(true)" aria-label="Cerrar cámara">×</button>
               </div>
 
               <button class="ax-escanear" *ngIf="!hayLectorPosible && !act.escaneando" (click)="actIniciarCamara()">
@@ -3495,10 +3498,10 @@ export class ElegirComponent {
                 <span class="ax-op-txt"><b>Listo para leer</b><small>Dispara la pistola a la etiqueta</small></span>
                 <i class="ax-lector-luz"></i>
               </div>
+              <p class="ax-pista">Si el bien no tiene etiqueta, pégale una y escanéala.</p>
 
               <div class="ax-links">
-                <button (click)="actNuevo('')"><ico n="plus"></ico>Bien sin etiqueta</button>
-                <button (click)="act.escribir = !act.escribir"><ico n="edit"></ico>Escribir código</button>
+                <button (click)="act.escribir = !act.escribir">¿No lee la etiqueta? Escribe el código</button>
               </div>
               <div class="ax-escribir" *ngIf="act.escribir">
                 <input id="ax-codigo" [(ngModel)]="act.manual" (keydown.enter)="actBuscarManual()" placeholder="DZ-000123 o la clave" autocomplete="off">
@@ -3506,14 +3509,14 @@ export class ElegirComponent {
               </div>
               <p class="ax-error" *ngIf="act.error">{{ act.error }}</p>
 
-              <div class="ax-sub" *ngIf="actPendientes.length">Faltan por revisar</div>
+              <div class="ax-sub" *ngIf="actPendientes.length">Falta encontrar aquí</div>
               <div class="ax-lista">
-                <button class="ax-bien" *ngFor="let b of actPendientes | slice:0:act.verMas; trackBy: trackBien" (click)="actAbrir(b)">
+                <div class="ax-bien ax-bien-ver" *ngFor="let b of actPendientes | slice:0:act.verMas; trackBy: trackBien">
                   <span class="ax-bien-foto"><img *ngIf="b.foto_mini" [src]="b.foto_mini" alt="" loading="lazy"><ico *ngIf="!b.foto_mini" n="image"></ico></span>
                   <span class="ax-op-txt"><b>{{ (b.articulo | titlecase) || 'Bien sin nombre' }}</b>
                     <small>{{ b.clave }}<ng-container *ngIf="b.usuario_directo || b.responsable"> · {{ (b.usuario_directo || b.responsable) | titlecase }}</ng-container></small></span>
-                  <span class="ax-falta" *ngIf="!b.etiqueta || !b.foto_mini" [title]="!b.etiqueta ? 'Sin etiqueta' : 'Sin foto'"></span>
-                </button>
+                  <span class="ax-chip" *ngIf="!b.etiqueta">Sin etiqueta</span>
+                </div>
                 <button class="ax-mas" *ngIf="actPendientes.length > act.verMas" (click)="act.verMas = act.verMas + 50">Ver {{ actPendientes.length - act.verMas | number }} más</button>
               </div>
               <div class="ax-listo" *ngIf="!actPendientes.length">
@@ -3558,11 +3561,7 @@ export class ElegirComponent {
                   <p class="ax-clave">{{ f.b.clave }}<ng-container *ngIf="f.b.etiqueta || f.etiqueta"> · {{ f.b.etiqueta || f.etiqueta }}</ng-container></p>
 
                   <p class="ax-nota" *ngIf="f.b.id_ubicacion !== act.idUbicacion"><ico n="move"></ico>Estaba en {{ textoLugar(f.b.ubicacion, f.b.sede) }}. Se cambia a esta área.</p>
-                  <ng-container *ngIf="!f.b.etiqueta && !f.etiqueta">
-                    <button class="ax-nota ax-nota-azul ax-nota-btn" *ngIf="!hayLectorPosible" (click)="actEscanearEtiqueta()"><ico n="camera"></ico><span><b>Escanear etiqueta</b><small>No tiene etiqueta: pégale una y tócame</small></span></button>
-                    <p class="ax-nota ax-nota-azul" *ngIf="hayLectorPosible"><ico n="qr"></ico>No tiene etiqueta: pégale una y dispara la pistola.</p>
-                  </ng-container>
-                  <p class="ax-nota ax-nota-verde" *ngIf="f.etiqueta"><ico n="check"></ico>Etiqueta {{ f.etiqueta }} lista.</p>
+                  <p class="ax-nota ax-nota-verde" *ngIf="f.etiqueta"><ico n="check"></ico>La etiqueta {{ f.etiqueta }} queda asignada a este bien.</p>
 
                   <ng-container *ngIf="!f.baja">
                     <div class="ax-seg">
@@ -3597,21 +3596,24 @@ export class ElegirComponent {
               <div class="ax-hoja" (click)="$event.stopPropagation()">
                 <button class="ax-cerrar" (click)="act.libre=null" aria-label="Cerrar">×</button>
                 <div class="ax-hoja-cuerpo ax-hoja-sola">
-                  <span class="ax-etq">{{ L.codigo }}</span>
-                  <h2>¿En qué bien la pegaste?</h2>
-                  <button class="ax-grande" (click)="actNuevo(L.codigo)"><ico n="plus"></ico>Es un bien nuevo</button>
-                  <div class="ax-sub">O es uno que ya existe</div>
-                  <div class="ax-buscar">
+                  <span class="ax-etq">Etiqueta nueva · {{ L.codigo }}</span>
+                  <h2>¿Qué es?</h2>
+                  <p class="ax-texto-hoja">Toca el bien al que le pegaste la etiqueta.</p>
+                  <div class="ax-buscar ax-buscar-hoja" *ngIf="L.buscar || actGruposSinEtiqueta('').length > 6">
                     <ico n="search"></ico>
-                    <input [(ngModel)]="L.q" placeholder="Buscar por nombre o clave">
+                    <input [(ngModel)]="L.q" placeholder="Buscar (también en otras áreas)">
                   </div>
                   <div class="ax-lista ax-lista-hoja">
-                    <button class="ax-bien" *ngFor="let b of actSinEtiqueta(L.q); trackBy: trackBien" (click)="actLigarLibre(b)">
-                      <span class="ax-bien-foto"><img *ngIf="b.foto_mini" [src]="b.foto_mini" alt="" loading="lazy"><ico *ngIf="!b.foto_mini" n="image"></ico></span>
-                      <span class="ax-op-txt"><b>{{ (b.articulo | titlecase) || 'Bien sin nombre' }}</b><small>{{ b.clave }} · {{ (b.ubicacion || 'Sin área') | titlecase }}</small></span>
+                    <button class="ax-bien" *ngFor="let g of actGruposSinEtiqueta(L.q)" (click)="actLigarLibre(g.items[0])">
+                      <span class="ax-bien-foto"><img *ngIf="g.foto" [src]="g.foto" alt="" loading="lazy"><ico *ngIf="!g.foto" n="image"></ico></span>
+                      <span class="ax-op-txt"><b>{{ g.nombre | titlecase }}</b>
+                        <small>{{ g.items.length > 1 ? g.items.length + ' iguales sin etiqueta' : g.items[0].clave }}<ng-container *ngIf="g.idUbicacion !== act.idUbicacion"> · está en {{ (g.ubicacion || 'otra área') | titlecase }}</ng-container></small></span>
+                      <span class="ax-cuantos" *ngIf="g.items.length > 1">×{{ g.items.length }}</span>
                     </button>
-                    <p class="ax-vacio" *ngIf="!actSinEtiqueta(L.q).length">{{ (L.q || '').trim() ? 'No hay bienes sin etiqueta con ese nombre.' : 'En esta área no quedan bienes sin etiqueta.' }}</p>
+                    <p class="ax-vacio" *ngIf="!actGruposSinEtiqueta(L.q).length">{{ (L.q || '').trim() ? 'No hay bienes sin etiqueta con ese nombre en la sede.' : 'Aquí ya no quedan bienes sin etiqueta.' }}</p>
                   </div>
+                  <button class="ax-texto-btn ax-buscar-link" *ngIf="!L.buscar && actGruposSinEtiqueta('').length <= 6" (click)="L.buscar=true">¿No está? Buscar en otras áreas</button>
+                  <button class="ax-grande ax-naranja" (click)="actNuevo(L.codigo)"><ico n="plus"></ico>No está en el sistema · es nuevo</button>
                 </div>
               </div>
             </div>
@@ -3629,10 +3631,6 @@ export class ElegirComponent {
                 <div class="ax-hoja-cuerpo">
                   <h2>Bien nuevo</h2>
                   <p class="ax-clave">{{ actNombreArea | titlecase }}<ng-container *ngIf="n.etiqueta"> · {{ n.etiqueta }}</ng-container></p>
-                  <ng-container *ngIf="!n.etiqueta">
-                    <button class="ax-nota ax-nota-azul ax-nota-btn" *ngIf="!hayLectorPosible" (click)="actEscanearEtiqueta()"><ico n="camera"></ico><span><b>Escanear etiqueta</b><small>Pégale una etiqueta en blanco y tócame</small></span></button>
-                    <p class="ax-nota ax-nota-azul" *ngIf="hayLectorPosible"><ico n="qr"></ico>Pégale una etiqueta en blanco y dispara la pistola.</p>
-                  </ng-container>
 
                   <input id="ac-nombre" class="ax-input ax-input-grande" [(ngModel)]="n.articulo" list="ac-nombres" placeholder="¿Qué es? Ej. Silla" maxlength="200" autocomplete="off">
                   <datalist id="ac-nombres"><option *ngFor="let x of actNombres" [value]="x"></option></datalist>
@@ -4495,13 +4493,18 @@ export class ElegirComponent {
     .ax-video-x{position:absolute;top:10px;right:10px;width:38px;height:38px;border-radius:50%;border:0;background:#000000a0;color:#fff;font-size:24px;line-height:1;cursor:pointer}
     .ax-video.ax-video-flot{position:fixed;z-index:400;top:max(12px,env(safe-area-inset-top));right:12px;width:104px;height:104px;aspect-ratio:auto;border:3px solid #fff;border-radius:20px}
     .ax-video.ax-video-flot .ax-mira,.ax-video.ax-video-flot .ax-video-x{display:none}
-    .ax-fondo.ax-fondo-etq{z-index:300;background:#0f1b2cd9}
-    .ax-video.ax-video-etq{position:fixed;z-index:400;left:50%;top:50%;transform:translate(-50%,-50%);width:min(88vw,420px);height:auto;aspect-ratio:1;max-height:none;border:4px solid #fff;border-radius:26px;margin:0}
-    .ax-video-titulo{position:absolute;left:0;right:0;top:16px;text-align:center;color:#fff;font-weight:800;font-size:16px;text-shadow:0 1px 6px #000a;pointer-events:none}
-    .ax-nota-btn{width:100%;border:0;cursor:pointer;text-align:left;font-family:inherit;padding:12px 14px}
-    .ax-nota-btn span{display:flex;flex-direction:column;gap:2px}
-    .ax-nota-btn b{font-size:15.5px}.ax-nota-btn small{font-size:13px;opacity:.85}
-    .ax-nota-btn ico{width:24px;height:24px}
+    .ax-pista{text-align:center;color:#7b889a;font-size:13.5px;margin:10px 0 0}
+    .ax-links button{background:transparent!important;box-shadow:none!important;color:#8a97a8!important;font-weight:600!important;padding:6px 10px!important}
+    .ax-bien-ver{cursor:default}.ax-bien-ver:active{transform:none}.ax-bien-ver:hover{box-shadow:0 1px 2px #17263d0f,0 4px 14px #17263d0a}
+    .ax-chip{flex-shrink:0;font-size:12px;font-weight:700;color:#a8650f;background:#fff4dc;border-radius:999px;padding:4px 10px}
+    .ax-etqs{display:flex;align-items:center;gap:14px;background:#fff;border-radius:18px;padding:12px 12px 12px 14px;margin:4px 0 6px;box-shadow:0 1px 2px #17263d0f,0 4px 14px #17263d0a}
+    .ax-etqs .ax-op-ico{background:linear-gradient(140deg,#fff1df,#ffe2bf);color:#c4670f}
+    .ax-etqs button{border:0;background:#244c78;color:#fff;border-radius:12px;height:42px;padding:0 16px;font-family:inherit;font-weight:700;font-size:14.5px;cursor:pointer;flex-shrink:0}
+    .ax-texto-hoja{color:#6b7a8d;font-size:15px;margin:4px 0 14px}
+    .ax-buscar-hoja{box-shadow:none;border:1.5px solid #e3e9f1}
+    .ax-buscar-link{color:#244c78;font-weight:700;padding:10px}
+    .ax-cuantos{flex-shrink:0;min-width:38px;height:30px;border-radius:999px;background:#244c78;color:#fff;font-weight:800;font-size:14px;display:grid;place-items:center;padding:0 8px}
+    .ax-naranja{background:linear-gradient(135deg,#f28c1e,#e2731a);box-shadow:0 10px 24px #f28c1e44}
     .ax-sub{font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#8a97a8;margin:26px 4px 10px}
     .ax-bien{padding:10px 14px 10px 10px}
     .ax-bien-foto{width:54px;height:54px;border-radius:14px;background:#f1f4f8;overflow:hidden;display:grid;place-items:center;flex-shrink:0;color:#b3bfcd}
@@ -10325,14 +10328,12 @@ export class AppComponent {
     const cod = this.codigoDeTexto(txt);
     const n = a.nuevo, f = a.ficha;
     if (n) {
-      if (cod && !n.etiqueta) { this.avisarEscaneo(txt); this.actValidarLibre(cod, () => { n.etiqueta = cod; this.actFinEtqCam(); }); }
+      if (cod && !n.etiqueta) { this.avisarEscaneo(txt); this.actValidarLibre(cod, () => n.etiqueta = cod); }
       return;
     }
     if (f) {
       if (cod && (cod === f.b.etiqueta || cod === f.etiqueta)) return;
-      if (cod && !f.b.etiqueta && !f.etiqueta) { this.avisarEscaneo(txt); this.actValidarLibre(cod, () => { f.etiqueta = cod; this.actFinEtqCam(); }); return; }
-      // Con la cámara abierta para la etiqueta, solo sirve una etiqueta en blanco
-      if (a.etqCam) return;
+      if (cod && !f.b.etiqueta && !f.etiqueta) { this.avisarEscaneo(txt); this.actValidarLibre(cod, () => f.etiqueta = cod); return; }
       if (f.baja) { this.notificar('info', 'Termina la baja', 'Confirma o cancela la baja de este bien antes de escanear otro.', 2500); return; }
       // Escanear el siguiente bien confirma el que estaba abierto
       this.avisarEscaneo(txt);
@@ -10398,24 +10399,35 @@ export class AppComponent {
     a.ficha = this.actFichaDe(b);
   }
 
-  // Celular: abre la cámara en grande sobre la ventana para leer la etiqueta que se acaba de pegar
-  actEscanearEtiqueta(): void {
+  // Bienes de la sede que todavía no tienen etiqueta (para saber cuántas imprimir)
+  get actSinEtiquetaSede(): number {
     const a = this.act;
-    a.camAntes = !!this.actStream;
-    a.etqCam = true;
-    if (!this.actStream) this.actIniciarCamara();
+    return this.actMemo('sinetq-sede', [this.bienes, a.idSede, a.ver], () => this.bienes.filter(b => b.id_sede === a.idSede && !b.etiqueta && b.id_bien > 0).length);
   }
 
-  // Termina la lectura de etiqueta: la cámara vuelve a como estaba (cerrada o en el recuadro pequeño)
-  actFinEtqCam(): void {
-    const a = this.act;
-    if (!a.etqCam) return;
-    a.etqCam = false;
-    if (!a.camAntes) this.actDetenerCamara(true);
+  actImprimirEtiquetas(): void {
+    this.abrirEtiquetas();
+    this.etq.cantidad = Math.max(1, Math.min(800, this.actSinEtiquetaSede));
+  }
+
+  // "¿Qué es?": bienes sin etiqueta agrupados; los iguales (mismo nombre, marca y modelo en la misma área) salen juntos
+  actGruposSinEtiqueta(q: string): { nombre: string; foto: string; idUbicacion: any; ubicacion: string; items: any[] }[] {
+    return this.actMemo('grupos-' + (q || ''), [this.bienes, this.act.idUbicacion, this.act.idSede, this.act.ver], () => {
+      const lista = this.actSinEtiqueta((q || '').trim());
+      const grupos = new Map<string, any>();
+      for (const b of lista) {
+        const k = [this.norm(b.articulo || ''), this.norm(b.marca || ''), this.norm(b.modelo || ''), b.id_ubicacion].join('|');
+        if (!grupos.has(k)) grupos.set(k, { nombre: b.articulo || 'Bien sin nombre', foto: '', idUbicacion: b.id_ubicacion, ubicacion: b.ubicacion || '', items: [] });
+        const g = grupos.get(k);
+        g.items.push(b);
+        if (!g.foto && b.foto_mini) g.foto = b.foto_mini;
+      }
+      return Array.from(grupos.values()).sort((x, y) =>
+        Number(x.idUbicacion !== this.act.idUbicacion) - Number(y.idUbicacion !== this.act.idUbicacion) || String(x.nombre).localeCompare(String(y.nombre), 'es'));
+    });
   }
 
   actCerrarFicha(): void {
-    this.actFinEtqCam();
     this.act.ficha = null;
   }
 
@@ -10483,7 +10495,7 @@ export class AppComponent {
         .then(r => { if (r?.foto_mini) { b.foto_mini = r.foto_mini; b.foto_url = r.foto_url; h.foto = r.foto_mini; this.actGuardarEstado(); } })
         .catch(() => { /* ya se avisó */ });
     }
-    if (a.ficha === f) { this.actFinEtqCam(); a.ficha = null; }
+    if (a.ficha === f) a.ficha = null;
     if (avisar) this.notificar('exito', movido ? 'Movido a esta área' : 'Confirmado', desc, 1500);
   }
 
@@ -10491,7 +10503,6 @@ export class AppComponent {
     const motivo = f.motivo === 'Otro' ? String(f.otro || '').trim() : f.motivo;
     if (!motivo) { this.notificar('info', 'Falta el motivo', 'Escribe por qué se da de baja.', 2500); return; }
     this.actBaja([f.b], motivo);
-    this.actFinEtqCam();
     this.act.ficha = null;
     this.notificar('baja', 'Dado de baja', ((f.b.clave || '') + ' ' + (f.b.articulo || '')).trim(), 2000);
   }
@@ -10564,7 +10575,6 @@ export class AppComponent {
   }
 
   actCerrarNuevo(): void {
-    this.actFinEtqCam();
     this.act.nuevo = null;
   }
 
@@ -10606,7 +10616,6 @@ export class AppComponent {
       });
 
     this.notificar('exito', 'Guardado', this.titulo(nombre) + (n.etiqueta ? ' · ' + n.etiqueta : ''), 1500);
-    this.actFinEtqCam();
     a.nuevo = null;
   }
 
@@ -10720,7 +10729,7 @@ export class AppComponent {
     clearTimeout(this.actTimer);
     if (this.actStream) this.actStream.getTracks().forEach(t => t.stop());
     this.actStream = null;
-    if (this.act) { this.act.escaneando = false; if (manual) { this.act.seguirCamara = false; this.act.etqCam = false; } }
+    if (this.act) { this.act.escaneando = false; if (manual) this.act.seguirCamara = false; }
   }
 
   // ----- Seccion Calibración y mantenimiento -----
