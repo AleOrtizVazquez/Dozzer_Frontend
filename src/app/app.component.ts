@@ -559,7 +559,7 @@ export class ElegirComponent {
             <div class="cal-cargando" *ngIf="!app.vhPerfil"><div class="loader-ring"></div></div>
 
             <!-- ============ PENDIENTES (administrador de flota) ============ -->
-            <ng-container *ngIf="app.vh==='inicio' && app.vhPerfil?.admin">
+            <ng-container *ngIf="app.vh==='inicio' && app.esAdminFlotaUi">
               <div class="vx-hola">
                 <small>{{ app.saludoHora }}</small>
                 <h1>Hola {{ app.primerNombreVh }} 👋</h1>
@@ -605,7 +605,7 @@ export class ElegirComponent {
             </ng-container>
 
             <!-- ============ FLOTA (estacionamiento) ============ -->
-            <ng-container *ngIf="app.vh==='flota' && app.vhPerfil?.admin">
+            <ng-container *ngIf="app.vh==='flota' && app.esAdminFlotaUi">
               <div class="vx-head">
                 <div><h1>Parque vehicular</h1><p>{{ app.vhLista.length | number }} vehículos</p></div>
                 <div class="vx-head-acc">
@@ -614,7 +614,7 @@ export class ElegirComponent {
                   <div class="vx-menu" *ngIf="app.vhMenuFlota" (click)="app.vhMenuFlota=false">
                     <button (click)="app.vhElegirExcel()"><ico n="download"></ico>Importar Excel</button>
                     <button (click)="app.vhImprimirQr(app.vhListaFiltrada)" [disabled]="!app.vhLista.length"><ico n="qr"></ico>Imprimir QR de vehículos</button>
-                    <button *ngIf="app.vhPerfil?.adminGeneral" (click)="app.vhAbrirAdmins()"><ico n="shield"></ico>Quién administra la flota</button>
+                    <button *ngIf="app.isAdmin" (click)="app.vhAbrirAdmins()"><ico n="shield"></ico>Quién administra la flota</button>
                   </div>
                 </div>
               </div>
@@ -1589,11 +1589,11 @@ export class VehiculosComponent {
             <ico class="nav-flecha" n="chev"></ico>
           </button>
           <div class="nav-sub" *ngIf="grupoMenu==='vehiculos'">
-            <button class="nav-item" *ngIf="vhPerfil?.admin" [class.active]="section==='vehiculos' && vh==='inicio'" (click)="irVeh('inicio')">
+            <button class="nav-item" *ngIf="esAdminFlotaUi" [class.active]="section==='vehiculos' && vh==='inicio'" (click)="irVeh('inicio')">
               <span class="nav-icon"><ico n="spark"></ico></span><span>Pendientes</span>
               <span class="nav-badge" *ngIf="avisosVehiculos > 0">{{ avisosVehiculos }}</span>
             </button>
-            <button class="nav-item" *ngIf="vhPerfil?.admin" [class.active]="section==='vehiculos' && vh==='flota'" (click)="irVeh('flota')">
+            <button class="nav-item" *ngIf="esAdminFlotaUi" [class.active]="section==='vehiculos' && vh==='flota'" (click)="irVeh('flota')">
               <span class="nav-icon"><ico n="car"></ico></span><span>Flota</span>
             </button>
             <button class="nav-item" *ngIf="vhPerfil?.vehiculos?.length" [class.active]="section==='vehiculos' && vh==='mio'" (click)="irVeh('mio')">
@@ -8676,7 +8676,7 @@ export class AppComponent {
   irA(s: string): void {
     this.menuCollapsed = true;
     if (s !== 'inicio' && this.grupoDeSeccion(s) !== 'catalogos') this.grupoMenu = this.grupoDeSeccion(s);
-    if (s === 'vehiculos') { this.irVeh(this.vhPerfil?.admin ? 'inicio' : 'mio'); return; }
+    if (s === 'vehiculos') { this.irVeh(this.esAdminFlotaUi ? 'inicio' : 'mio'); return; }
     if (this.section === 'actualizar' && s !== 'actualizar') this.actDetenerCamara(true);
     this.editing = false;
     if (s === 'inicio') { this.section = 'inicio'; return; }
@@ -11837,21 +11837,33 @@ export class AppComponent {
 
   // ----- Perfil y navegación -----
 
+  private vhIntentos = 0;
+
+  // El rol ya lo dice: no hay que esperar al servidor para mostrar Vehículos al administrador
+  get esAdminFlotaUi(): boolean {
+    return this.isAdmin || this.permissions.includes('VEHICULOS_ADMINISTRAR') || !!this.vhPerfil?.admin;
+  }
+
   cargarPerfilVeh(): void {
     if (!this.logged) return;
     this.http.get<any>(this.api + '/vehiculos/perfil').subscribe({
       next: p => {
-        this.vhPerfil = p || { admin: false, vehiculos: [] };
+        this.vhIntentos = 0;
+        this.vhPerfil = { ...(p || {}), admin: !!p?.admin || this.isAdmin || this.permissions.includes('VEHICULOS_ADMINISTRAR'), vehiculos: p?.vehiculos || [] };
         if (this.vhPerfil.admin && !this.vhDec) this.cargarDecisiones();
         if (this.section === 'vehiculos' && this.vh === 'inicio' && !this.vhPerfil.admin) this.vh = this.vhPerfil.vehiculos?.length ? 'mio' : 'podio';
         if (this.section === 'vehiculos' && this.vh === 'flota' && !this.vhPerfil.admin) this.vh = 'mio';
       },
-      error: () => { this.vhPerfil = { admin: false, vehiculos: [], yo: null }; }
+      error: () => {
+        if (!this.vhPerfil) this.vhPerfil = { admin: this.esAdminFlotaUi, vehiculos: [], yo: null };
+        // El servidor puede estar despertando o publicándose: se reintenta solo
+        if (this.vhIntentos++ < 3) setTimeout(() => this.cargarPerfilVeh(), 15000);
+      }
     });
   }
 
   get verVehiculos(): boolean {
-    return !!this.vhPerfil && (this.vhPerfil.admin || (this.vhPerfil.vehiculos || []).length > 0);
+    return this.esAdminFlotaUi || (this.vhPerfil?.vehiculos || []).length > 0;
   }
 
   get avisosVehiculos(): number {
@@ -11896,7 +11908,7 @@ export class AppComponent {
   }
 
   private vhRefrescar(): void {
-    if (this.vhPerfil?.admin) { this.cargarDecisiones(); this.cargarFlota(); }
+    if (this.esAdminFlotaUi) { this.cargarDecisiones(); this.cargarFlota(); }
     const id = this.vhFicha?.id_vehiculo;
     if (id) {
       this.http.get<any>(this.api + '/vehiculos/' + id).subscribe({
@@ -11959,7 +11971,7 @@ export class AppComponent {
   }
 
   textoAccionItem(it: any): string | null {
-    if (!this.vhPerfil?.admin) return null;
+    if (!this.esAdminFlotaUi) return null;
     switch (it.clave) {
       case 'poliza': return it.estado === 'verde' ? 'Renovar' : 'Ya lo renové';
       case 'verificacion': return 'Ya se verificó';
@@ -12136,7 +12148,7 @@ export class AppComponent {
   vhAbrirFicha(v: any): void { this.vhAbrirFichaId(v.id_vehiculo); }
 
   vhAbrirFichaId(id: any): void {
-    if (!id || !this.vhPerfil?.admin) return;
+    if (!id || !this.esAdminFlotaUi) return;
     this.vhFicha = { _cargando: true };
     if (!(this.catalogs.personas || []).length) this.loadCatalog('personas');
     this.http.get<any>(this.api + '/vehiculos/' + id).subscribe({
@@ -12548,7 +12560,7 @@ export class AppComponent {
     setTimeout(() => { if (this.ps === P) P.anim = true; }, 80);
     try { navigator.vibrate?.([30, 60, 30]); } catch { /* */ }
     this.cargarPerfilVeh();
-    if (this.vhPerfil?.admin) this.cargarDecisiones();
+    if (this.esAdminFlotaUi) this.cargarDecisiones();
   }
 
   get vhPitPendiente(): boolean {
