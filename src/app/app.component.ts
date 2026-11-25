@@ -3480,9 +3480,11 @@ export class ElegirComponent {
                 <span>{{ actRevisadosArea | number }} de {{ (actRevisadosArea + actPendientes.length) | number }} revisados</span>
               </div>
 
-              <div class="ax-video" [hidden]="!act.escaneando" [class.ax-video-flot]="act.ficha || act.nuevo || act.libre">
+              <div class="ax-fondo ax-fondo-etq" *ngIf="act.etqCam && act.escaneando" (click)="actFinEtqCam()"></div>
+              <div class="ax-video" [hidden]="!act.escaneando" [class.ax-video-flot]="(act.ficha || act.nuevo || act.libre) && !act.etqCam" [class.ax-video-etq]="act.etqCam">
                 <video #camAct playsinline muted></video><span class="ax-mira"></span>
-                <button class="ax-video-x" (click)="actDetenerCamara(true)" aria-label="Cerrar cámara">×</button>
+                <span class="ax-video-titulo" *ngIf="act.etqCam">Apunta a la etiqueta en blanco</span>
+                <button class="ax-video-x" (click)="act.etqCam ? actFinEtqCam() : actDetenerCamara(true)" aria-label="Cerrar cámara">×</button>
               </div>
 
               <button class="ax-escanear" *ngIf="!hayLectorPosible && !act.escaneando" (click)="actIniciarCamara()">
@@ -3556,7 +3558,10 @@ export class ElegirComponent {
                   <p class="ax-clave">{{ f.b.clave }}<ng-container *ngIf="f.b.etiqueta || f.etiqueta"> · {{ f.b.etiqueta || f.etiqueta }}</ng-container></p>
 
                   <p class="ax-nota" *ngIf="f.b.id_ubicacion !== act.idUbicacion"><ico n="move"></ico>Estaba en {{ textoLugar(f.b.ubicacion, f.b.sede) }}. Se cambia a esta área.</p>
-                  <p class="ax-nota ax-nota-azul" *ngIf="!f.b.etiqueta && !f.etiqueta"><ico n="qr"></ico>Pégale una etiqueta y escanéala.</p>
+                  <ng-container *ngIf="!f.b.etiqueta && !f.etiqueta">
+                    <button class="ax-nota ax-nota-azul ax-nota-btn" *ngIf="!hayLectorPosible" (click)="actEscanearEtiqueta()"><ico n="camera"></ico><span><b>Escanear etiqueta</b><small>No tiene etiqueta: pégale una y tócame</small></span></button>
+                    <p class="ax-nota ax-nota-azul" *ngIf="hayLectorPosible"><ico n="qr"></ico>No tiene etiqueta: pégale una y dispara la pistola.</p>
+                  </ng-container>
                   <p class="ax-nota ax-nota-verde" *ngIf="f.etiqueta"><ico n="check"></ico>Etiqueta {{ f.etiqueta }} lista.</p>
 
                   <ng-container *ngIf="!f.baja">
@@ -3624,7 +3629,10 @@ export class ElegirComponent {
                 <div class="ax-hoja-cuerpo">
                   <h2>Bien nuevo</h2>
                   <p class="ax-clave">{{ actNombreArea | titlecase }}<ng-container *ngIf="n.etiqueta"> · {{ n.etiqueta }}</ng-container></p>
-                  <p class="ax-nota ax-nota-azul" *ngIf="!n.etiqueta"><ico n="qr"></ico>Si le pegas etiqueta, escanéala ahora.</p>
+                  <ng-container *ngIf="!n.etiqueta">
+                    <button class="ax-nota ax-nota-azul ax-nota-btn" *ngIf="!hayLectorPosible" (click)="actEscanearEtiqueta()"><ico n="camera"></ico><span><b>Escanear etiqueta</b><small>Pégale una etiqueta en blanco y tócame</small></span></button>
+                    <p class="ax-nota ax-nota-azul" *ngIf="hayLectorPosible"><ico n="qr"></ico>Pégale una etiqueta en blanco y dispara la pistola.</p>
+                  </ng-container>
 
                   <input id="ac-nombre" class="ax-input ax-input-grande" [(ngModel)]="n.articulo" list="ac-nombres" placeholder="¿Qué es? Ej. Silla" maxlength="200" autocomplete="off">
                   <datalist id="ac-nombres"><option *ngFor="let x of actNombres" [value]="x"></option></datalist>
@@ -4487,6 +4495,13 @@ export class ElegirComponent {
     .ax-video-x{position:absolute;top:10px;right:10px;width:38px;height:38px;border-radius:50%;border:0;background:#000000a0;color:#fff;font-size:24px;line-height:1;cursor:pointer}
     .ax-video.ax-video-flot{position:fixed;z-index:400;top:max(12px,env(safe-area-inset-top));right:12px;width:104px;height:104px;aspect-ratio:auto;border:3px solid #fff;border-radius:20px}
     .ax-video.ax-video-flot .ax-mira,.ax-video.ax-video-flot .ax-video-x{display:none}
+    .ax-fondo.ax-fondo-etq{z-index:300;background:#0f1b2cd9}
+    .ax-video.ax-video-etq{position:fixed;z-index:400;left:50%;top:50%;transform:translate(-50%,-50%);width:min(88vw,420px);height:auto;aspect-ratio:1;max-height:none;border:4px solid #fff;border-radius:26px;margin:0}
+    .ax-video-titulo{position:absolute;left:0;right:0;top:16px;text-align:center;color:#fff;font-weight:800;font-size:16px;text-shadow:0 1px 6px #000a;pointer-events:none}
+    .ax-nota-btn{width:100%;border:0;cursor:pointer;text-align:left;font-family:inherit;padding:12px 14px}
+    .ax-nota-btn span{display:flex;flex-direction:column;gap:2px}
+    .ax-nota-btn b{font-size:15.5px}.ax-nota-btn small{font-size:13px;opacity:.85}
+    .ax-nota-btn ico{width:24px;height:24px}
     .ax-sub{font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#8a97a8;margin:26px 4px 10px}
     .ax-bien{padding:10px 14px 10px 10px}
     .ax-bien-foto{width:54px;height:54px;border-radius:14px;background:#f1f4f8;overflow:hidden;display:grid;place-items:center;flex-shrink:0;color:#b3bfcd}
@@ -10310,12 +10325,14 @@ export class AppComponent {
     const cod = this.codigoDeTexto(txt);
     const n = a.nuevo, f = a.ficha;
     if (n) {
-      if (cod && !n.etiqueta) { this.avisarEscaneo(txt); this.actValidarLibre(cod, () => n.etiqueta = cod); }
+      if (cod && !n.etiqueta) { this.avisarEscaneo(txt); this.actValidarLibre(cod, () => { n.etiqueta = cod; this.actFinEtqCam(); }); }
       return;
     }
     if (f) {
       if (cod && (cod === f.b.etiqueta || cod === f.etiqueta)) return;
-      if (cod && !f.b.etiqueta && !f.etiqueta) { this.avisarEscaneo(txt); this.actValidarLibre(cod, () => f.etiqueta = cod); return; }
+      if (cod && !f.b.etiqueta && !f.etiqueta) { this.avisarEscaneo(txt); this.actValidarLibre(cod, () => { f.etiqueta = cod; this.actFinEtqCam(); }); return; }
+      // Con la cámara abierta para la etiqueta, solo sirve una etiqueta en blanco
+      if (a.etqCam) return;
       if (f.baja) { this.notificar('info', 'Termina la baja', 'Confirma o cancela la baja de este bien antes de escanear otro.', 2500); return; }
       // Escanear el siguiente bien confirma el que estaba abierto
       this.avisarEscaneo(txt);
@@ -10381,7 +10398,24 @@ export class AppComponent {
     a.ficha = this.actFichaDe(b);
   }
 
+  // Celular: abre la cámara en grande sobre la ventana para leer la etiqueta que se acaba de pegar
+  actEscanearEtiqueta(): void {
+    const a = this.act;
+    a.camAntes = !!this.actStream;
+    a.etqCam = true;
+    if (!this.actStream) this.actIniciarCamara();
+  }
+
+  // Termina la lectura de etiqueta: la cámara vuelve a como estaba (cerrada o en el recuadro pequeño)
+  actFinEtqCam(): void {
+    const a = this.act;
+    if (!a.etqCam) return;
+    a.etqCam = false;
+    if (!a.camAntes) this.actDetenerCamara(true);
+  }
+
   actCerrarFicha(): void {
+    this.actFinEtqCam();
     this.act.ficha = null;
   }
 
@@ -10449,7 +10483,7 @@ export class AppComponent {
         .then(r => { if (r?.foto_mini) { b.foto_mini = r.foto_mini; b.foto_url = r.foto_url; h.foto = r.foto_mini; this.actGuardarEstado(); } })
         .catch(() => { /* ya se avisó */ });
     }
-    if (a.ficha === f) a.ficha = null;
+    if (a.ficha === f) { this.actFinEtqCam(); a.ficha = null; }
     if (avisar) this.notificar('exito', movido ? 'Movido a esta área' : 'Confirmado', desc, 1500);
   }
 
@@ -10457,6 +10491,7 @@ export class AppComponent {
     const motivo = f.motivo === 'Otro' ? String(f.otro || '').trim() : f.motivo;
     if (!motivo) { this.notificar('info', 'Falta el motivo', 'Escribe por qué se da de baja.', 2500); return; }
     this.actBaja([f.b], motivo);
+    this.actFinEtqCam();
     this.act.ficha = null;
     this.notificar('baja', 'Dado de baja', ((f.b.clave || '') + ' ' + (f.b.articulo || '')).trim(), 2000);
   }
@@ -10529,6 +10564,7 @@ export class AppComponent {
   }
 
   actCerrarNuevo(): void {
+    this.actFinEtqCam();
     this.act.nuevo = null;
   }
 
@@ -10570,6 +10606,7 @@ export class AppComponent {
       });
 
     this.notificar('exito', 'Guardado', this.titulo(nombre) + (n.etiqueta ? ' · ' + n.etiqueta : ''), 1500);
+    this.actFinEtqCam();
     a.nuevo = null;
   }
 
@@ -10683,7 +10720,7 @@ export class AppComponent {
     clearTimeout(this.actTimer);
     if (this.actStream) this.actStream.getTracks().forEach(t => t.stop());
     this.actStream = null;
-    if (this.act) { this.act.escaneando = false; if (manual) this.act.seguirCamara = false; }
+    if (this.act) { this.act.escaneando = false; if (manual) { this.act.seguirCamara = false; this.act.etqCam = false; } }
   }
 
   // ----- Seccion Calibración y mantenimiento -----
