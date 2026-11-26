@@ -12207,14 +12207,36 @@ export class AppComponent {
     if (!this.vhQuien || this.vhLigando) return;
     this.vhLigando = true;
     this.http.post<any>(this.api + '/vehiculos/mi-persona', { idPersona: this.vhQuien }).subscribe({
-      next: p => {
+      next: p => { this.vhLigando = false; this.vhLigado(p); },
+      error: e => {
         this.vhLigando = false;
-        this.vhPerfil = { ...(p || {}), admin: !!p?.admin || this.esAdminFlotaUi, vehiculos: p?.vehiculos || [] };
-        this.nombreUsuario = p?.nombre || this.nombreUsuario;
-        this.notificar('exito', 'Listo', (p?.vehiculos?.length ? 'Ya ves tu vehículo.' : 'Tu cuenta quedó ligada. Cuando te asignen un vehículo, aparecerá aquí.'), 3000);
-      },
-      error: e => { this.vhLigando = false; this.notificar('error', 'No se pudo', this.mensajeError(e, 'Inténtalo de nuevo.'), 4000); }
+        const msg = this.mensajeError(e, 'Inténtalo de nuevo.');
+        // Un administrador puede quedarse con la persona si ya tenía otra cuenta (p. ej. la de "Dar acceso" de su vehículo)
+        if (e?.status === 409 && /ya tiene otra cuenta/i.test(msg) && this.vhPerfil?.adminGeneral) {
+          const idPersona = this.vhQuien;
+          this.abrirDialogo({
+            tipo: 'peligro', icono: '⚿',
+            titulo: '¿Usar esta cuenta para tu vehículo?',
+            mensaje: msg + '. Si continúas, tu cuenta de administrador quedará ligada a ese nombre y la otra cuenta se desactivará.',
+            textoConfirmar: 'Sí, ligar a mi cuenta',
+            accion: terminar => {
+              this.http.post<any>(this.api + '/vehiculos/mi-persona', { idPersona, reemplazar: true }).subscribe({
+                next: p => { terminar(); this.vhLigado(p); },
+                error: e2 => terminar(this.mensajeError(e2, 'Inténtalo de nuevo.'))
+              });
+            }
+          });
+          return;
+        }
+        this.notificar('error', 'No se pudo', msg, 4000);
+      }
     });
+  }
+
+  private vhLigado(p: any): void {
+    this.vhPerfil = { ...(p || {}), admin: !!p?.admin || this.esAdminFlotaUi, vehiculos: p?.vehiculos || [] };
+    this.nombreUsuario = p?.nombre || this.nombreUsuario;
+    this.notificar('exito', 'Listo', (p?.vehiculos?.length ? 'Ya ves tu vehículo.' : 'Tu cuenta quedó ligada. Cuando te asignen un vehículo, aparecerá aquí.'), 3000);
   }
 
   // Calificar un Pit Stop: 👍 bien hecho (+5) o falso (−30). Tocar de nuevo lo quita.
