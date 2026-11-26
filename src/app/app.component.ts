@@ -12338,7 +12338,7 @@ export class AppComponent {
           this.abrirDialogo({
             tipo: 'peligro', icono: '⚿',
             titulo: '¿Usar esta cuenta para tu vehículo?',
-            mensaje: msg + '. Si continúas, tu cuenta de administrador quedará ligada a ese nombre y la otra cuenta se desactivará.',
+            mensaje: msg + '. Si continúas, tu cuenta quedará ligada a ese nombre y la otra cuenta dejará de estarlo. Si la otra no es de administrador, además se desactivará.',
             textoConfirmar: 'Sí, ligar a mi cuenta',
             accion: terminar => {
               this.http.post<any>(this.api + '/vehiculos/mi-persona', { idPersona, reemplazar: true }).subscribe({
