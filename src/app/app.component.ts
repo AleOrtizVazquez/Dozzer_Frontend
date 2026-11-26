@@ -4617,7 +4617,7 @@ export class VehiculosComponent {
                       <ico n="user"></ico>
                       <select [(ngModel)]="f.persona">
                         <option [ngValue]="null">Sin persona asignada</option>
-                        <option *ngFor="let p of actPersonas(f.b.id_usuario_directo)" [ngValue]="p.id">{{ p.nombre | titlecase }}</option>
+                        <ng-container *ngIf="actPersonas(f.b.id_usuario_directo) as P"><optgroup *ngIf="P.aqui.length" label="En esta sede"><option *ngFor="let p of P.aqui" [ngValue]="p.id">{{ p.nombre | titlecase }}</option></optgroup><optgroup *ngIf="P.otras.length" label="Otras sedes"><option *ngFor="let p of P.otras" [ngValue]="p.id">{{ p.nombre | titlecase }}</option></optgroup></ng-container>
                       </select>
                     </label>
                     <button class="ax-grande ax-verde" (click)="actConfirmar(f)"><ico n="check"></ico>Está aquí</button>
@@ -4688,7 +4688,7 @@ export class VehiculosComponent {
                     <ico n="user"></ico>
                     <select [(ngModel)]="n.persona">
                       <option [ngValue]="null">Sin persona asignada</option>
-                      <option *ngFor="let p of actPersonas(null)" [ngValue]="p.id">{{ p.nombre | titlecase }}</option>
+                      <ng-container *ngIf="actPersonas(null) as P"><optgroup *ngIf="P.aqui.length" label="En esta sede"><option *ngFor="let p of P.aqui" [ngValue]="p.id">{{ p.nombre | titlecase }}</option></optgroup><optgroup *ngIf="P.otras.length" label="Otras sedes"><option *ngFor="let p of P.otras" [ngValue]="p.id">{{ p.nombre | titlecase }}</option></optgroup></ng-container>
                     </select>
                   </label>
 
@@ -11358,13 +11358,16 @@ export class AppComponent {
   }
 
   // Personas de la sede (y la que ya tiene el bien, aunque sea de otra)
-  actPersonas(actual: any): { id: any; nombre: string }[] {
+  // Todas las personas activas: primero las de la sede donde se está revisando, luego las demás
+  actPersonas(actual: any): { aqui: { id: any; nombre: string }[]; otras: { id: any; nombre: string }[] } {
     return this.actMemo('per-' + actual, [this.catalogs.personas, this.act.idSede], () => {
-      const lista = (this.catalogs.personas || [])
-        .filter((p: any) => p.estatus !== false && (p.id_sede === this.act.idSede || p.id_persona === actual))
-        .map((p: any) => ({ id: p.id_persona, nombre: p.nombre_completo || '' }))
-        .sort((x: any, y: any) => x.nombre.localeCompare(y.nombre, 'es'));
-      return lista;
+      const aqui: any[] = [], otras: any[] = [];
+      for (const p of (this.catalogs.personas || [])) {
+        if (p.estatus === false && p.id_persona !== actual) continue;
+        (p.id_sede === this.act.idSede ? aqui : otras).push({ id: p.id_persona, nombre: p.nombre_completo || '' });
+      }
+      const orden = (x: any, y: any) => x.nombre.localeCompare(y.nombre, 'es');
+      return { aqui: aqui.sort(orden), otras: otras.sort(orden) };
     });
   }
 
