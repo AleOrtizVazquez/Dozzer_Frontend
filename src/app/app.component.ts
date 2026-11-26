@@ -1230,6 +1230,20 @@ export class ElegirComponent {
     .ax-persona{display:flex;align-items:center;gap:10px;background:#fff;border:1.5px solid #e3e9f1;border-radius:14px;padding:0 4px 0 14px;cursor:pointer}
     .ax-persona ico{width:18px;height:18px;color:#8a97a8;flex-shrink:0}
     .ax-persona select{flex:1;min-width:0;border:0;background:transparent;height:50px;font-size:15.5px;font-family:inherit;color:#14243a;outline:0}
+    .ax-persona-btn{width:100%;height:58px;padding:0 12px 0 14px;font-family:inherit;text-align:left;transition:border-color .15s}
+    .ax-persona-btn:hover{border-color:#c9d5e3}
+    .ax-persona-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+    .ax-persona-txt small{font-size:11.5px;color:#8a97a8;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+    .ax-persona-txt b{font-size:15.5px;color:#14243a;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .ax-fondo-arriba{z-index:195}
+    .ax-pp{padding:10px 14px}
+    .ax-pp-ini{width:40px;height:40px;border-radius:50%;background:linear-gradient(140deg,#eef4fb,#dfe9f5);color:#244c78;display:grid;place-items:center;flex-shrink:0;font-weight:800;font-size:14px;letter-spacing:.02em}
+    .ax-pp-otra{background:linear-gradient(140deg,#fff1df,#ffe2bf);color:#c4670f}
+    .ax-pp-nadie{background:#f1f4f8;color:#8a97a8}.ax-pp-nadie ico{width:18px;height:18px}
+    .ax-pp-on{box-shadow:0 0 0 2px #3aa876,0 4px 14px #17263d0a}
+    .ax-pp-check{width:20px;height:20px;color:#21835a;flex-shrink:0}
+    .ax-sub-hoja{margin:12px 4px 2px}
+    .ax-texto-chico{font-size:13px;padding:4px 14px 10px;color:#a3aebb}
     .ax-etq{display:inline-block;font-family:"SFMono-Regular",Consolas,monospace;font-weight:700;font-size:13px;background:#eaf1fa;color:#244c78;border-radius:8px;padding:5px 10px;margin-bottom:10px}
     .ax-lista-hoja{max-height:44vh;overflow:auto;padding:2px 2px 6px}
     .ax-lector{display:flex;align-items:center;gap:14px;background:#fff;border-radius:20px;padding:16px 18px;box-shadow:0 1px 2px #17263d0f,0 6px 18px #17263d0d}
@@ -2574,6 +2588,7 @@ export class VehiculosComponent {
                                       <div class="fi-menu fi-menu-abajo" *ngIf="qrAbierto===b.id_bien">
                                         <button (click)="imprimirCodigos([b.etiqueta]); qrAbierto=null"><ico n="printer"></ico>Imprimir etiqueta</button>
                                         <button *ngIf="isAdmin" (click)="abrirAsignarEtiqueta(b); qrAbierto=null"><ico n="qr"></ico>Cambiar etiqueta</button>
+                                        <button *ngIf="isAdmin" class="peligro" (click)="retirarEtiqueta(b); qrAbierto=null"><ico n="x"></ico>Retirar etiqueta</button>
                                       </div>
                                     </div>
                                     <button type="button" class="fi-chip fi-chip-btn" *ngIf="b.requiere_calibracion" [ngClass]="'fi-cm-' + estadoFechaCM(b.fecha_calibracion)"
@@ -2840,6 +2855,7 @@ export class VehiculosComponent {
                 </label>
                 <button *ngIf="isAdmin && !b.etiqueta" (click)="abrirAsignarEtiqueta(b)" title="Asignar etiqueta QR"><ico n="qr"></ico><span>Etiqueta</span></button>
                 <button *ngIf="b.etiqueta" (click)="imprimirCodigos([b.etiqueta])" title="Reimprimir su etiqueta"><ico n="printer"></ico><span>Imprimir</span></button>
+                <button *ngIf="isAdmin && b.etiqueta" (click)="retirarEtiqueta(b)" [title]="'Retirar la etiqueta ' + b.etiqueta"><ico n="x"></ico><span>Quitar QR</span></button>
                 <button *ngIf="isAdmin" (click)="formatoAltaDeBien(b)" title="Formato de alta (PDF)"><ico n="file"></ico><span>Formato</span></button>
                 <button class="peligro" (click)="deleteBien(b.id_bien)" [title]="isAdmin ? 'Dar de baja' : 'Solicitar la baja'"><ico n="trash"></ico><span>Baja</span></button>
               </div>
@@ -4613,15 +4629,14 @@ export class VehiculosComponent {
                     <div class="ax-seg">
                       <button *ngFor="let e of ['BUENO','REGULAR','MALO']" [class.on]="f.estado===e" (click)="f.estado=e">{{ textoEstadoCorto(e) }}</button>
                     </div>
-                    <label class="ax-persona">
+                    <button type="button" class="ax-persona ax-persona-btn" (click)="actAbrirPersonas(f)">
                       <ico n="user"></ico>
-                      <select [(ngModel)]="f.persona">
-                        <option [ngValue]="null">Sin persona asignada</option>
-                        <ng-container *ngIf="actPersonas(f.b.id_usuario_directo) as P"><optgroup *ngIf="P.aqui.length" label="En esta sede"><option *ngFor="let p of P.aqui" [ngValue]="p.id">{{ p.nombre | titlecase }}</option></optgroup><optgroup *ngIf="P.otras.length" label="Otras sedes"><option *ngFor="let p of P.otras" [ngValue]="p.id">{{ p.nombre | titlecase }}</option></optgroup></ng-container>
-                      </select>
-                    </label>
+                      <span class="ax-persona-txt"><small>Persona asignada</small><b>{{ (actNombrePersona(f.persona) | titlecase) || 'Sin persona asignada' }}</b></span>
+                      <ico class="ax-op-chev" n="chevright"></ico>
+                    </button>
                     <button class="ax-grande ax-verde" (click)="actConfirmar(f)"><ico n="check"></ico>Está aquí</button>
                     <button class="ax-texto-btn" (click)="f.baja=true">Está dañado u obsoleto · dar de baja</button>
+                    <button class="ax-texto-btn ax-texto-chico" *ngIf="f.b.etiqueta" (click)="retirarEtiqueta(f.b)">Retirar la etiqueta {{ f.b.etiqueta }}</button>
                   </ng-container>
 
                   <ng-container *ngIf="f.baja">
@@ -4632,6 +4647,43 @@ export class VehiculosComponent {
                     <input class="ax-input" *ngIf="f.motivo==='Otro'" [(ngModel)]="f.otro" placeholder="Escribe el motivo">
                     <button class="ax-grande ax-rojo" (click)="actBajaFicha(f)">Dar de baja</button>
                     <button class="ax-texto-btn" (click)="f.baja=false">Cancelar</button>
+                  </ng-container>
+                </div>
+              </div>
+            </div>
+
+            <!-- Elegir persona: primero las de esta sede; al escribir busca en todas -->
+            <div class="ax-fondo ax-fondo-arriba" *ngIf="act.pp as pp" (click)="act.pp=null">
+              <div class="ax-hoja" (click)="$event.stopPropagation()">
+                <button class="ax-cerrar" (click)="act.pp=null" aria-label="Cerrar">×</button>
+                <div class="ax-hoja-cuerpo ax-hoja-sola">
+                  <h2>¿Quién lo usa?</h2>
+                  <div class="ax-buscar ax-buscar-hoja">
+                    <ico n="search"></ico>
+                    <input id="ax-pp-q" [(ngModel)]="pp.q" placeholder="Buscar persona de cualquier sede" autocomplete="off">
+                  </div>
+                  <ng-container *ngIf="actPersonasLista(pp.q) as L">
+                    <div class="ax-lista ax-lista-hoja">
+                      <button class="ax-bien ax-pp" *ngIf="!(pp.q || '').trim()" [class.ax-pp-on]="pp.destino.persona == null" (click)="actElegirPersona(null)">
+                        <span class="ax-pp-ini ax-pp-nadie"><ico n="user"></ico></span>
+                        <span class="ax-op-txt"><b>Sin persona asignada</b></span>
+                        <ico *ngIf="pp.destino.persona == null" class="ax-pp-check" n="check"></ico>
+                      </button>
+                      <div class="ax-sub ax-sub-hoja" *ngIf="L.aqui.length">{{ (pp.q || '').trim() ? 'En esta sede' : 'Personas de ' + (actNombreSede | titlecase) }}</div>
+                      <button class="ax-bien ax-pp" *ngFor="let p of L.aqui" [class.ax-pp-on]="pp.destino.persona === p.id" (click)="actElegirPersona(p.id)">
+                        <span class="ax-pp-ini">{{ p.ini }}</span>
+                        <span class="ax-op-txt"><b>{{ p.nombre | titlecase }}</b><small *ngIf="p.puesto">{{ p.puesto | titlecase }}</small></span>
+                        <ico *ngIf="pp.destino.persona === p.id" class="ax-pp-check" n="check"></ico>
+                      </button>
+                      <div class="ax-sub ax-sub-hoja" *ngIf="L.otras.length">Otras sedes</div>
+                      <button class="ax-bien ax-pp" *ngFor="let p of L.otras" [class.ax-pp-on]="pp.destino.persona === p.id" (click)="actElegirPersona(p.id)">
+                        <span class="ax-pp-ini ax-pp-otra">{{ p.ini }}</span>
+                        <span class="ax-op-txt"><b>{{ p.nombre | titlecase }}</b><small>{{ (p.sede | titlecase) || 'Sin sede' }}<ng-container *ngIf="p.puesto"> · {{ p.puesto | titlecase }}</ng-container></small></span>
+                        <ico *ngIf="pp.destino.persona === p.id" class="ax-pp-check" n="check"></ico>
+                      </button>
+                      <p class="ax-vacio" *ngIf="L.mas">Hay más resultados: escribe más letras del nombre.</p>
+                      <p class="ax-vacio" *ngIf="!L.aqui.length && !L.otras.length">{{ (pp.q || '').trim() ? 'No hay nadie con ese nombre.' : 'No hay personas en esta sede. Escribe un nombre para buscar en las demás.' }}</p>
+                    </div>
                   </ng-container>
                 </div>
               </div>
@@ -4684,13 +4736,11 @@ export class VehiculosComponent {
                   <div class="ax-seg">
                     <button *ngFor="let e of ['BUENO','REGULAR','MALO']" [class.on]="n.estado===e" (click)="n.estado=e">{{ textoEstadoCorto(e) }}</button>
                   </div>
-                  <label class="ax-persona">
-                    <ico n="user"></ico>
-                    <select [(ngModel)]="n.persona">
-                      <option [ngValue]="null">Sin persona asignada</option>
-                      <ng-container *ngIf="actPersonas(null) as P"><optgroup *ngIf="P.aqui.length" label="En esta sede"><option *ngFor="let p of P.aqui" [ngValue]="p.id">{{ p.nombre | titlecase }}</option></optgroup><optgroup *ngIf="P.otras.length" label="Otras sedes"><option *ngFor="let p of P.otras" [ngValue]="p.id">{{ p.nombre | titlecase }}</option></optgroup></ng-container>
-                    </select>
-                  </label>
+                  <button type="button" class="ax-persona ax-persona-btn" (click)="actAbrirPersonas(n)">
+                      <ico n="user"></ico>
+                      <span class="ax-persona-txt"><small>Persona asignada</small><b>{{ (actNombrePersona(n.persona) | titlecase) || 'Sin persona asignada' }}</b></span>
+                      <ico class="ax-op-chev" n="chevright"></ico>
+                    </button>
 
                   <button class="ax-texto-btn ax-izq" *ngIf="!n.mas" (click)="n.mas=true">+ Marca, modelo o serie</button>
                   <div class="ax-mas-datos" *ngIf="n.mas">
@@ -5617,6 +5667,20 @@ export class VehiculosComponent {
     .ax-persona{display:flex;align-items:center;gap:10px;background:#fff;border:1.5px solid #e3e9f1;border-radius:14px;padding:0 4px 0 14px;cursor:pointer}
     .ax-persona ico{width:18px;height:18px;color:#8a97a8;flex-shrink:0}
     .ax-persona select{flex:1;min-width:0;border:0;background:transparent;height:50px;font-size:15.5px;font-family:inherit;color:#14243a;outline:0}
+    .ax-persona-btn{width:100%;height:58px;padding:0 12px 0 14px;font-family:inherit;text-align:left;transition:border-color .15s}
+    .ax-persona-btn:hover{border-color:#c9d5e3}
+    .ax-persona-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+    .ax-persona-txt small{font-size:11.5px;color:#8a97a8;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+    .ax-persona-txt b{font-size:15.5px;color:#14243a;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .ax-fondo-arriba{z-index:195}
+    .ax-pp{padding:10px 14px}
+    .ax-pp-ini{width:40px;height:40px;border-radius:50%;background:linear-gradient(140deg,#eef4fb,#dfe9f5);color:#244c78;display:grid;place-items:center;flex-shrink:0;font-weight:800;font-size:14px;letter-spacing:.02em}
+    .ax-pp-otra{background:linear-gradient(140deg,#fff1df,#ffe2bf);color:#c4670f}
+    .ax-pp-nadie{background:#f1f4f8;color:#8a97a8}.ax-pp-nadie ico{width:18px;height:18px}
+    .ax-pp-on{box-shadow:0 0 0 2px #3aa876,0 4px 14px #17263d0a}
+    .ax-pp-check{width:20px;height:20px;color:#21835a;flex-shrink:0}
+    .ax-sub-hoja{margin:12px 4px 2px}
+    .ax-texto-chico{font-size:13px;padding:4px 14px 10px;color:#a3aebb}
     .ax-etq{display:inline-block;font-family:"SFMono-Regular",Consolas,monospace;font-weight:700;font-size:13px;background:#eaf1fa;color:#244c78;border-radius:8px;padding:5px 10px;margin-bottom:10px}
     .ax-lista-hoja{max-height:44vh;overflow:auto;padding:2px 2px 6px}
     .ax-lector{display:flex;align-items:center;gap:14px;background:#fff;border-radius:20px;padding:16px 18px;box-shadow:0 1px 2px #17263d0f,0 6px 18px #17263d0d}
@@ -11358,16 +11422,70 @@ export class AppComponent {
   }
 
   // Personas de la sede (y la que ya tiene el bien, aunque sea de otra)
-  // Todas las personas activas: primero las de la sede donde se está revisando, luego las demás
-  actPersonas(actual: any): { aqui: { id: any; nombre: string }[]; otras: { id: any; nombre: string }[] } {
-    return this.actMemo('per-' + actual, [this.catalogs.personas, this.act.idSede], () => {
+  // Personas para elegir: sin búsqueda, solo las de la sede donde se está; al escribir, de todas las sedes (máx. 30)
+  actPersonasLista(q: string): { aqui: any[]; otras: any[]; mas: boolean } {
+    return this.actMemo('pp', [this.catalogs.personas, this.act.idSede, q], () => {
+      const t = this.norm(q || '').trim();
+      const palabras = t.split(/\s+/).filter(Boolean);
       const aqui: any[] = [], otras: any[] = [];
       for (const p of (this.catalogs.personas || [])) {
-        if (p.estatus === false && p.id_persona !== actual) continue;
-        (p.id_sede === this.act.idSede ? aqui : otras).push({ id: p.id_persona, nombre: p.nombre_completo || '' });
+        if (p.estatus === false) continue;
+        const enSede = p.id_sede === this.act.idSede;
+        if (!t && !enSede) continue;
+        const nombre = String(p.nombre_completo || '');
+        if (t) {
+          const txt = this.norm(nombre + ' ' + (p.numero_empleado || '') + ' ' + (p.nombre_puesto || ''));
+          if (!palabras.every(w => txt.includes(w))) continue;
+        }
+        const ini = nombre.trim().split(/\s+/).slice(0, 2).map(w => w[0] || '').join('').toUpperCase();
+        (enSede ? aqui : otras).push({ id: p.id_persona, nombre, ini, puesto: p.nombre_puesto || '', sede: p.nombre_sede || '' });
       }
       const orden = (x: any, y: any) => x.nombre.localeCompare(y.nombre, 'es');
-      return { aqui: aqui.sort(orden), otras: otras.sort(orden) };
+      aqui.sort(orden); otras.sort(orden);
+      const tope = 30, mas = t ? aqui.length + otras.length > tope : false;
+      const a = t ? aqui.slice(0, tope) : aqui;
+      return { aqui: a, otras: otras.slice(0, Math.max(0, tope - a.length)), mas };
+    });
+  }
+
+  actAbrirPersonas(destino: any): void {
+    this.act.pp = { destino, q: '' };
+    let tactil = false;
+    try { tactil = window.matchMedia('(pointer: coarse)').matches; } catch { /* */ }
+    if (!tactil) setTimeout(() => document.getElementById('ax-pp-q')?.focus(), 60);
+  }
+
+  actElegirPersona(id: any): void {
+    const pp = this.act.pp;
+    if (pp) pp.destino.persona = id;
+    this.act.pp = null;
+  }
+
+  // Despega la etiqueta del bien (queda libre para usarse en otro). Sirve para corregir errores o pruebas.
+  retirarEtiqueta(b: any): void {
+    const cod = b?.etiqueta;
+    if (!cod) return;
+    this.abrirDialogo({
+      tipo: 'peligro', icono: '⌫',
+      titulo: '¿Retirar la etiqueta ' + cod + '?',
+      mensaje: this.titulo(b.articulo || 'Este bien') + ' (' + (b.clave || 's/clave') + ') se quedará sin etiqueta. ' +
+        'La etiqueta vuelve a quedar en blanco y se puede pegar en otro bien.',
+      textoConfirmar: 'Sí, retirar',
+      accion: terminar => {
+        this.http.post<any>(this.api + '/etiquetas/' + encodeURIComponent(cod) + '/liberar', {}).subscribe({
+          next: () => {
+            terminar();
+            b.etiqueta = null;
+            for (const x of this.bienes) if (x.id_bien === b.id_bien) x.etiqueta = null;
+            if (this.bienSeleccionado?.id_bien === b.id_bien) this.bienSeleccionado.etiqueta = null;
+            this.qrAbierto = null;
+            if (this.act.ficha?.b?.id_bien === b.id_bien) this.act.ficha = null;
+            this.act.ver++;
+            this.notificar('exito', 'Etiqueta retirada', cod + ' quedó libre para usarse en otro bien.', 2500);
+          },
+          error: e => terminar(this.mensajeError(e, 'No se pudo retirar la etiqueta.'))
+        });
+      }
     });
   }
 
@@ -11558,7 +11676,7 @@ export class AppComponent {
     return h;
   }
 
-  private actNombrePersona(id: any): string | null {
+  actNombrePersona(id: any): string | null {
     if (id == null) return null;
     return (this.catalogs.personas || []).find((p: any) => p.id_persona === id)?.nombre_completo || null;
   }
