@@ -1030,7 +1030,7 @@ export class ElegirComponent {
                     </svg>
                     <div class="ps-gauge-txt">
                       <ng-container *ngIf="P.v.km_anterior != null">
-                        <b [ngClass]="'c-' + G.color">{{ P.km && !app.psKmMenor ? '+' + (G.dif | number) : '—' }}</b>
+                        <b [ngClass]="'c-' + G.color">{{ app.psKmCompleto && !app.psKmMenor ? '+' + (G.dif | number) : '—' }}</b>
                         <small>km desde el último Pit Stop<ng-container *ngIf="G.sem"> · lo normal: ~{{ G.sem | number }}</ng-container></small>
                       </ng-container>
                       <ng-container *ngIf="P.v.km_anterior == null"><b>1.º</b><small>Primer Pit Stop de este vehículo</small></ng-container>
@@ -1038,13 +1038,14 @@ export class ElegirComponent {
                   </ng-container>
                   <div class="ps-odo" [class.mal]="app.psKmMenor">
                     <span class="ps-odo-tag">ODO</span>
-                    <span class="ps-dig" *ngFor="let d of app.odometroDigitos(P.km); trackBy: app.trackIdx"><span class="ps-rollo" [style.transform]="'translateY(-' + (d === ' ' ? 0 : +d) * 10 + '%)'"><i *ngFor="let n of [0,1,2,3,4,5,6,7,8,9]">{{ d === ' ' ? '' : n }}</i></span></span>
+                    <span class="ps-dig" *ngFor="let d of app.odometroDigitos(P.km); let i = index; trackBy: app.trackIdx" [class.vacio]="d === ' '" [class.cursor]="i === P.km.length"><span class="ps-rollo" [style.transform]="'translateY(-' + (d === ' ' ? 0 : +d) * 10 + '%)'"><i *ngFor="let n of [0,1,2,3,4,5,6,7,8,9]">{{ d === ' ' ? '' : n }}</i></span></span>
                     <em>km</em>
                   </div>
                 </div>
                 <p class="ps-km-info" [class.mal]="app.psKmMenor" *ngIf="P.v.km_anterior != null">
                   <ng-container *ngIf="!P.km">Último reporte: {{ P.v.km_anterior | number }} km<ng-container *ngIf="P.v.km_fecha"> · {{ P.v.km_fecha | date:'d MMM' }}</ng-container></ng-container>
-                  <ng-container *ngIf="P.km && !app.psKmMenor">Antes: {{ P.v.km_anterior | number }} km</ng-container>
+                  <ng-container *ngIf="P.km && !app.psKmCompleto">Faltan dígitos · el último fue {{ P.v.km_anterior | number }} km</ng-container>
+                  <ng-container *ngIf="app.psKmCompleto && !app.psKmMenor">Antes: {{ P.v.km_anterior | number }} km</ng-container>
                   <ng-container *ngIf="P.km && app.psKmMenor">Debe ser mayor a {{ P.v.km_anterior | number }} km</ng-container>
                 </p>
                 <div class="ps-servicio" *ngIf="app.psServicio as S" [ngClass]="'c-' + S.color">
@@ -1054,12 +1055,6 @@ export class ElegirComponent {
                 <div class="ps-teclado">
                   <button *ngFor="let k of ['1','2','3','4','5','6','7','8','9','⌫','0','✓']" [class.ok]="k==='✓'" [class.borrar]="k==='⌫'" (click)="app.psTecla(k)">{{ k }}</button>
                 </div>
-                <label class="ps-foto-tab" [class.on]="P.fotoTableroUrl">
-                  <img *ngIf="P.fotoTableroUrl" [src]="P.fotoTableroUrl" alt="">
-                  <span *ngIf="!P.fotoTableroUrl">📷</span>
-                  <span class="ps-foto-tab-t"><b>{{ P.fotoTableroUrl ? 'Foto del tablero lista' : 'Foto del tablero' }}</b><small>{{ P.fotoTableroUrl ? 'Toca para cambiarla' : 'Opcional · respalda tu kilometraje' }}</small></span>
-                  <input type="file" accept="image/*" capture="environment" hidden (change)="app.psFotoTablero($event)">
-                </label>
               </div>
 
               <!-- 2. Llantas y luces -->
@@ -1644,17 +1639,16 @@ export class ElegirComponent {
     .ps-dig{width:32px;height:50px;overflow:hidden;border-radius:6px;background:linear-gradient(#1a2433,#0b121c 45%,#0b121c 55%,#1a2433);box-shadow:inset 0 0 0 1px #ffffff12}
     .ps-rollo{display:flex;flex-direction:column;transition:transform .35s cubic-bezier(.2,.9,.3,1.2)}
     .ps-rollo i{height:50px;display:grid;place-items:center;font-style:normal;font-family:"SFMono-Regular",Consolas,monospace;font-size:32px;font-weight:700;color:#f3f6fa}
-    .ps-dig:last-of-type .ps-rollo i{color:#ffb45c}
+    .ps-dig{transition:box-shadow .2s}
+    .ps-dig.vacio{background:#0b121c;box-shadow:inset 0 0 0 1px #ffffff0d}
+    .ps-dig.cursor{box-shadow:inset 0 0 0 2px #ff9a4a;animation:psCursor 1s ease-in-out infinite}
+    @keyframes psCursor{50%{box-shadow:inset 0 0 0 2px #ff9a4a40}}
     .ps-odo em{font-style:normal;font-weight:800;color:#8fa0b6;margin-left:6px;font-size:15px}
     .ps-servicio{display:flex;align-items:center;gap:10px;width:100%;max-width:330px;margin:0 0 14px;background:#ffffff10;border-radius:14px;padding:9px 12px;box-sizing:border-box}
     .ps-servicio>span{font-size:18px}.ps-servicio>div{flex:1;display:flex;flex-direction:column;gap:6px}.ps-servicio b{font-size:13.5px}
     .ps-servicio i{display:block;height:6px;border-radius:3px;background:#ffffff1c;overflow:hidden}.ps-servicio i em{display:block;height:100%;border-radius:3px;transition:width .4s}
     .ps-servicio.c-verde i em{background:#2bb673}.ps-servicio.c-ambar i em{background:#f2a33a}.ps-servicio.c-ambar b{color:#ffd29b}
     .ps-servicio.c-rojo i em{background:#ff4b55}.ps-servicio.c-rojo b{color:#ff9aa0}
-    .ps-foto-tab{display:flex;align-items:center;gap:12px;width:100%;max-width:330px;margin-top:12px;background:#ffffff10;border:1.5px dashed #ffffff30;border-radius:16px;padding:10px 14px;cursor:pointer;box-sizing:border-box}
-    .ps-foto-tab.on{border-style:solid;border-color:#2bb67380;background:#2bb6731a}
-    .ps-foto-tab>span:first-of-type{font-size:22px}.ps-foto-tab img{width:44px;height:44px;border-radius:10px;object-fit:cover}
-    .ps-foto-tab-t{display:flex;flex-direction:column;gap:1px}.ps-foto-tab-t b{font-size:14.5px}.ps-foto-tab-t small{font-size:12.5px;color:#b9c6d7}
     .ps-km-info{margin:0 0 16px;font-size:16px;font-weight:700;color:#7fe0ad;min-height:22px}.ps-km-info.mal{color:#ff9aa0}
     .ps-teclado{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;width:100%;max-width:330px}
     .ps-teclado button{height:62px;border:0;border-radius:18px;background:#ffffff14;color:#fff;font-family:inherit;font-size:26px;font-weight:700;cursor:pointer;transition:background .1s,transform .08s}
@@ -12903,7 +12897,7 @@ export class AppComponent {
     this.ps = { id, qr: qr || null, v: null, paso: 1, km: '', error: '', enviando: false, resultado: null, anim: false, inicio: Date.now(),
                 llantas: { di: 'ok', dd: 'ok', ti: 'ok', td: 'ok' }, luces: { fi: 'ok', fd: 'ok', ti: 'ok', td: 'ok' },
                 niveles: { aceite: 70, anticongelante: 70, frenos: 70, direccion: 70, limpia: 70 }, aspecto: { aceite: 'normal', anticongelante: 'normal', frenos: 'normal' },
-                fuga: { hay: false, color: '' }, testigos: [], motorParpadea: false, golpe: { hay: false, nota: '' }, foto: null, fotoUrl: '', fotoTablero: null, fotoTableroUrl: '' };
+                fuga: { hay: false, color: '' }, testigos: [], motorParpadea: false, golpe: { hay: false, nota: '' }, foto: null, fotoUrl: '' };
     this.psInfo = null;
     const P = this.ps;
     this.http.get<any>(this.api + '/vehiculos/' + id + '/pitstop' + (qr ? '?qr=' + encodeURIComponent(qr) : '')).subscribe({
@@ -12922,18 +12916,26 @@ export class AppComponent {
     });
   }
 
+  // Tantas casillas como el último kilometraje (mínimo 6); se llenan de izquierda a derecha
   odometroDigitos(km: string): string[] {
-    return String(km || '').padStart(7, '0').split('');
+    const n = Math.min(7, Math.max(6, String(this.ps?.v?.km_anterior ?? '').length, (km || '').length));
+    return String(km || '').padEnd(n, ' ').split('');
+  }
+
+  // Ya escribió todos los dígitos (al menos tantos como el último reporte)
+  get psKmCompleto(): boolean {
+    const P = this.ps;
+    return !!P?.km && (P.v?.km_anterior == null || P.km.length >= String(P.v.km_anterior).length);
   }
 
   get psKmMenor(): boolean {
     const P = this.ps;
-    return !!P?.km && P.v?.km_anterior != null && +P.km < P.v.km_anterior;
+    return this.psKmCompleto && P.v?.km_anterior != null && +P.km < P.v.km_anterior;
   }
 
   get psKmValido(): boolean {
     const P = this.ps;
-    return !!P?.km && +P.km > 0 && !this.psKmMenor;
+    return !!P?.km && +P.km > 0 && this.psKmCompleto && !this.psKmMenor;
   }
 
   psTecla(k: string): void {
@@ -13015,7 +13017,7 @@ export class AppComponent {
     if (!P?.v) return null;
     const sem = Math.max(0, +P.v.km_semana || 0);
     const max = Math.max(500, Math.ceil((sem > 0 ? sem * 2.5 : 1000) / 100) * 100);
-    const dif = P.km && P.v.km_anterior != null && !this.psKmMenor ? Math.max(0, +P.km - P.v.km_anterior) : 0;
+    const dif = this.psKmCompleto && P.v.km_anterior != null && !this.psKmMenor ? Math.max(0, +P.km - P.v.km_anterior) : 0;
     const f = Math.min(1, dif / max);
     const fNormal = sem > 0 ? Math.min(1, sem * 1.5 / max) : 0.6;
     const color = dif > Math.max(sem * 4, 2500) ? 'rojo' : f <= fNormal ? 'verde' : 'ambar';
@@ -13031,20 +13033,11 @@ export class AppComponent {
   get psServicio(): any {
     const P = this.ps;
     if (!P?.v || P.v.servicio_restan_km == null) return null;
-    const dif = P.km && P.v.km_anterior != null && !this.psKmMenor ? +P.km - P.v.km_anterior : 0;
+    const dif = this.psKmCompleto && P.v.km_anterior != null && !this.psKmMenor ? +P.km - P.v.km_anterior : 0;
     const restan = P.v.servicio_restan_km - dif, cada = P.v.servicio_cada_km || 10000;
     const pct = Math.max(0, Math.min(100, (1 - restan / cada) * 100));
     if (restan <= 0) return { color: 'rojo', pct: 100, texto: 'Servicio pasado por ' + (-restan).toLocaleString('es-MX') + ' km' };
     return { color: restan <= 1000 ? 'ambar' : 'verde', pct, texto: 'Servicio en ' + restan.toLocaleString('es-MX') + ' km' };
-  }
-
-  async psFotoTablero(ev: Event): Promise<void> {
-    const input = ev.target as HTMLInputElement;
-    const archivo = input.files?.[0];
-    input.value = '';
-    if (!archivo || !this.ps) return;
-    try { this.ps.fotoTablero = await this.comprimirFoto(archivo); this.ps.fotoTableroUrl = URL.createObjectURL(this.ps.fotoTablero); }
-    catch { this.ps.error = 'No se pudo usar la foto.'; }
   }
 
   psTestigo(k: string): void {
@@ -13126,7 +13119,7 @@ export class AppComponent {
                               motor_parpadea: P.testigos.includes('motor') && P.motorParpadea, golpe: { hay: P.golpe.hay, nota: P.golpe.nota || '' } })
     };
     if (P.qr) campos.qr = P.qr;
-    const res = await this.enviarOEncolar({ url: '/vehiculos/' + P.id + '/pitstop', campos, foto: P.golpe.hay ? P.foto : undefined, foto2: P.fotoTablero || undefined, descripcion: 'Pit Stop ' + (P.v?.placas || '') });
+    const res = await this.enviarOEncolar({ url: '/vehiculos/' + P.id + '/pitstop', campos, foto: P.golpe.hay ? P.foto : undefined, descripcion: 'Pit Stop ' + (P.v?.placas || '') });
     P.enviando = false;
     if (!res.ok) { P.error = res.error || 'No se pudo enviar.'; return; }
     P.resultado = res.offline ? { offline: true } : res.r;
@@ -15344,7 +15337,6 @@ export class AppComponent {
       const fd = new FormData();
       Object.entries(op.campos).forEach(([k, v]) => fd.append(k, String(v)));
       if (op.foto) fd.append('foto', op.foto, 'foto.jpg');
-      if (op.foto2) fd.append('fotoTablero', op.foto2, 'tablero.jpg');
       return firstValueFrom(this.http.post<any>(this.api + op.url, fd));
     }
     return firstValueFrom(this.http.post<any>(this.api + op.url, op.body || {}));
