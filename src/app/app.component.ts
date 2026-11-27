@@ -12318,9 +12318,12 @@ export class AppComponent {
     this.http.post<any>(this.api + '/vehiculos/responsables/ligar', { pares }).subscribe({
       next: r => {
         L.guardando = false;
-        L.items = L.items.filter((v: any) => v.elegido == null);
-        const n = r?.ligados ?? pares.length;
-        this.notificar('exito', n === 1 ? '1 vehículo ligado' : n + ' vehículos ligados', 'Ya puedes darles acceso.', 2500);
+        const fallas: string[] = r?.fallas || [];
+        const fallaron = new Set(fallas.map(f => Number((f.match(/^Vehículo (\d+)/) || [])[1])));
+        L.items = L.items.filter((v: any) => v.elegido == null || fallaron.has(Number(v.id_vehiculo)));
+        const n = r?.ligados ?? 0;
+        if (n) this.notificar('exito', n === 1 ? '1 vehículo ligado' : n + ' vehículos ligados', 'Ya puedes darles acceso.', 2500);
+        if (fallas.length) this.notificar('error', fallas.length === 1 ? '1 no se pudo ligar' : fallas.length + ' no se pudieron ligar', fallas.slice(0, 3).join(' · '), 8000);
         if (!L.items.length) this.vhLista2 = null;
         this.vhRefrescar();
       },
