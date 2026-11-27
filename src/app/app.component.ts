@@ -772,6 +772,13 @@ export class ElegirComponent {
                       </button>
                     </div>
 
+                    <details class="vx-desglose" *ngIf="F.desglose">
+                      <summary>¿De dónde sale el {{ F.salud }}% de salud?</summary>
+                      <span><em>100</em>Todo vehículo empieza con 100</span>
+                      <span *ngFor="let d of F.desglose"><em>−{{ d.puntos }}</em>{{ d.motivo }}</span>
+                      <span *ngIf="!F.desglose.length"><em>✓</em>Nada le resta: todo al día</span>
+                    </details>
+
                     <div class="vx-km" *ngIf="F.km_actual">
                       <span><b>{{ F.km_actual | number }}</b><small>km actuales</small></span>
                       <span *ngIf="F.servicio?.km_semana"><b>{{ F.servicio.km_semana | number }}</b><small>km por semana</small></span>
@@ -1006,18 +1013,53 @@ export class ElegirComponent {
               <!-- 1. Odómetro -->
               <div class="ps-paso" *ngIf="P.paso===1">
                 <h2>¿Cuánto marca el tablero?</h2>
-                <div class="ps-odo">
-                  <span class="ps-dig" *ngFor="let d of app.odometroDigitos(P.km); trackBy: app.trackIdx"><span class="ps-rollo" [style.transform]="'translateY(-' + (d === ' ' ? 0 : +d) * 10 + '%)'"><i *ngFor="let n of [0,1,2,3,4,5,6,7,8,9]">{{ d === ' ' ? '' : n }}</i></span></span>
-                  <em>km</em>
+                <p class="ps-ayuda">El número del odómetro (<b>ODO</b>), no el del viaje (TRIP).</p>
+                <div class="ps-cluster">
+                  <ng-container *ngIf="app.psGauge as G">
+                    <svg viewBox="0 0 240 142" class="ps-gauge">
+                      <path [attr.d]="app.psArco(0, 1)" class="g-bg"/>
+                      <path [attr.d]="app.psArco(0, G.fNormal)" class="g-z g-verde"/>
+                      <path [attr.d]="app.psArco(G.fNormal, 1)" class="g-z g-ambar"/>
+                      <path *ngIf="G.f > 0" [attr.d]="app.psArco(0, G.f, 78)" class="g-val" [ngClass]="'g-' + G.color"/>
+                      <line *ngFor="let m of app.psMarcas" [attr.x1]="m.x1" [attr.y1]="m.y1" [attr.x2]="m.x2" [attr.y2]="m.y2" class="g-tick" [class.g-tick-l]="m.larga"/>
+                      <text x="30" y="140" class="g-lbl">0</text>
+                      <text x="120" y="22" class="g-lbl" text-anchor="middle">{{ G.max / 2 | number }}</text>
+                      <text x="210" y="140" class="g-lbl" text-anchor="end">{{ G.max | number }}</text>
+                      <g class="g-aguja" [style.transform]="'rotate(' + G.ang + 'deg)'"><path d="M116.5 122 L120 46 L123.5 122 Z"/></g>
+                      <circle cx="120" cy="122" r="9" class="g-eje"/>
+                    </svg>
+                    <div class="ps-gauge-txt">
+                      <ng-container *ngIf="P.v.km_anterior != null">
+                        <b [ngClass]="'c-' + G.color">{{ P.km && !app.psKmMenor ? '+' + (G.dif | number) : '—' }}</b>
+                        <small>km desde el último Pit Stop<ng-container *ngIf="G.sem"> · lo normal: ~{{ G.sem | number }}</ng-container></small>
+                      </ng-container>
+                      <ng-container *ngIf="P.v.km_anterior == null"><b>1.º</b><small>Primer Pit Stop de este vehículo</small></ng-container>
+                    </div>
+                  </ng-container>
+                  <div class="ps-odo" [class.mal]="app.psKmMenor">
+                    <span class="ps-odo-tag">ODO</span>
+                    <span class="ps-dig" *ngFor="let d of app.odometroDigitos(P.km); trackBy: app.trackIdx"><span class="ps-rollo" [style.transform]="'translateY(-' + (d === ' ' ? 0 : +d) * 10 + '%)'"><i *ngFor="let n of [0,1,2,3,4,5,6,7,8,9]">{{ d === ' ' ? '' : n }}</i></span></span>
+                    <em>km</em>
+                  </div>
                 </div>
                 <p class="ps-km-info" [class.mal]="app.psKmMenor" *ngIf="P.v.km_anterior != null">
-                  <ng-container *ngIf="!P.km">Último reporte: {{ P.v.km_anterior | number }} km</ng-container>
-                  <ng-container *ngIf="P.km && !app.psKmMenor">+{{ (+P.km - P.v.km_anterior) | number }} km esta semana</ng-container>
+                  <ng-container *ngIf="!P.km">Último reporte: {{ P.v.km_anterior | number }} km<ng-container *ngIf="P.v.km_fecha"> · {{ P.v.km_fecha | date:'d MMM' }}</ng-container></ng-container>
+                  <ng-container *ngIf="P.km && !app.psKmMenor">Antes: {{ P.v.km_anterior | number }} km</ng-container>
                   <ng-container *ngIf="P.km && app.psKmMenor">Debe ser mayor a {{ P.v.km_anterior | number }} km</ng-container>
                 </p>
+                <div class="ps-servicio" *ngIf="app.psServicio as S" [ngClass]="'c-' + S.color">
+                  <span>🔧</span>
+                  <div><b>{{ S.texto }}</b><i><em [style.width.%]="S.pct"></em></i></div>
+                </div>
                 <div class="ps-teclado">
                   <button *ngFor="let k of ['1','2','3','4','5','6','7','8','9','⌫','0','✓']" [class.ok]="k==='✓'" [class.borrar]="k==='⌫'" (click)="app.psTecla(k)">{{ k }}</button>
                 </div>
+                <label class="ps-foto-tab" [class.on]="P.fotoTableroUrl">
+                  <img *ngIf="P.fotoTableroUrl" [src]="P.fotoTableroUrl" alt="">
+                  <span *ngIf="!P.fotoTableroUrl">📷</span>
+                  <span class="ps-foto-tab-t"><b>{{ P.fotoTableroUrl ? 'Foto del tablero lista' : 'Foto del tablero' }}</b><small>{{ P.fotoTableroUrl ? 'Toca para cambiarla' : 'Opcional · respalda tu kilometraje' }}</small></span>
+                  <input type="file" accept="image/*" capture="environment" hidden (change)="app.psFotoTablero($event)">
+                </label>
               </div>
 
               <!-- 2. Llantas y luces -->
@@ -1055,28 +1097,61 @@ export class ElegirComponent {
 
               <!-- 3. Niveles -->
               <div class="ps-paso" *ngIf="P.paso===3">
-                <h2>Niveles</h2>
-                <p class="ps-ayuda">Vienen llenos. Si alguno está bajo, arrastra su barra hacia abajo.</p>
+                <h2>Niveles bajo el cofre</h2>
+                <p class="ps-ayuda">Motor <b>apagado y frío</b>, en piso plano. Toca dónde está el líquido entre las marcas MIN y MAX.</p>
                 <p class="ps-pregunta" *ngFor="let q of app.psPreguntasNiveles">💬 {{ q.texto }}</p>
-                <div class="ps-niveles">
-                  <div class="ps-nivel" *ngFor="let n of app.psNiveles" [class.pide]="app.psPide(n.k)">
-                    <div class="ps-tubo" (pointerdown)="app.psArrastrar($event, n.k)">
-                      <div class="ps-liquido" [ngClass]="'c-' + app.colorNivel(P.niveles[n.k])" [style.height.%]="P.niveles[n.k]"></div>
-                      <span class="ps-marca" style="bottom:35%"></span>
+                <div class="ps-fluidos">
+                  <div class="ps-fluido" *ngFor="let n of app.psNiveles" [class.pide]="app.psPide(n.k)" [class.na]="P.niveles[n.k] === null" [ngClass]="'c-' + app.colorNivel(P.niveles[n.k])">
+                    <div class="ps-dep" (pointerdown)="app.psArrastrar($event, n.k)" [style.--liq]="n.color">
+                      <span class="ps-dep-tapa">{{ n.icono }}</span>
+                      <div class="ps-dep-cuerpo">
+                        <div class="ps-dep-liq" [style.height.%]="P.niveles[n.k] ?? 0"><i></i></div>
+                        <span class="ps-dep-linea max"><small>MAX</small></span>
+                        <span class="ps-dep-linea min"><small>MIN</small></span>
+                      </div>
                     </div>
-                    <b>{{ app.textoNivel(P.niveles[n.k]) }}</b>
-                    <small>{{ n.nombre }}</small>
+                    <div class="ps-fl-info">
+                      <div class="ps-fl-tit">
+                        <b>{{ n.nombre }}</b>
+                        <button class="ps-fl-como" [class.on]="app.psInfo === n.k" (click)="app.psInfo = app.psInfo === n.k ? null : n.k" aria-label="¿Cómo se revisa?">?</button>
+                      </div>
+                      <span class="ps-fl-estado">{{ app.textoNivel(P.niveles[n.k]) }}</span>
+                      <div class="ps-seg">
+                        <button *ngFor="let o of (n.noTiene ? app.psOpcionesNivelNA : app.psOpcionesNivel)" [class.on]="P.niveles[n.k] === o.v" (click)="app.psNivel(n.k, o.v)">{{ o.t }}</button>
+                      </div>
+                      <div class="ps-aspecto" *ngIf="n.aspectos && P.niveles[n.k] !== null">
+                        <small>Se ve:</small>
+                        <button *ngFor="let a of n.aspectos" [class.on]="P.aspecto[n.k] === a.k" [class.mal]="a.mal" (click)="P.aspecto[n.k] = a.k">
+                          <i [style.background]="a.c"></i>{{ a.t }}
+                        </button>
+                      </div>
+                      <p class="ps-como" *ngIf="app.psInfo === n.k">{{ n.como }}</p>
+                    </div>
                   </div>
                 </div>
+
+                <label class="ps-golpe ps-fuga-sw" [class.on]="P.fuga.hay">
+                  <span><b>¿Hay manchas o goteo debajo?</b><small>{{ P.fuga.hay ? 'Elige el color de la mancha' : 'Mira el piso donde se estaciona' }}</small></span>
+                  <span class="sw" [class.on]="P.fuga.hay" (click)="P.fuga.hay = !P.fuga.hay; P.fuga.color = ''; $event.preventDefault()"><i></i></span>
+                </label>
+                <div class="ps-fugas" *ngIf="P.fuga.hay">
+                  <button *ngFor="let f of app.psFugas" [class.on]="P.fuga.color === f.k" (click)="P.fuga.color = f.k">
+                    <i [style.background]="f.c"></i><b>{{ f.t }}</b><small>{{ f.que }}</small>
+                  </button>
+                </div>
+                <p class="ps-fuga-ok" *ngIf="P.fuga.hay && P.fuga.color === 'transparente'">✓ Es agua del aire acondicionado. Es normal, no se reporta.</p>
               </div>
 
               <!-- 4. Tablero -->
               <div class="ps-paso" *ngIf="P.paso===4">
                 <h2>¿Algún testigo encendido?</h2>
-                <p class="ps-ayuda">Toca los que veas prendidos en el tablero. Si no hay, sigue.</p>
-                <div class="ps-tablero">
-                  <button *ngFor="let t of app.psTestigos" class="ps-testigo" [class.on]="P.testigos.includes(t.k)" [ngClass]="'t-' + t.color" (click)="app.psTestigo(t.k)">
-                    <svg viewBox="0 0 48 48"><ng-container [ngSwitch]="t.k">
+                <p class="ps-ayuda">Con el motor <b>ya encendido</b> (al girar la llave todos prenden un segundo). Toca los que sigan prendidos.</p>
+                <p class="ps-pregunta" *ngFor="let q of app.psPreguntas('testigo')">💬 {{ q.texto }}</p>
+                <ng-container *ngFor="let g of app.psGruposTestigo">
+                  <div class="ps-grupo" [ngClass]="'g-' + g.color"><i></i><b>{{ g.titulo }}</b><small>{{ g.sub }}</small></div>
+                  <div class="ps-tablero">
+                    <button *ngFor="let t of g.lista" class="ps-testigo" [class.on]="P.testigos.includes(t.k)" [ngClass]="'t-' + t.color" (click)="app.psTestigo(t.k)">
+                      <svg viewBox="0 0 48 48"><ng-container [ngSwitch]="t.k">
                       <g *ngSwitchCase="'motor'"><path d="M9 21h6l3-4h11l2 4h5v4h3v8h-3v4h-6l-3 3H18l-4-4H9z"/></g>
                       <g *ngSwitchCase="'aceite'"><path d="M6 23h18l6-4 12 3-12 10H10z"/><path d="M30 19l2-3"/><path d="M40 28c0 2 2 3 2 5"/></g>
                       <g *ngSwitchCase="'bateria'"><rect x="8" y="16" width="32" height="20" rx="2"/><path d="M14 16v-3h4v3M30 16v-3h4v3M14 26h6M31 23v6M28 26h6"/></g>
@@ -1085,10 +1160,28 @@ export class ElegirComponent {
                       <g *ngSwitchCase="'abs'"><circle cx="24" cy="24" r="12"/><path d="M8 14a19 19 0 0 0 0 20M40 14a19 19 0 0 1 0 20"/><text x="24" y="28" text-anchor="middle" class="ps-txt">ABS</text></g>
                       <g *ngSwitchCase="'bolsa'"><circle cx="17" cy="11" r="4"/><path d="M14 19l-3 12h10l6 8M17 19l6 8"/><circle cx="33" cy="25" r="7"/></g>
                       <g *ngSwitchCase="'llantas'"><path d="M12 14c-3 4-3 16 0 20h24c3-4 3-16 0-20"/><path d="M10 38h28"/><path d="M24 19v8M24 31v1"/></g>
+                    
+                      <g *ngSwitchCase="'direccion'"><circle cx="21" cy="25" r="13"/><circle cx="21" cy="25" r="3"/><path d="M8 25h10M24 25h10M21 28v10"/><path d="M41 9v9M41 22v1"/></g>
+                      <g *ngSwitchCase="'estabilidad'"><path d="M11 23l4-8h18l4 8v8H11z"/><circle cx="17" cy="31" r="2.5"/><circle cx="31" cy="31" r="2.5"/><path d="M10 41c3-3 6 3 9 0M27 41c3-3 6 3 9 0"/></g>
+                      <g *ngSwitchCase="'balatas'"><circle cx="24" cy="24" r="10"/><path d="M11 14a16 16 0 0 0 0 20M37 14a16 16 0 0 1 0 20" stroke-dasharray="3 3"/></g>
+                      <g *ngSwitchCase="'servicio'"><path d="M31 8a8 8 0 0 0-7.5 10.5L9 33l6 6 14.5-14.5A8 8 0 0 0 40 17l-5 3-4.5-2-1-4.5z"/></g>
+                      <g *ngSwitchCase="'diesel'"><path d="M7 24c0-7 5-7 5 0s5 7 5 0 5-7 5 0 5 7 5 0 5-7 5 0 5 7 5 0 5-7 5 0"/></g>
+                      <g *ngSwitchCase="'transmision'"><circle cx="22" cy="24" r="6"/><path d="M22 9v5M22 34v5M7 24h5M32 24h5M11.4 13.4l3.5 3.5M29.1 31.1l3.5 3.5M11.4 34.6l3.5-3.5M29.1 16.9l3.5-3.5"/><path d="M42 12v14"/><circle cx="42" cy="30" r="3"/></g>
                     </ng-container></svg>
-                    <small>{{ t.nombre }}</small>
-                  </button>
+                      <small>{{ t.nombre }}</small>
+                    </button>
+                  </div>
+                </ng-container>
+                <div class="ps-tdet" *ngFor="let t of app.psTestigosOn" [ngClass]="'t-' + t.color">
+                  <b>{{ t.nombre }}</b>
+                  <p>{{ t.que }}</p>
+                  <p class="ps-tdet-hacer">👉 {{ t.hacer }}</p>
+                  <label class="ps-tdet-sw" *ngIf="t.k === 'motor'">
+                    <span>¿Está <b>parpadeando</b>?</span>
+                    <span class="sw" [class.on]="P.motorParpadea" (click)="P.motorParpadea = !P.motorParpadea; $event.preventDefault()"><i></i></span>
+                  </label>
                 </div>
+                <p class="ps-fuga-ok" *ngIf="!P.testigos.length">✓ Ninguno encendido</p>
               </div>
 
               <!-- 5. Resumen -->
@@ -1096,7 +1189,8 @@ export class ElegirComponent {
                 <h2>{{ app.psProblemas.length ? 'Esto vamos a reportar' : 'Todo bien 👌' }}</h2>
                 <div class="ps-resumen">
                   <div class="ps-res-km"><b>{{ +P.km | number }}</b><small>km</small></div>
-                  <div class="ps-res-lista" *ngIf="app.psProblemas.length"><span *ngFor="let p of app.psProblemas"><i></i>{{ p }}</span></div>
+                  <div class="ps-res-lista" *ngIf="app.psProblemas.length"><span *ngFor="let p of app.psProblemasDet" [class.grave]="p.grave"><i></i>{{ p.t }}<em *ngIf="p.grave">Grave</em></span></div>
+                  <p class="ps-alerta" *ngIf="app.psHayGrave">⚠ Hay algo grave. Evita manejarlo lejos hasta que lo revisen.</p>
                   <p class="ps-ayuda" *ngIf="!app.psProblemas.length">Sin problemas. Tu vehículo está listo para la semana.</p>
                   <p class="ps-ayuda" *ngIf="app.psProblemas.length">Reportar problemas <b>no</b> te quita puntos: Juan Carlos los atiende.</p>
                 </div>
@@ -1123,7 +1217,14 @@ export class ElegirComponent {
                   <span *ngIf="R.yo">🔥 {{ R.yo.racha }} {{ R.yo.racha === 1 ? 'semana' : 'semanas' }}</span>
                   <span *ngIf="R.yo?.lugar">#{{ R.yo.lugar }} del podio</span>
                 </div>
-                <p class="ps-ayuda" *ngIf="R.problemas">Reportaste {{ R.problemas }} {{ R.problemas === 1 ? 'problema' : 'problemas' }}. Ya le avisamos a Juan Carlos.</p>
+                <p class="ps-ayuda" *ngIf="R.problemas">Reportaste {{ R.problemas }} {{ R.problemas === 1 ? 'problema' : 'problemas' }}<ng-container *ngIf="R.graves"> ({{ R.graves }} {{ R.graves === 1 ? 'grave' : 'graves' }})</ng-container>. Ya le avisamos a Juan Carlos.</p>
+                <div class="ps-desglose" *ngIf="R.desglose">
+                  <b>¿De dónde sale el {{ R.salud }}%?</b>
+                  <span class="ps-des-base"><em>100</em>Todo vehículo empieza con 100</span>
+                  <span *ngFor="let d of R.desglose"><em>−{{ d.puntos }}</em>{{ d.motivo }}</span>
+                  <span class="ps-des-ok" *ngIf="!R.desglose.length"><em>✓</em>Nada le resta: todo al día</span>
+                  <small>Cuenta seguro, verificación, tenencia, servicio, que el Pit Stop esté al día y los problemas sin atender (un grave resta 15, uno leve 5).</small>
+                </div>
               </ng-container>
               <ng-container *ngIf="R.offline">
                 <span class="vx-todo-ok ps-off"><span><ico n="check"></ico></span></span>
@@ -1433,6 +1534,10 @@ export class ElegirComponent {
     .vx-acceso{flex-shrink:0;border:0;background:#244c78;color:#fff;border-radius:10px;height:38px;padding:0 12px;font-family:inherit;font-weight:700;font-size:13.5px;cursor:pointer}
     .vx-acceso-ok{flex-shrink:0;display:inline-flex;align-items:center;gap:4px;color:#21835a;font-weight:700;font-size:13px;padding-right:8px}.vx-acceso-ok ico{width:15px;height:15px}
     .vx-items{display:flex;flex-direction:column;gap:8px}
+    .vx-desglose{margin-top:12px;background:#f5f7fa;border-radius:14px;padding:10px 14px}
+    .vx-desglose summary{cursor:pointer;font-weight:700;font-size:14px;color:#14243a}
+    .vx-desglose span{display:flex;gap:10px;font-size:13.5px;color:#4a5a6e;margin-top:6px}
+    .vx-desglose em{font-style:normal;font-weight:800;min-width:38px;color:#d0454c}.vx-desglose span:first-of-type em{color:#1f9a5f}
     .vx-item{display:flex;align-items:center;gap:12px;width:100%;border:0;background:#fff;border-radius:14px;padding:12px 14px;text-align:left;font-family:inherit;cursor:pointer;box-shadow:0 1px 2px #17263d0f}
     .vx-item>i{width:12px;height:12px;border-radius:50%;background:#c3ccd8;flex-shrink:0}
     .vx-item.e-verde>i{background:#2bb673}.vx-item.e-ambar>i{background:#f2a33a}.vx-item.e-rojo>i{background:#e0555c;box-shadow:0 0 0 4px #e0555c26}
@@ -1517,12 +1622,39 @@ export class ElegirComponent {
     .ps-paso h2{margin:0 0 6px;font-size:24px;font-weight:800;letter-spacing:-.02em;text-align:center}
     .ps-ayuda{margin:0 0 14px;color:#b9c6d7;font-size:14.5px;text-align:center;line-height:1.45}.ps-ayuda b{color:#fff}
     .ps-pregunta{margin:0 0 12px;background:#f28c1e26;color:#ffd29b;border-radius:14px;padding:10px 14px;font-size:14px;line-height:1.4;text-align:center;width:100%;box-sizing:border-box}
-    .ps-odo{display:flex;align-items:center;gap:4px;margin:26px 0 10px;padding:14px 16px;border-radius:18px;background:linear-gradient(#05090f,#111b29);box-shadow:inset 0 3px 12px #000,0 0 0 2px #ffffff14,0 18px 40px #0006}
-    .ps-dig{width:36px;height:56px;overflow:hidden;border-radius:6px;background:linear-gradient(#1a2433,#0b121c 45%,#0b121c 55%,#1a2433);box-shadow:inset 0 0 0 1px #ffffff12}
+    .ps-cluster{width:100%;max-width:360px;display:flex;flex-direction:column;align-items:center;margin:8px 0 10px;padding:12px 14px 16px;border-radius:26px;
+      background:radial-gradient(260px 160px at 50% 30%,#1b2b42,#070c14 75%);box-shadow:inset 0 2px 14px #000,0 0 0 2px #ffffff12,0 18px 40px #0007;box-sizing:border-box}
+    .ps-gauge{width:100%;max-width:280px;height:auto;overflow:visible}
+    .ps-gauge .g-bg{fill:none;stroke:#ffffff10;stroke-width:16}
+    .ps-gauge .g-z{fill:none;stroke-width:4;opacity:.75}.ps-gauge .g-verde{stroke:#2bb673}.ps-gauge .g-ambar{stroke:#f2a33a}.ps-gauge .g-rojo{stroke:#ff4b55}
+    .ps-gauge .g-val{fill:none;stroke-width:10;stroke-linecap:round;filter:drop-shadow(0 0 6px currentColor);transition:d .35s}
+    .ps-gauge .g-val.g-verde{color:#2bb673}.ps-gauge .g-val.g-ambar{color:#f2a33a}.ps-gauge .g-val.g-rojo{color:#ff4b55}
+    .ps-gauge .g-tick{stroke:#ffffff40;stroke-width:1.5}.ps-gauge .g-tick-l{stroke:#ffffffa0;stroke-width:2.5}
+    .ps-gauge .g-lbl{fill:#8fa0b6;font-size:11px;font-weight:700;font-family:"SFMono-Regular",Consolas,monospace}
+    .ps-gauge .g-aguja{transform-box:view-box;transform-origin:120px 122px;transition:transform .6s cubic-bezier(.3,1.5,.5,1)}
+    .ps-gauge .g-aguja path{fill:#ff6b2c;filter:drop-shadow(0 0 4px #ff6b2c)}
+    .ps-gauge .g-eje{fill:#1a2433;stroke:#ffffff50;stroke-width:2}
+    .ps-gauge-txt{display:flex;flex-direction:column;align-items:center;margin:-8px 0 10px;text-align:center}
+    .ps-gauge-txt b{font-size:26px;font-weight:800;font-family:"SFMono-Regular",Consolas,monospace;color:#fff}
+    .ps-gauge-txt b.c-verde{color:#7fe0ad}.ps-gauge-txt b.c-ambar{color:#ffc163}.ps-gauge-txt b.c-rojo{color:#ff8a90}
+    .ps-gauge-txt small{font-size:12.5px;color:#8fa0b6}
+    .ps-odo{display:flex;align-items:center;gap:4px;padding:10px 12px;border-radius:14px;background:linear-gradient(#05090f,#0d1520);box-shadow:inset 0 3px 10px #000,0 0 0 1.5px #ffffff18;transition:box-shadow .2s}
+    .ps-odo.mal{box-shadow:inset 0 3px 10px #000,0 0 0 2px #ff4b55}
+    .ps-odo-tag{writing-mode:vertical-rl;transform:rotate(180deg);font-size:10px;font-weight:800;letter-spacing:.12em;color:#ff9a4a;margin-right:2px}
+    .ps-dig{width:32px;height:50px;overflow:hidden;border-radius:6px;background:linear-gradient(#1a2433,#0b121c 45%,#0b121c 55%,#1a2433);box-shadow:inset 0 0 0 1px #ffffff12}
     .ps-rollo{display:flex;flex-direction:column;transition:transform .35s cubic-bezier(.2,.9,.3,1.2)}
-    .ps-rollo i{height:56px;display:grid;place-items:center;font-style:normal;font-family:"SFMono-Regular",Consolas,monospace;font-size:36px;font-weight:700;color:#f3f6fa}
+    .ps-rollo i{height:50px;display:grid;place-items:center;font-style:normal;font-family:"SFMono-Regular",Consolas,monospace;font-size:32px;font-weight:700;color:#f3f6fa}
     .ps-dig:last-of-type .ps-rollo i{color:#ffb45c}
-    .ps-odo em{font-style:normal;font-weight:800;color:#8fa0b6;margin-left:6px;font-size:16px}
+    .ps-odo em{font-style:normal;font-weight:800;color:#8fa0b6;margin-left:6px;font-size:15px}
+    .ps-servicio{display:flex;align-items:center;gap:10px;width:100%;max-width:330px;margin:0 0 14px;background:#ffffff10;border-radius:14px;padding:9px 12px;box-sizing:border-box}
+    .ps-servicio>span{font-size:18px}.ps-servicio>div{flex:1;display:flex;flex-direction:column;gap:6px}.ps-servicio b{font-size:13.5px}
+    .ps-servicio i{display:block;height:6px;border-radius:3px;background:#ffffff1c;overflow:hidden}.ps-servicio i em{display:block;height:100%;border-radius:3px;transition:width .4s}
+    .ps-servicio.c-verde i em{background:#2bb673}.ps-servicio.c-ambar i em{background:#f2a33a}.ps-servicio.c-ambar b{color:#ffd29b}
+    .ps-servicio.c-rojo i em{background:#ff4b55}.ps-servicio.c-rojo b{color:#ff9aa0}
+    .ps-foto-tab{display:flex;align-items:center;gap:12px;width:100%;max-width:330px;margin-top:12px;background:#ffffff10;border:1.5px dashed #ffffff30;border-radius:16px;padding:10px 14px;cursor:pointer;box-sizing:border-box}
+    .ps-foto-tab.on{border-style:solid;border-color:#2bb67380;background:#2bb6731a}
+    .ps-foto-tab>span:first-of-type{font-size:22px}.ps-foto-tab img{width:44px;height:44px;border-radius:10px;object-fit:cover}
+    .ps-foto-tab-t{display:flex;flex-direction:column;gap:1px}.ps-foto-tab-t b{font-size:14.5px}.ps-foto-tab-t small{font-size:12.5px;color:#b9c6d7}
     .ps-km-info{margin:0 0 16px;font-size:16px;font-weight:700;color:#7fe0ad;min-height:22px}.ps-km-info.mal{color:#ff9aa0}
     .ps-teclado{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;width:100%;max-width:330px}
     .ps-teclado button{height:62px;border:0;border-radius:18px;background:#ffffff14;color:#fff;font-family:inherit;font-size:26px;font-weight:700;cursor:pointer;transition:background .1s,transform .08s}
@@ -1544,16 +1676,49 @@ export class ElegirComponent {
     .ps-golpe.on{background:#f28c1e26}
     .ps-foto{margin-top:12px;border-radius:16px;max-height:30vh}
     .ps .ax-input{margin-top:10px;background:#ffffff12;border-color:#ffffff26;color:#fff}
-    .ps-niveles{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;width:100%;margin-top:8px}
-    .ps-nivel{display:flex;flex-direction:column;align-items:center;gap:6px}
-    .ps-tubo{position:relative;width:54px;height:min(42vh,260px);border-radius:16px;background:#ffffff12;box-shadow:inset 0 0 0 2px #ffffff1f;overflow:hidden;cursor:ns-resize;touch-action:none}
-    .ps-liquido{position:absolute;left:0;right:0;bottom:0;border-radius:0 0 14px 14px;transition:height .08s linear,background .3s}
-    .ps-liquido.c-verde{background:linear-gradient(0deg,#1f9a5f,#3fd08a)}.ps-liquido.c-ambar{background:linear-gradient(0deg,#d98a1f,#ffc163)}.ps-liquido.c-rojo{background:linear-gradient(0deg,#c2414a,#ff7a81)}
-    .ps-liquido::after{content:"";position:absolute;left:0;right:0;top:0;height:6px;background:#ffffff55}
-    .ps-marca{position:absolute;left:0;right:0;height:0;border-top:2px dashed #ffffff55}
-    .ps-nivel b{font-size:14px}.ps-nivel small{font-size:11.5px;color:#b9c6d7;text-align:center}
-    .ps-nivel.pide .ps-tubo{box-shadow:inset 0 0 0 2px #f28c1e,0 0 0 4px #f28c1e40;animation:axLatido 1.4s ease-in-out infinite}
-    .ps-tablero{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;width:100%;margin-top:6px}
+    .ps-fluidos{display:flex;flex-direction:column;gap:10px;width:100%;margin-top:4px}
+    .ps-fluido{display:flex;gap:14px;align-items:flex-start;background:#ffffff0d;border-radius:20px;padding:12px;box-shadow:inset 0 0 0 1px #ffffff12;transition:background .2s,box-shadow .2s}
+    .ps-fluido.c-ambar{box-shadow:inset 0 0 0 1.5px #f2a33a80;background:#f2a33a12}.ps-fluido.c-rojo{box-shadow:inset 0 0 0 1.5px #ff4b5590;background:#ff4b5514}
+    .ps-fluido.pide{box-shadow:inset 0 0 0 2px #f28c1e,0 0 0 4px #f28c1e30;animation:axLatido 1.4s ease-in-out infinite}
+    .ps-dep{position:relative;width:62px;flex-shrink:0;padding-top:12px;cursor:ns-resize;touch-action:none;user-select:none}
+    .ps-dep-tapa{position:absolute;top:0;left:50%;transform:translateX(-50%);width:34px;height:20px;border-radius:7px 7px 3px 3px;background:#2a3a52;box-shadow:inset 0 -3px 0 #0006;display:grid;place-items:center;font-size:12px;z-index:2}
+    .ps-dep-cuerpo{position:relative;height:104px;border-radius:12px 12px 18px 18px;background:linear-gradient(90deg,#ffffff14,#ffffff06 40%,#ffffff12);box-shadow:inset 0 0 0 2px #ffffff26;overflow:hidden}
+    .ps-dep-liq{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(0deg,color-mix(in srgb,var(--liq) 70%,#000),var(--liq));opacity:.9;transition:height .35s cubic-bezier(.3,1.3,.5,1)}
+    .ps-dep-liq i{position:absolute;left:-50%;top:-5px;width:200%;height:10px;border-radius:40%;background:color-mix(in srgb,var(--liq) 60%,#fff);opacity:.7;animation:psOla 3s linear infinite}
+    @keyframes psOla{to{transform:translateX(25%)}}
+    .ps-dep-linea{position:absolute;left:0;right:0;border-top:2px solid #ffffffb0;pointer-events:none}
+    .ps-dep-linea.max{bottom:85%}.ps-dep-linea.min{bottom:35%}
+    .ps-dep-linea small{position:absolute;right:3px;top:1px;font-size:8.5px;font-weight:900;letter-spacing:.04em;color:#fff;text-shadow:0 1px 2px #000}
+    .ps-fluido.na .ps-dep{opacity:.35}
+    .ps-fl-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+    .ps-fl-tit{display:flex;align-items:center;justify-content:space-between;gap:8px}.ps-fl-tit b{font-size:15.5px}
+    .ps-fl-como{width:26px;height:26px;border-radius:50%;border:0;background:#ffffff1a;color:#fff;font-weight:800;font-family:inherit;cursor:pointer;flex-shrink:0}
+    .ps-fl-como.on{background:#fff;color:#14243a}
+    .ps-fl-estado{font-size:13px;font-weight:700;color:#7fe0ad}
+    .ps-fluido.c-ambar .ps-fl-estado{color:#ffc163}.ps-fluido.c-rojo .ps-fl-estado{color:#ff8a90}.ps-fluido.na .ps-fl-estado{color:#8fa0b6}
+    .ps-seg{display:flex;background:#00000040;border-radius:12px;padding:3px;gap:2px}
+    .ps-seg button{flex:1;min-width:0;border:0;background:none;color:#b9c6d7;font-family:inherit;font-size:12px;font-weight:700;padding:8px 2px;border-radius:9px;cursor:pointer;transition:background .15s,color .15s}
+    .ps-seg button.on{background:#fff;color:#14243a}
+    .ps-aspecto{display:flex;flex-wrap:wrap;align-items:center;gap:6px}.ps-aspecto>small{font-size:12px;color:#8fa0b6}
+    .ps-aspecto button{display:flex;align-items:center;gap:5px;border:0;border-radius:999px;background:#ffffff12;color:#d5deea;font-family:inherit;font-size:12px;font-weight:600;padding:5px 10px 5px 6px;cursor:pointer}
+    .ps-aspecto button i{width:12px;height:12px;border-radius:50%;box-shadow:inset 0 0 0 1px #ffffff40}
+    .ps-aspecto button.on{background:#fff;color:#14243a}.ps-aspecto button.on.mal{background:#ff4b55;color:#fff}
+    .ps-como{margin:2px 0 0;font-size:12.8px;line-height:1.45;color:#d5deea;background:#00000033;border-radius:12px;padding:9px 11px}
+    .ps-fuga-sw{margin-top:14px}
+    .ps-fugas{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:100%;margin-top:10px}
+    .ps-fugas button{display:flex;flex-direction:column;align-items:center;gap:4px;border:0;border-radius:16px;background:#ffffff10;color:#fff;font-family:inherit;padding:10px 4px;cursor:pointer;box-shadow:inset 0 0 0 1px #ffffff12}
+    .ps-fugas button i{width:30px;height:18px;border-radius:50%;box-shadow:inset 0 0 0 1px #ffffff50,0 2px 6px #0006}
+    .ps-fugas button b{font-size:12.5px}.ps-fugas button small{font-size:10.5px;color:#8fa0b6;line-height:1.2;text-align:center}
+    .ps-fugas button.on{background:#fff;color:#14243a}.ps-fugas button.on small{color:#5d6b7d}
+    .ps-fuga-ok{margin:12px 0 0;color:#7fe0ad;font-weight:700;font-size:14px;text-align:center}
+    .ps-grupo{display:flex;align-items:baseline;gap:8px;width:100%;margin:10px 0 8px}
+    .ps-grupo i{width:9px;height:9px;border-radius:50%;flex-shrink:0;align-self:center}.ps-grupo b{font-size:14px}.ps-grupo small{font-size:12px;color:#8fa0b6}
+    .ps-grupo.g-rojo i{background:#ff4b55;box-shadow:0 0 8px #ff4b55}.ps-grupo.g-ambar i{background:#ffb020;box-shadow:0 0 8px #ffb020}
+    .ps-tablero{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;width:100%}
+    .ps-tdet{width:100%;margin-top:10px;border-radius:16px;padding:12px 14px;background:#ffffff0d;border-left:4px solid #ffb020;box-sizing:border-box;animation:fadeUp .2s ease backwards}
+    .ps-tdet.t-rojo{border-left-color:#ff4b55;background:#ff4b5512}
+    .ps-tdet b{font-size:14.5px}.ps-tdet p{margin:4px 0 0;font-size:13px;line-height:1.45;color:#d5deea}.ps-tdet .ps-tdet-hacer{color:#fff;font-weight:600}
+    .ps-tdet-sw{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;font-size:13.5px;cursor:pointer}
     .ps-testigo{display:flex;flex-direction:column;align-items:center;gap:6px;border:0;border-radius:18px;background:#05090f;box-shadow:inset 0 0 0 1px #ffffff14;padding:14px 4px 10px;cursor:pointer;font-family:inherit;transition:background .2s,box-shadow .2s}
     .ps-testigo svg{width:40px;height:40px;fill:none;stroke:#3a4658;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;transition:stroke .2s,filter .2s}
     .ps-testigo .ps-txt{fill:#3a4658;stroke:none;font-size:10px;font-weight:800;font-family:Arial,sans-serif}
@@ -1566,6 +1731,15 @@ export class ElegirComponent {
     .ps-res-lista{width:100%;display:flex;flex-direction:column;gap:8px}
     .ps-res-lista span{display:flex;align-items:center;gap:10px;background:#ffffff12;border-radius:14px;padding:12px 14px;font-size:15px}
     .ps-res-lista i{width:10px;height:10px;border-radius:50%;background:#f2a33a;flex-shrink:0}
+    .ps-res-lista span.grave{background:#ff4b551a;box-shadow:inset 0 0 0 1px #ff4b5560}.ps-res-lista span.grave i{background:#ff4b55}
+    .ps-res-lista em{margin-left:auto;font-style:normal;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:#ff8a90}
+    .ps-alerta{margin:0;width:100%;box-sizing:border-box;background:#ff4b5526;color:#ffc2c5;border-radius:14px;padding:11px 14px;font-size:14px;font-weight:600;text-align:center}
+    .ps-desglose{width:100%;display:flex;flex-direction:column;gap:6px;background:#ffffff0d;border-radius:18px;padding:14px;text-align:left;box-sizing:border-box}
+    .ps-desglose>b{font-size:15px;margin-bottom:2px}
+    .ps-desglose span{display:flex;align-items:center;gap:10px;font-size:13.5px;color:#d5deea}
+    .ps-desglose em{font-style:normal;font-weight:800;min-width:38px;font-family:"SFMono-Regular",Consolas,monospace;color:#ff8a90}
+    .ps-desglose .ps-des-base em,.ps-desglose .ps-des-ok em{color:#7fe0ad}
+    .ps-desglose small{font-size:11.5px;color:#8fa0b6;line-height:1.4;margin-top:4px}
     .ps-pie{display:flex;gap:10px;max-width:460px;width:100%;margin:18px auto 0}
     .ps-atras{height:58px;border:0;border-radius:18px;background:#ffffff14;color:#fff;font-family:inherit;font-weight:700;font-size:16px;padding:0 20px;cursor:pointer}
     .ps-sig{flex:1;height:58px;border:0;border-radius:18px;background:#fff;color:#14243a;font-family:inherit;font-weight:800;font-size:17px;cursor:pointer;transition:transform .12s}
@@ -1581,7 +1755,7 @@ export class ElegirComponent {
     @keyframes vxSalta{from{transform:scale(.4);opacity:0}}
     .ps-fin .ps-sig{width:100%;flex:none;margin-top:10px}
     .ps-off>span{background:#ffffff1a!important;color:#7fe0ad!important}
-    @media(max-width:380px){.ps-dig{width:30px;height:48px}.ps-rollo i{height:48px;font-size:30px}.ps-teclado button{height:54px}.ps-tablero{grid-template-columns:repeat(3,1fr)}}
+    @media(max-width:380px){.ps-dig{width:27px;height:44px}.ps-rollo i{height:44px;font-size:27px}.ps-fugas{grid-template-columns:repeat(2,1fr)}.ps-teclado button{height:54px}.ps-tablero{grid-template-columns:repeat(3,1fr)}}
   `]
 })
 export class VehiculosComponent {
@@ -12004,13 +12178,56 @@ export class AppComponent {
   readonly vhTrabajos = ['Servicio', 'Aceite', 'Frenos', 'Llantas', 'Afinación', 'Luces', 'Batería', 'Suspensión', 'Carrocería', 'Otro'];
   readonly psLlantas = [{ k: 'di', x: 28, y: 64 }, { k: 'dd', x: 148, y: 64 }, { k: 'ti', x: 28, y: 212 }, { k: 'td', x: 148, y: 212 }];
   readonly psLuces = [{ k: 'fi', x: 74, y: 44 }, { k: 'fd', x: 126, y: 44 }, { k: 'ti', x: 74, y: 296 }, { k: 'td', x: 126, y: 296 }];
-  readonly psNiveles = [{ k: 'aceite', nombre: 'Aceite' }, { k: 'frenos', nombre: 'Frenos' }, { k: 'direccion', nombre: 'Dirección' }, { k: 'limpia', nombre: 'Limpiaparabrisas' }];
-  readonly psTestigos = [
-    { k: 'motor', nombre: 'Check engine', color: 'ambar' }, { k: 'aceite', nombre: 'Aceite', color: 'rojo' },
-    { k: 'bateria', nombre: 'Batería', color: 'rojo' }, { k: 'temperatura', nombre: 'Temperatura', color: 'rojo' },
-    { k: 'frenos', nombre: 'Frenos', color: 'rojo' }, { k: 'abs', nombre: 'ABS', color: 'ambar' },
-    { k: 'bolsa', nombre: 'Bolsa de aire', color: 'rojo' }, { k: 'llantas', nombre: 'Presión de llantas', color: 'ambar' }
+  readonly psNiveles: any[] = [
+    { k: 'aceite', nombre: 'Aceite de motor', icono: '🛢', color: '#c98a1b',
+      como: 'Saca la bayoneta (varilla con asa amarilla o naranja), límpiala con un trapo, métela hasta el fondo y vuelve a sacarla. El aceite debe quedar entre las dos marcas. Míralo contra la luz para ver su color.',
+      aspectos: [{ k: 'normal', t: 'Miel', c: '#c98a1b' }, { k: 'oscuro', t: 'Negro', c: '#1c1712', mal: true }, { k: 'lechoso', t: 'Lechoso', c: '#d9c9a8', mal: true }] },
+    { k: 'anticongelante', nombre: 'Anticongelante', icono: '❄', color: '#2fbf71',
+      como: 'NUNCA abras el tapón con el motor caliente: quema. Mira por fuera el depósito de plástico junto al radiador; el líquido (verde, rosa o naranja) debe estar entre MIN y MAX.',
+      aspectos: [{ k: 'normal', t: 'Limpio', c: '#2fbf71' }, { k: 'sucio', t: 'Oxidado', c: '#8a5a2b', mal: true }, { k: 'aceitoso', t: 'Con aceite', c: '#5b4a2a', mal: true }] },
+    { k: 'frenos', nombre: 'Líquido de frenos', icono: '⦿', color: '#e3c25a',
+      como: 'Depósito pequeño del lado del conductor, pegado a la pared del motor. Se ve por fuera, no lo abras. Si baja puede ser desgaste de balatas o una fuga: es de los más importantes.',
+      aspectos: [{ k: 'normal', t: 'Dorado', c: '#e3c25a' }, { k: 'oscuro', t: 'Oscuro', c: '#5a4220', mal: true }] },
+    { k: 'direccion', nombre: 'Dirección hidráulica', icono: '☸', color: '#d6455a', noTiene: true,
+      como: 'Depósito con un volante dibujado en el tapón. Muchos vehículos nuevos tienen dirección eléctrica y no llevan este líquido: en ese caso elige "No tiene".' },
+    { k: 'limpia', nombre: 'Limpiaparabrisas', icono: '💧', color: '#3fa9f5',
+      como: 'Depósito con tapón (casi siempre azul) con un parabrisas dibujado. Si está bajo, se rellena con agua y jabón especial para parabrisas.' }
   ];
+  readonly psOpcionesNivel = [{ v: 10, t: 'Bajo' }, { v: 30, t: 'Mínimo' }, { v: 70, t: 'Bien' }, { v: 100, t: 'Lleno' }];
+  readonly psOpcionesNivelNA = [{ v: 10, t: 'Bajo' }, { v: 30, t: 'Mín.' }, { v: 70, t: 'Bien' }, { v: null, t: 'No tiene' }];
+  readonly psFugas = [
+    { k: 'negro', t: 'Negra o café', que: 'Aceite de motor', c: '#2a1f14' },
+    { k: 'verde', t: 'Verde o rosa', que: 'Anticongelante', c: 'linear-gradient(90deg,#2fbf71 50%,#ef6fa8 50%)' },
+    { k: 'rojo', t: 'Roja', que: 'Transmisión o dirección', c: '#b8283a' },
+    { k: 'amarillo', t: 'Amarilla aceitosa', que: 'Líquido de frenos', c: '#d9b84a' },
+    { k: 'azul', t: 'Azul', que: 'Limpiaparabrisas', c: '#3fa9f5' },
+    { k: 'transparente', t: 'Agua clara', que: 'Aire acondicionado (normal)', c: '#cfe8f7' }
+  ];
+  readonly psTestigos = [
+    { k: 'aceite', nombre: 'Presión de aceite', color: 'rojo', que: 'El motor no está recibiendo aceite suficiente.', hacer: 'Detente en cuanto sea seguro y apaga el motor. Seguir manejando puede desvielarlo.' },
+    { k: 'temperatura', nombre: 'Temperatura', color: 'rojo', que: 'El motor se está sobrecalentando.', hacer: 'Oríllate y apágalo. No abras el tapón del radiador en caliente.' },
+    { k: 'frenos', nombre: 'Frenos', color: 'rojo', que: 'Freno de mano puesto, líquido de frenos bajo o falla en el sistema.', hacer: 'Si no es el freno de mano, maneja con mucho cuidado y llévalo a revisar hoy.' },
+    { k: 'bateria', nombre: 'Batería / carga', color: 'rojo', que: 'El alternador no está cargando la batería.', hacer: 'Apaga lo que no necesites (aire, radio) y ve directo al taller: se puede quedar parado.' },
+    { k: 'direccion', nombre: 'Dirección', color: 'rojo', que: 'Falla en la dirección asistida: el volante puede ponerse muy duro.', hacer: 'Maneja despacio y llévalo a revisar.' },
+    { k: 'bolsa', nombre: 'Bolsa de aire', color: 'rojo', que: 'Las bolsas de aire podrían no abrir en un choque.', hacer: 'Se puede manejar, pero hay que revisarlo pronto.' },
+    { k: 'transmision', nombre: 'Transmisión', color: 'rojo', que: 'La transmisión está caliente o tiene una falla.', hacer: 'Detente, deja que se enfríe y llévalo a revisar sin forzarlo.' },
+    { k: 'motor', nombre: 'Check engine', color: 'ambar', que: 'El motor detectó una falla (sensor, emisiones, encendido…).', hacer: 'Fijo: revisarlo esta semana. Si parpadea: baja la velocidad y llévalo hoy.' },
+    { k: 'abs', nombre: 'ABS', color: 'ambar', que: 'El antibloqueo de frenos no funciona; los frenos normales sí.', hacer: 'Frena con más distancia, sobre todo en lluvia, y agenda revisión.' },
+    { k: 'llantas', nombre: 'Presión de llantas', color: 'ambar', que: 'Una o más llantas tienen poco aire.', hacer: 'Pásate a una gasolinera a calibrarlas y revisa si alguna está ponchada.' },
+    { k: 'estabilidad', nombre: 'Estabilidad', color: 'ambar', que: 'El control de estabilidad/tracción está apagado o con falla.', hacer: 'Maneja con más cuidado en curvas y piso mojado.' },
+    { k: 'balatas', nombre: 'Balatas', color: 'ambar', que: 'Las balatas (pastillas de freno) están gastadas.', hacer: 'Agenda el cambio pronto; si rechinan, que sea esta semana.' },
+    { k: 'servicio', nombre: 'Servicio', color: 'ambar', que: 'El vehículo avisa que ya le toca servicio.', hacer: 'Avísale al administrador para agendarlo.' },
+    { k: 'diesel', nombre: 'Diésel / bujías', color: 'ambar', que: 'Precalentamiento o filtro de partículas (solo diésel).', hacer: 'Si sigue encendido con el motor caliente, llévalo a revisar.' }
+  ];
+  readonly psGruposTestigo = [
+    { color: 'rojo', titulo: 'Rojos', sub: 'detente en cuanto puedas', lista: this.psTestigos.filter(t => t.color === 'rojo') },
+    { color: 'ambar', titulo: 'Ámbar', sub: 'revisar pronto', lista: this.psTestigos.filter(t => t.color === 'ambar') }
+  ];
+  readonly psMarcas = Array.from({ length: 11 }, (_, i) => {
+    const t = Math.PI * (1 - i / 10), larga = i % 5 === 0, r1 = 104, r2 = larga ? 92 : 97;
+    return { larga, x1: +(120 + r1 * Math.cos(t)).toFixed(1), y1: +(122 - r1 * Math.sin(t)).toFixed(1), x2: +(120 + r2 * Math.cos(t)).toFixed(1), y2: +(122 - r2 * Math.sin(t)).toFixed(1) };
+  });
+  psInfo: string | null = null;
 
   // ----- Perfil y navegación -----
 
@@ -12675,7 +12892,9 @@ export class AppComponent {
     this.menuCollapsed = true;
     this.ps = { id, qr: qr || null, v: null, paso: 1, km: '', error: '', enviando: false, resultado: null, anim: false, inicio: Date.now(),
                 llantas: { di: 'ok', dd: 'ok', ti: 'ok', td: 'ok' }, luces: { fi: 'ok', fd: 'ok', ti: 'ok', td: 'ok' },
-                niveles: { aceite: 100, frenos: 100, direccion: 100, limpia: 100 }, testigos: [], golpe: { hay: false, nota: '' }, foto: null, fotoUrl: '' };
+                niveles: { aceite: 70, anticongelante: 70, frenos: 70, direccion: 70, limpia: 70 }, aspecto: { aceite: 'normal', anticongelante: 'normal', frenos: 'normal' },
+                fuga: { hay: false, color: '' }, testigos: [], motorParpadea: false, golpe: { hay: false, nota: '' }, foto: null, fotoUrl: '', fotoTablero: null, fotoTableroUrl: '' };
+    this.psInfo = null;
     const P = this.ps;
     this.http.get<any>(this.api + '/vehiculos/' + id + '/pitstop' + (qr ? '?qr=' + encodeURIComponent(qr) : '')).subscribe({
       next: v => { if (this.ps === P) { P.v = v; P.inicio = Date.now(); } },
@@ -12733,6 +12952,7 @@ export class AppComponent {
       }
     }
     if (P.paso === 2 && P.golpe.hay && !P.foto) { P.error = 'Toma una foto del golpe.'; return; }
+    if (P.paso === 3 && P.fuga.hay && !P.fuga.color) { P.error = 'Elige el color de la mancha.'; return; }
     P.paso = Math.min(5, P.paso + 1);
   }
 
@@ -12747,12 +12967,16 @@ export class AppComponent {
     try { navigator.vibrate?.(10); } catch { /* */ }
   }
 
+  // El depósito se toca o arrastra: se ajusta al nivel real más cercano (bajo, mínimo, bien, lleno)
   psArrastrar(ev: PointerEvent, k: string): void {
-    const tubo = ev.currentTarget as HTMLElement;
+    const dep = (ev.currentTarget as HTMLElement).querySelector('.ps-dep-cuerpo') as HTMLElement;
+    if (!dep) return;
     ev.preventDefault();
     const fijar = (y: number) => {
-      const r = tubo.getBoundingClientRect();
-      this.ps.niveles[k] = Math.round(Math.max(0, Math.min(100, (r.bottom - y) / r.height * 100)) / 5) * 5;
+      const r = dep.getBoundingClientRect();
+      const pct = Math.max(0, Math.min(100, (r.bottom - y) / r.height * 100));
+      const v = pct < 22 ? 10 : pct < 50 ? 30 : pct < 86 ? 70 : 100;
+      if (this.ps.niveles[k] !== v) { this.ps.niveles[k] = v; try { navigator.vibrate?.(8); } catch { /* */ } }
     };
     fijar(ev.clientY);
     const mover = (e: PointerEvent) => fijar(e.clientY);
@@ -12761,8 +12985,57 @@ export class AppComponent {
     window.addEventListener('pointerup', soltar);
   }
 
-  colorNivel(v: number): string { return v >= 60 ? 'verde' : v >= 35 ? 'ambar' : 'rojo'; }
-  textoNivel(v: number): string { return v >= 60 ? 'Bien' : v >= 35 ? 'Medio' : 'Bajo'; }
+  psNivel(k: string, v: number | null): void {
+    this.ps.niveles[k] = v;
+    try { navigator.vibrate?.(8); } catch { /* */ }
+  }
+
+  colorNivel(v: number | null): string { return v == null ? 'na' : v >= 60 ? 'verde' : v >= 20 ? 'ambar' : 'rojo'; }
+  textoNivel(v: number | null): string {
+    return v == null ? 'No tiene este depósito' : v >= 100 ? 'Lleno, en MAX' : v >= 60 ? 'Bien, entre MIN y MAX' : v >= 20 ? 'En el mínimo: hay que rellenar' : 'Debajo del mínimo';
+  }
+
+  get psTestigosOn(): any[] {
+    return this.psTestigos.filter(t => this.ps?.testigos.includes(t.k));
+  }
+
+  // Velocímetro del paso 1: cuánto se recorrió contra lo normal de este vehículo
+  get psGauge(): any {
+    const P = this.ps;
+    if (!P?.v) return null;
+    const sem = Math.max(0, +P.v.km_semana || 0);
+    const max = Math.max(500, Math.ceil((sem > 0 ? sem * 2.5 : 1000) / 100) * 100);
+    const dif = P.km && P.v.km_anterior != null && !this.psKmMenor ? Math.max(0, +P.km - P.v.km_anterior) : 0;
+    const f = Math.min(1, dif / max);
+    const fNormal = sem > 0 ? Math.min(1, sem * 1.5 / max) : 0.6;
+    const color = dif > Math.max(sem * 4, 2500) ? 'rojo' : f <= fNormal ? 'verde' : 'ambar';
+    return { max, dif, f, fNormal, sem, color, ang: -90 + f * 180 };
+  }
+
+  psArco(a: number, b: number, r = 92): string {
+    const pt = (f: number) => { const t = Math.PI * (1 - f); return (120 + r * Math.cos(t)).toFixed(1) + ' ' + (122 - r * Math.sin(t)).toFixed(1); };
+    return 'M ' + pt(a) + ' A ' + r + ' ' + r + ' 0 0 1 ' + pt(Math.max(a + 0.0001, b));
+  }
+
+  // Cuánto le falta para el servicio con el kilometraje que se está escribiendo
+  get psServicio(): any {
+    const P = this.ps;
+    if (!P?.v || P.v.servicio_restan_km == null) return null;
+    const dif = P.km && P.v.km_anterior != null && !this.psKmMenor ? +P.km - P.v.km_anterior : 0;
+    const restan = P.v.servicio_restan_km - dif, cada = P.v.servicio_cada_km || 10000;
+    const pct = Math.max(0, Math.min(100, (1 - restan / cada) * 100));
+    if (restan <= 0) return { color: 'rojo', pct: 100, texto: 'Servicio pasado por ' + (-restan).toLocaleString('es-MX') + ' km' };
+    return { color: restan <= 1000 ? 'ambar' : 'verde', pct, texto: 'Servicio en ' + restan.toLocaleString('es-MX') + ' km' };
+  }
+
+  async psFotoTablero(ev: Event): Promise<void> {
+    const input = ev.target as HTMLInputElement;
+    const archivo = input.files?.[0];
+    input.value = '';
+    if (!archivo || !this.ps) return;
+    try { this.ps.fotoTablero = await this.comprimirFoto(archivo); this.ps.fotoTableroUrl = URL.createObjectURL(this.ps.fotoTablero); }
+    catch { this.ps.error = 'No se pudo usar la foto.'; }
+  }
 
   psTestigo(k: string): void {
     const t: string[] = this.ps.testigos;
@@ -12775,7 +13048,7 @@ export class AppComponent {
   }
 
   get psPreguntasNiveles(): any[] {
-    const k = this.psNiveles.map(n => n.k);
+    const k = [...this.psNiveles.map(n => n.k), 'fuga'];
     return (this.ps?.v?.preguntas || []).filter((q: any) => k.includes(q.campo));
   }
 
@@ -12793,17 +13066,43 @@ export class AppComponent {
   }
 
   get psProblemas(): string[] {
+    return this.psProblemasDet.map(p => p.t);
+  }
+
+  get psHayGrave(): boolean {
+    return this.psProblemasDet.some(p => p.grave);
+  }
+
+  // Lo mismo que calcula el servidor, para que la persona vea antes de enviar qué se va a reportar y qué es grave
+  get psProblemasDet(): { t: string; grave: boolean }[] {
     const P = this.ps;
     if (!P) return [];
-    const l: string[] = [];
+    const l: { t: string; grave: boolean }[] = [];
     const ll: any = { di: 'delantera izquierda', dd: 'delantera derecha', ti: 'trasera izquierda', td: 'trasera derecha' };
     const lu: any = { fi: 'faro izquierdo', fd: 'faro derecho', ti: 'calavera izquierda', td: 'calavera derecha' };
-    for (const k of Object.keys(P.llantas)) if (P.llantas[k] !== 'ok') l.push('Llanta ' + ll[k] + (P.llantas[k] === 'baja' ? ' baja' : ' en mal estado'));
-    for (const k of Object.keys(P.luces)) if (P.luces[k] === 'falla') l.push('Falla en ' + lu[k]);
-    for (const n of this.psNiveles) if (P.niveles[n.k] < 35) l.push(n.nombre + ' bajo');
-    for (const t of P.testigos) l.push('Testigo: ' + (this.psTestigos.find(x => x.k === t)?.nombre || t));
-    if (P.golpe.hay) l.push('Golpe' + (P.golpe.nota ? ': ' + P.golpe.nota : ''));
-    return l;
+    for (const k of Object.keys(P.llantas)) if (P.llantas[k] !== 'ok') l.push({ t: 'Llanta ' + ll[k] + (P.llantas[k] === 'baja' ? ' baja' : ' en mal estado'), grave: P.llantas[k] === 'mal' });
+    for (const k of Object.keys(P.luces)) if (P.luces[k] === 'falla') l.push({ t: 'Falla en ' + lu[k], grave: false });
+    for (const n of this.psNiveles) {
+      const v = P.niveles[n.k];
+      if (v == null || v >= 35) continue;
+      l.push({ t: n.nombre + (v < 20 ? ' debajo del mínimo' : ' en el mínimo'), grave: v < 20 && ['aceite', 'frenos', 'anticongelante'].includes(n.k) });
+    }
+    for (const n of this.psNiveles) {
+      const a = n.aspectos?.find((x: any) => x.k === P.aspecto?.[n.k]);
+      if (a?.mal && P.niveles[n.k] !== null) l.push({ t: n.nombre + ': se ve ' + a.t.toLowerCase(), grave: a.k === 'lechoso' || a.k === 'aceitoso' });
+    }
+    if (P.fuga.hay && P.fuga.color && P.fuga.color !== 'transparente') {
+      const f = this.psFugas.find(x => x.k === P.fuga.color);
+      l.push({ t: 'Mancha ' + (f?.t || '').toLowerCase() + ' debajo: ' + (f?.que || '').toLowerCase(), grave: P.fuga.color !== 'azul' });
+    }
+    const graves = ['aceite', 'temperatura', 'frenos', 'bateria', 'direccion', 'bolsa', 'transmision'];
+    for (const k of P.testigos) {
+      const t = this.psTestigos.find(x => x.k === k);
+      const parp = k === 'motor' && P.motorParpadea;
+      l.push({ t: 'Testigo: ' + (t?.nombre || k) + (parp ? ' (parpadeando)' : ''), grave: graves.includes(k) || parp });
+    }
+    if (P.golpe.hay) l.push({ t: 'Golpe' + (P.golpe.nota ? ': ' + P.golpe.nota : ''), grave: false });
+    return l.sort((a, b) => +b.grave - +a.grave);
   }
 
   async psEnviar(): Promise<void> {
@@ -12813,10 +13112,11 @@ export class AppComponent {
     const campos: any = {
       km: +P.km,
       segundos: Math.round((Date.now() - P.inicio) / 1000),
-      datos: JSON.stringify({ llantas: P.llantas, luces: P.luces, niveles: P.niveles, testigos: P.testigos, golpe: { hay: P.golpe.hay, nota: P.golpe.nota || '' } })
+      datos: JSON.stringify({ llantas: P.llantas, luces: P.luces, niveles: P.niveles, aspecto: P.aspecto, fuga: P.fuga, testigos: P.testigos,
+                              motor_parpadea: P.testigos.includes('motor') && P.motorParpadea, golpe: { hay: P.golpe.hay, nota: P.golpe.nota || '' } })
     };
     if (P.qr) campos.qr = P.qr;
-    const res = await this.enviarOEncolar({ url: '/vehiculos/' + P.id + '/pitstop', campos, foto: P.golpe.hay ? P.foto : undefined, descripcion: 'Pit Stop ' + (P.v?.placas || '') });
+    const res = await this.enviarOEncolar({ url: '/vehiculos/' + P.id + '/pitstop', campos, foto: P.golpe.hay ? P.foto : undefined, foto2: P.fotoTablero || undefined, descripcion: 'Pit Stop ' + (P.v?.placas || '') });
     P.enviando = false;
     if (!res.ok) { P.error = res.error || 'No se pudo enviar.'; return; }
     P.resultado = res.offline ? { offline: true } : res.r;
@@ -15034,6 +15334,7 @@ export class AppComponent {
       const fd = new FormData();
       Object.entries(op.campos).forEach(([k, v]) => fd.append(k, String(v)));
       if (op.foto) fd.append('foto', op.foto, 'foto.jpg');
+      if (op.foto2) fd.append('fotoTablero', op.foto2, 'tablero.jpg');
       return firstValueFrom(this.http.post<any>(this.api + op.url, fd));
     }
     return firstValueFrom(this.http.post<any>(this.api + op.url, op.body || {}));
