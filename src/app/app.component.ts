@@ -624,7 +624,7 @@ export class ElegirComponent {
                 <button class="f-rojo" [class.on]="app.vhFiltro==='rojo'" (click)="app.vhFiltro='rojo'"><i></i>Atender <small>{{ app.vhConteo('rojo') }}</small></button>
                 <button class="f-ambar" [class.on]="app.vhFiltro==='ambar'" (click)="app.vhFiltro='ambar'"><i></i>Por vencer <small>{{ app.vhConteo('ambar') }}</small></button>
                 <button class="f-verde" [class.on]="app.vhFiltro==='verde'" (click)="app.vhFiltro='verde'"><i></i>En orden <small>{{ app.vhConteo('verde') }}</small></button>
-                <button *ngIf="app.vhSinResponsable" [class.on]="app.vhFiltro==='sinresp'" (click)="app.vhFiltro='sinresp'">Sin responsable <small>{{ app.vhSinResponsable }}</small></button>
+                <button *ngIf="app.vhSinResponsable" [class.on]="app.vhFiltro==='sinresp'" (click)="app.vhFiltro='sinresp'">Sin ligar al catálogo <small>{{ app.vhSinResponsable }}</small></button>
               </div>
               <div class="vx-buscar-fila">
                 <div class="ax-buscar"><ico n="search"></ico><input [(ngModel)]="app.vhQ" placeholder="Placas, modelo, responsable…"></div>
@@ -634,6 +634,10 @@ export class ElegirComponent {
                 </select>
               </div>
 
+              <div class="vx-ligar-aviso" *ngIf="app.vhFiltro==='sinresp' && app.vhSinResponsable">
+                <span><b>Estos vehículos no están ligados a una persona del catálogo.</b> Algunos tienen el nombre escrito desde el Excel, pero mientras no se liguen no se les puede dar acceso.</span>
+                <button class="vx-acceso" (click)="app.vhAbrirLigar()">Ligar responsables</button>
+              </div>
               <div class="cal-cargando" *ngIf="app.vhCargando && !app.vhLista.length"><div class="loader-ring"></div></div>
               <div class="vx-grid">
                 <button class="vx-auto" *ngFor="let v of app.vhListaFiltrada; trackBy: app.trackVeh" [ngClass]="'s-' + v.semaforo" (click)="app.vhAbrirFicha(v)">
@@ -643,7 +647,7 @@ export class ElegirComponent {
                   </span>
                   <b>{{ ((v.marca || '') + ' ' + (v.modelo || '')) | titlecase }}</b>
                   <small>{{ v.anio || '' }}<ng-container *ngIf="v.color"> · {{ v.color | titlecase }}</ng-container><ng-container *ngIf="v.sede_nombre"> · {{ v.sede_nombre | titlecase }}</ng-container></small>
-                  <span class="vx-resp" [class.vx-resp-no]="!v.id_persona_responsable"><ico n="user"></ico>{{ (v.responsable_nombre | titlecase) || 'Sin responsable' }}</span>
+                  <span class="vx-resp" [class.vx-resp-no]="!v.id_persona_responsable"><ico n="user"></ico>{{ (v.responsable_nombre | titlecase) || 'Sin responsable' }}<em class="vx-sin-ligar" *ngIf="!v.id_persona_responsable && v.responsable_nombre">sin ligar</em></span>
                   <span class="vx-dots"><i *ngFor="let it of v.items" [ngClass]="'d-' + it.estado" [title]="it.nombre + ': ' + it.texto"></i></span>
                 </button>
               </div>
@@ -874,6 +878,26 @@ export class ElegirComponent {
                         <span class="vx-fila-txt"><b>{{ v.responsable_nombre | titlecase }}</b><small>{{ ((v.marca || '') + ' ' + (v.modelo || '')) | titlecase }}</small></span>
                         <button class="vx-acceso" (click)="app.vhAbrirAcceso(v)">Dar acceso</button>
                       </div>
+                    </ng-container>
+                    <ng-container *ngIf="L.tipo==='ligar'">
+                      <div class="cal-cargando" *ngIf="L.cargando"><div class="loader-ring"></div></div>
+                      <p class="ax-vacio" *ngIf="!L.cargando && !L.items.length">No hay nombres escritos por ligar. Los que faltan no tienen responsable: elígelo en cada vehículo.</p>
+                      <div class="vx-fila vx-fila-ligar" *ngFor="let v of L.items">
+                        <span class="vx-placa">{{ v.placas }}</span>
+                        <span class="vx-fila-txt"><b>{{ v.responsable_nombre | titlecase }}</b><small>Escrito en el Excel · {{ ((v.marca || '') + ' ' + (v.modelo || '')) | titlecase }}</small></span>
+                        <select [(ngModel)]="v.elegido">
+                          <option [ngValue]="null">No ligar todavía</option>
+                          <optgroup label="Se parecen" *ngIf="v.candidatos.length">
+                            <option *ngFor="let c of v.candidatos" [ngValue]="c.id_persona">{{ c.nombre | titlecase }} ({{ c.parecido }}%)</option>
+                          </optgroup>
+                          <optgroup label="Todas las personas">
+                            <option *ngFor="let p of app.personasActivas" [ngValue]="p.id_persona">{{ p.nombre_completo | titlecase }}</option>
+                          </optgroup>
+                        </select>
+                      </div>
+                      <button class="vx-acceso vx-ligar-btn" *ngIf="!L.cargando && L.items.length" [disabled]="L.guardando || !app.vhLigarCuantos(L)" (click)="app.vhLigarConfirmar(L)">
+                        {{ L.guardando ? 'Ligando…' : 'Ligar ' + app.vhLigarCuantos(L) + (app.vhLigarCuantos(L) === 1 ? ' vehículo' : ' vehículos') }}
+                      </button>
                     </ng-container>
                     <ng-container *ngIf="L.tipo==='admins'">
                       <div class="ax-buscar ax-buscar-hoja"><ico n="search"></ico><input [(ngModel)]="L.q" placeholder="Buscar persona"></div>
@@ -1332,6 +1356,11 @@ export class ElegirComponent {
     .vx-auto>small{font-size:12.5px;color:#7b889a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .vx-resp{display:flex;align-items:center;gap:6px;font-size:13px;color:#41546b;font-weight:600;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .vx-resp ico{width:14px;height:14px;color:#8a97a8;flex-shrink:0}.vx-resp-no{color:#a8650f}
+    .vx-sin-ligar{font-style:normal;font-size:10.5px;font-weight:700;background:#fdf0dc;color:#a8650f;border-radius:999px;padding:1px 7px;margin-left:6px;flex-shrink:0}
+    .vx-ligar-aviso{display:flex;align-items:center;gap:12px;background:#fdf6ea;border-radius:14px;padding:12px 14px;margin:0 0 12px;font-size:14px;color:#5b4a2c}
+    .vx-ligar-aviso b{color:#3d2f14}
+    .vx-fila-ligar{flex-wrap:wrap}.vx-fila-ligar select{flex:1 1 220px;min-width:0;height:40px;border:1px solid #d9e0e8;border-radius:10px;padding:0 10px;font-family:inherit;font-size:14px;background:#fff}
+    .vx-ligar-btn{width:100%;height:46px;margin-top:12px;font-size:15px}.vx-ligar-btn:disabled{opacity:.5;cursor:default}
     .vx-dots{display:flex;gap:5px;margin-top:6px}.vx-dots i{width:22px;height:5px;border-radius:3px}
     .vx-dots i.d-gris{opacity:.6}
     .vx-marcador{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
@@ -12184,7 +12213,7 @@ export class AppComponent {
       case 'importar': this.vhElegirExcel(); break;
       case 'nuevo': this.vhNuevo(); break;
       case 'ver_accesos': this.vhVerAccesos(t.ids || []); break;
-      case 'ver_sin_responsable': this.vhFiltro = 'sinresp'; this.irVeh('flota'); break;
+      case 'ver_sin_responsable': this.vhFiltro = 'sinresp'; this.irVeh('flota'); this.vhAbrirLigar(); break;
     }
   }
 
@@ -12267,6 +12296,36 @@ export class AppComponent {
                                           items: this.vhLista.filter(v => ids.includes(v.id_vehiculo)) };
     if (this.vhLista.length) { abrir(); return; }
     this.http.get<any[]>(this.api + '/vehiculos').subscribe({ next: l => { this.vhLista = l || []; abrir(); }, error: () => abrir() });
+  }
+
+  // Nombres escritos (del Excel) que no quedaron ligados a una persona: el sistema propone y el administrador confirma
+  vhAbrirLigar(): void {
+    const L: any = { tipo: 'ligar', titulo: 'Ligar responsables', cargando: true, items: [],
+                     texto: 'Ya elegimos a la persona cuando el nombre coincide claramente. Revisa, corrige si hace falta y confirma.' };
+    this.vhLista2 = L;
+    this.http.get<any[]>(this.api + '/vehiculos/responsables/sugerencias').subscribe({
+      next: l => { L.items = (l || []).map(v => ({ ...v, candidatos: v.candidatos || [], elegido: v.propuesta ?? null })); L.cargando = false; },
+      error: e => { this.vhLista2 = null; this.notificar('error', 'No se pudo cargar', this.mensajeError(e, 'Inténtalo de nuevo.'), 4000); }
+    });
+  }
+
+  vhLigarCuantos(L: any): number { return (L.items || []).filter((v: any) => v.elegido != null).length; }
+
+  vhLigarConfirmar(L: any): void {
+    const pares = L.items.filter((v: any) => v.elegido != null).map((v: any) => ({ id_vehiculo: v.id_vehiculo, id_persona: v.elegido }));
+    if (!pares.length) return;
+    L.guardando = true;
+    this.http.post<any>(this.api + '/vehiculos/responsables/ligar', { pares }).subscribe({
+      next: r => {
+        L.guardando = false;
+        L.items = L.items.filter((v: any) => v.elegido == null);
+        const n = r?.ligados ?? pares.length;
+        this.notificar('exito', n === 1 ? '1 vehículo ligado' : n + ' vehículos ligados', 'Ya puedes darles acceso.', 2500);
+        if (!L.items.length) this.vhLista2 = null;
+        this.vhRefrescar();
+      },
+      error: e => { L.guardando = false; this.notificar('error', 'No se pudo ligar', this.mensajeError(e, 'Inténtalo de nuevo.'), 4000); }
+    });
   }
 
   vhAbrirAdmins(): void {
