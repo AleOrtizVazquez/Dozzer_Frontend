@@ -9259,7 +9259,7 @@ export class AppComponent {
     if (!this.logged || this.mustChangePassword || !this.email) return;
     const g = this.cap?.grupo;
     const ui = {
-      s: this.section, v: this.vistaInv, d: this.docsVista,
+      s: this.section, v: this.vistaInv, d: this.docsVista, vh: this.section === 'vehiculos' ? this.vh : null,
       cl: this.section === 'anual' && this.cap ? this.cap.lev?.idLevantamiento ?? null : null,
       cm: this.cap?.modo || null,
       cg: g ? { key: g.key, id: g.id, nombre: g.nombre, modo: g.modo } : null,
@@ -9286,6 +9286,14 @@ export class AppComponent {
       this.bien = ui.f; this.bienOriginal = null; this.formMas = true; this.editing = true;
     }
     if (this.section === 'anual' && ui.cl) this.reanudar = ui;
+    // Vehículos: vuelve a la misma pantalla (inicio, flota, mi vehículo o podio)
+    if (ui.s === 'vehiculos') {
+      const v = ['inicio', 'flota', 'mio', 'podio'].includes(ui.vh) ? ui.vh : 'mio';
+      if ((v === 'inicio' || v === 'flota') && !this.esAdminFlotaUi) {
+        // Puede ser administrador de flota solo por su perfil: se decide cuando llegue
+        this.section = 'vehiculos'; this.grupoMenu = 'vehiculos'; this.vh = v; this.vhRestaurando = true;
+      } else this.irVeh(v);
+    }
   }
 
   private reanudarCaptura(): void {
@@ -12232,6 +12240,7 @@ export class AppComponent {
   // ----- Perfil y navegación -----
 
   private vhIntentos = 0;
+  private vhRestaurando = false;
 
   // El rol ya lo dice: no hay que esperar al servidor para mostrar Vehículos al administrador
   get esAdminFlotaUi(): boolean {
@@ -12245,6 +12254,7 @@ export class AppComponent {
         this.vhIntentos = 0;
         this.vhPerfil = { ...(p || {}), admin: !!p?.admin || this.isAdmin || this.permissions.includes('VEHICULOS_ADMINISTRAR'), vehiculos: p?.vehiculos || [] };
         if (this.vhPerfil.admin && !this.vhDec) this.cargarDecisiones();
+        if (this.vhRestaurando) { this.vhRestaurando = false; if (this.section === 'vehiculos' && this.vhPerfil.admin) this.irVeh(this.vh); }
         if (this.section === 'vehiculos' && this.vh === 'inicio' && !this.vhPerfil.admin) this.vh = this.vhPerfil.vehiculos?.length ? 'mio' : 'podio';
         if (this.section === 'vehiculos' && this.vh === 'flota' && !this.vhPerfil.admin) this.vh = 'mio';
       },
